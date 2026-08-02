@@ -1,0 +1,23 @@
+# Dependencies & package manager stores
+node_modules/
+.pnpm-store/
+
+# Framework build outputs
+.next/
+out/
+next-env.d.ts
+
+# Test & coverage artifacts
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+# Misc generated / lockfiles
+pnpm-lock.yaml
+*.tsbuildinfo
+.DS_Store
+
+# Drizzle kit journal/snapshots (SQL migrations remain formatted/committed)
+drizzle/migrations/meta/

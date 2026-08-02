@@ -1,0 +1,55 @@
+# Dependencies
+/node_modules
+.pnpm-store/
+
+# Next.js build output
+/.next/
+/out/
+
+# Production build
+/build
+
+# Testing & coverage
+/coverage
+/playwright-report
+/test-results
+/blob-report
+/.playwright
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Next.js generated types. `pnpm typecheck` runs `next typegen` first to
+# regenerate next-env.d.ts and .next/types, so this file need not be committed.
+next-env.d.ts
+
+# Environment files
+#
+# `.env` holds ONLY public, non-secret NEXT_PUBLIC_* defaults and IS committed
+# so the boilerplate builds/runs zero-config. Server secrets belong in
+# `.env.local` / `.env.server.local` (git-ignored) — never in NEXT_PUBLIC_*.
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.server
+.env.server.local
+
+# Drizzle Kit meta can be large; migrations SQL is committed, journal is needed.
+# Keep drizzle/migrations committed.
+
+# Editor / OS
+.DS_Store
+*.pem
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Vercel
+.vercel

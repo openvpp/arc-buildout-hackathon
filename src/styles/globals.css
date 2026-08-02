@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+/*
+ * Tailwind CSS v4 (CSS-first). Utilities are generated from class usage; there
+ * is no tailwind.config.js. `dark:` variants respond to the OS color scheme by
+ * default. Add design tokens here via `@theme` when a real design system lands.
+ */
+
+:root {
+  color-scheme: light dark;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif,
+    'Apple Color Emoji',
+    'Segoe UI Emoji';
+}

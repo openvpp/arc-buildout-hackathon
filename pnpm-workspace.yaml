@@ -1,0 +1,10 @@
+# pnpm reads build-script allowlists from here.
+#
+# Only these packages may run install/build scripts:
+#   - sharp:         image optimization for next/image
+#   - unrs-resolver: native module resolver used by eslint-plugin-import-x
+#   - esbuild:       used by drizzle-kit and tsx for TypeScript execution
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
