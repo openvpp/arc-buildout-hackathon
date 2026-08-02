@@ -4,9 +4,8 @@
  */
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { requestLatestTelemetry } from '@/server/application/telemetry/request-latest-telemetry';
 import { parseServerEnv, resetServerEnvCache } from '@/server/config/env';
@@ -26,6 +25,8 @@ import {
 } from '@/server/infrastructure/db/schema';
 import { createMockCircleGatewaySeller } from '@/server/infrastructure/payments/circle-gateway-seller';
 import { createConfiguredPricingPolicy } from '@/server/infrastructure/payments/pricing-policy';
+
+import { resetAndMigrateTestDatabase } from '../setup/reset-test-database';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -56,11 +57,12 @@ describe('circle gateway latest-telemetry integration', () => {
       TELEMETRY_PRICE_USDC_ATOMIC: '400',
     });
 
-    await sql`drop schema if exists public cascade`;
-    await sql`create schema public`;
-    await sql`create extension if not exists pgcrypto`;
-    await migrate(db, { migrationsFolder: './drizzle/migrations' });
+    await resetAndMigrateTestDatabase(sql);
   }, 60_000);
+
+  afterAll(async () => {
+    await sql.end({ timeout: 5 });
+  });
 
   it('returns 402 then settles once and advances cursor (mock Circle)', async () => {
     const principals = createPrincipalRepository(db);

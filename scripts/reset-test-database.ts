@@ -20,7 +20,9 @@ async function main(): Promise<void> {
   }
 
   const sql = postgres(url, { max: 1 });
+  // Drop drizzle migration history too; otherwise remigrate no-ops.
   await sql`drop schema if exists public cascade`;
+  await sql`drop schema if exists drizzle cascade`;
   await sql`create schema public`;
   await sql`create extension if not exists pgcrypto`;
   await sql.end({ timeout: 5 });

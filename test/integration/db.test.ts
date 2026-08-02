@@ -1,7 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { parseServerEnv, resetServerEnvCache } from '@/server/config/env';
 import { createDeviceRepository } from '@/server/infrastructure/db/repositories/device-repository';
@@ -13,6 +12,8 @@ import {
 } from '@/server/infrastructure/db/repositories/wallet-repository';
 import * as schema from '@/server/infrastructure/db/schema';
 import { wallets } from '@/server/infrastructure/db/schema';
+
+import { resetAndMigrateTestDatabase } from '../setup/reset-test-database';
 
 const databaseUrl =
   process.env.DATABASE_URL ??
@@ -41,11 +42,12 @@ describe('postgresql integration', () => {
       ALLOW_MOCK_ADAPTERS: 'true',
     });
 
-    await sql`drop schema if exists public cascade`;
-    await sql`create schema public`;
-    await sql`create extension if not exists pgcrypto`;
-    await migrate(db, { migrationsFolder: './drizzle/migrations' });
+    await resetAndMigrateTestDatabase(sql);
   }, 60_000);
+
+  afterAll(async () => {
+    await sql.end({ timeout: 5 });
+  });
 
   it('enforces unique wallet chain + normalized address', async () => {
     const repo = createWalletRepository(db);
