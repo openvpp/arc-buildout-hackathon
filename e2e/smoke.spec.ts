@@ -12,12 +12,22 @@ test.describe('smoke', () => {
     ).toBeVisible();
   });
 
-  test('dashboard shows the placeholder notice and empty telemetry state', async ({
+  test('dashboard renders backend-unavailable or live empty/data state', async ({
     page,
   }) => {
     await page.goto('/dashboard');
-    await expect(page.getByText(/Placeholder:/)).toBeVisible();
-    await expect(page.getByText('No telemetry to display')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Dashboard' }),
+    ).toBeVisible();
+
+    // Dashboard is wired to Postgres. Without seed (typical CI), it shows
+    // unavailable; with seed it shows empty wallets or real telemetry rows.
+    await expect(
+      page
+        .getByText('Backend data unavailable')
+        .or(page.getByText('No wallets yet'))
+        .or(page.getByText('Latest telemetry by wallet and device')),
+    ).toBeVisible();
   });
 
   test('primary navigation reaches wallets and devices', async ({ page }) => {
