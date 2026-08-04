@@ -6,12 +6,12 @@ Production-grade **Next.js App Router** monorepo containing:
 2. The **backend** (Route Handlers + worker + PostgreSQL + Circle Gateway x402)
 3. A **demo autonomous agent** (`pnpm agent:dev`)
 
-> **Status: Circle Gateway vertical slice implemented.** Agent latest-telemetry
-> `402` → settle → ledger/delivery, Enode webhook → hash/persist, Step-6 Arc +
-> content-hash verification, and multi-wallet/device dashboard wiring are in
-> place. Full BatchAnchor on-chain provenance and a separate BE/FE repository
-> split remain deferred. See [`CLAUDE.md`](./CLAUDE.md) and
-> [`docs/payment-flow.md`](./docs/payment-flow.md).
+> **Status:** Circle Gateway vertical slice + Enode Link onboarding + Enode
+> webhook ingest (HMAC-SHA1 / array envelope). Live Circle settle is
+> fail-closed when mocks are off; CI uses facilitator doubles / mocks, not
+> real funds. BatchAnchor and a BE/FE repo split remain deferred. See
+> [`docs/payment-flow.md`](./docs/payment-flow.md) and
+> [`docs/demo-runbook.md`](./docs/demo-runbook.md).
 
 ## Overview
 
@@ -33,7 +33,7 @@ authorization. Full flow: [`docs/domain-overview.md`](./docs/domain-overview.md)
 | 1    | Autonomous agent requests EV telemetry from the BE   | **Done** — `POST /api/v1/agent/telemetry/latest` + `pnpm agent:dev`                                              |
 | 2    | BE responds `402 Payment Required` + payment details | **Done** — Circle Gateway x402 (`PAYMENT-REQUIRED` header)                                                       |
 | 3    | Agent sends USDC nanopayment to the seller           | **Done (code)** — Gateway `payment-signature`; live funds need Circle/Arc keys (mocks allowed in demo/test only) |
-| 4    | BE verifies payment and credits the balance          | **Done** — facilitator settle → ledger credit + delivery + cursor                                                |
+| 4    | BE verifies payment and credits the balance          | **Done** — facilitator settle → ledger credit + delivery + cursor; tx-hash reuse rejected                        |
 | 5    | BE returns telemetry + settlement tx id              | **Done** — `TELEMETRY_DELIVERED` with payload, `payment.transactionHash`, `contentHash`                          |
 | 6    | Agent checks tx on Arc testnet + content hash match  | **Done (code)** — Viem receipt + hash check → `POST /api/v1/verification/results`                                |
 | 7    | Dashboard shows the result                           | **Done** — wallets / devices / dashboard grouped by wallet → device                                              |
@@ -41,17 +41,27 @@ authorization. Full flow: [`docs/domain-overview.md`](./docs/domain-overview.md)
 Additional product rules already implemented:
 
 - **Latest record only** — agent polls on an interval; new record → `402`, else `NO_NEW_RECORD` / `NO_TELEMETRY_AVAILABLE`
-- **Demo wallets & devices** — `pnpm db:seed`
+- **Demo wallets & devices** — `pnpm db:seed` + `pnpm demo:inject-telemetry`
 - **Multi-wallet / multi-device dashboard** — separate records per wallet and device
-- **Enode vehicle onboarding** — Link → OAuth → finalize → `devices` + `enode_connections` (`/devices/onboard`, see [`docs/enode-integration.md`](./docs/enode-integration.md))
+- **Enode vehicle onboarding** — Link → OAuth → finalize (`/devices/onboard`)
+- **Enode webhooks** — HMAC-SHA1, array deliveries, nested `vehicle` mapping → `telemetry_records`
 
-Still deferred / different from a future split-repo production setup:
+Still deferred:
 
 - Separate BE and FE repositories (this repo is a **monorepo**)
 - Web3Auth (onboarding currently uses a temporary wallet address stub)
-- Live production Enode sync beyond Link (webhook path exists; needs real Enode credentials + running worker/DB)
-- BatchAnchor claiming `ANCHORED` on-chain (provenance stays `PENDING` for now)
-- End-to-end with real Circle funds (path exists; CI uses facilitator doubles / `ALLOW_MOCK_ADAPTERS`)
+- BatchAnchor claiming `ANCHORED` on-chain (provenance stays `PENDING`)
+- End-to-end with real Circle funds in CI (facilitator doubles / mocks only)
+
+## Mock vs live Circle
+
+| Mode     | When                                                            | Evidence                                                                                |
+| -------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Mock** | `ALLOW_MOCK_ADAPTERS=true` (dev/demo/test only)                 | Deterministic settle; **not** live payment proof                                        |
+| **Live** | `ALLOW_MOCK_ADAPTERS=false` + real facilitator + funded wallets | Arc settlement `transactionHash`; seller wallet **required** (demo `0x1111…` forbidden) |
+
+Never treat mock settlement as live payment evidence. Stakeholder click-through:
+[`docs/demo-runbook.md`](./docs/demo-runbook.md) (path A mock, path B live checklist).
 
 ## Local setup
 
@@ -61,14 +71,14 @@ pnpm install
 pnpm services:up          # Postgres on :5432, test DB on :5433
 cp .env.example .env.local
 # set DATABASE_URL + API_KEY_HASH_SECRET (≥32 chars)
+# mock path: ALLOW_MOCK_ADAPTERS=true
+# live path: ALLOW_MOCK_ADAPTERS=false + SELLER_WALLET_ADDRESS + Circle/Arc keys
 pnpm db:migrate
-pnpm db:seed              # optional demo principal/API key
-pnpm demo:inject-telemetry  # optional sellable demo telemetry row
-# optional Enode Link: set ENODE_CLIENT_* + ENODE_REDIRECT_URI, then /devices/onboard
+pnpm db:seed
+pnpm demo:inject-telemetry
 pnpm dev                  # http://localhost:3000
-pnpm worker:dev           # separate terminal (Enode webhook processing)
-# mock agent: copy AGENT_* from seed, ALLOW_MOCK_ADAPTERS=true → pnpm agent:dev
-# full walkthrough: docs/demo-runbook.md
+pnpm worker:dev           # Enode webhook processing
+# copy AGENT_* from seed → pnpm agent:dev
 ```
 
 ## Available commands
@@ -87,8 +97,6 @@ pnpm validate             # format + lint + typecheck + unit + build
 pnpm validate:backend     # db:check + lint + typecheck + backend tests + openapi + build
 ```
 
-Stakeholder demo: [`docs/demo-runbook.md`](./docs/demo-runbook.md).
-
 ## Technology stack
 
 | Area        | Choice                                               |
@@ -96,6 +104,7 @@ Stakeholder demo: [`docs/demo-runbook.md`](./docs/demo-runbook.md).
 | Framework   | Next.js 16 (App Router), React 19                    |
 | Backend     | Route Handlers (nodejs) + `src/worker` outbox worker |
 | Database    | PostgreSQL 16 + Drizzle ORM 0.45 + Drizzle Kit 0.31  |
+| Payments    | Circle Gateway x402 (`@circle-fin/x402-batching`)    |
 | Validation  | Zod 4                                                |
 | Logging     | Pino 10 (server), typed logger (frontend)            |
 | Testing     | Vitest 4 (unit + PG integration), Playwright         |
@@ -120,20 +129,20 @@ Exact pinned versions are in [`package.json`](./package.json).
 
 ## Production readiness
 
-**Not production-ready yet.** This is a **demo / hackathon vertical slice** with
-solid structure and fail-closed guards — not a production deployment checklist.
+**Not production-ready yet.** Demo / hackathon vertical slice with fail-closed
+guards — not a production deployment checklist.
 
-| Area                          | Ready? | Notes                                                             |
-| ----------------------------- | ------ | ----------------------------------------------------------------- |
-| Circle 402 → settle → deliver | Code   | Needs live Circle facilitator + Arc RPC + funded Gateway wallet   |
-| Enode webhook ingest          | Code   | Needs real Enode webhook secrets + running worker/DB              |
-| Enode HTTP API sync           | No     | `EnodeClient` still fail-closed                                   |
-| BatchAnchor provenance        | No     | Deliveries report `PENDING`; do not claim `ANCHORED`              |
-| Buyer signing in prod         | No     | Env private key forbidden in prod; KMS/reference still deferred   |
-| Rate limiting on agent APIs   | No     | Bucket helper exists; not mounted on routes                       |
-| Strict provenance gating      | No     | `PROVENANCE_DELIVERY_MODE` env exists; not enforced on delivery   |
-| Separate BE/FE repos          | No     | Monorepo by design for now                                        |
-| CI with real Circle funds     | No     | Use facilitator doubles / `ALLOW_MOCK_ADAPTERS` in test/demo only |
+| Area                          | Ready? | Notes                                                                             |
+| ----------------------------- | ------ | --------------------------------------------------------------------------------- |
+| Circle 402 → settle → deliver | Code   | Live needs facilitator + Arc RPC + funded wallets; seller required when mocks off |
+| Settlement tx-hash reuse      | Done   | Cross-requirement reuse → `PAYMENT_TRANSACTION_REUSED`                            |
+| Enode webhook ingest          | Code   | HMAC-SHA1 + array/`vehicle` mapping; needs secret + worker                        |
+| Enode vehicle Link onboarding | Code   | Sandbox credentials + redirect URI                                                |
+| BatchAnchor provenance        | No     | Deliveries report `PENDING`; do not claim `ANCHORED`                              |
+| Buyer signing in prod         | No     | Env private key forbidden in prod; KMS/reference still deferred                   |
+| Rate limiting on agent APIs   | No     | Bucket helper exists; not mounted on routes                                       |
+| Separate BE/FE repos          | No     | Monorepo by design for now                                                        |
+| CI with real Circle funds     | No     | Facilitator doubles / `ALLOW_MOCK_ADAPTERS` only                                  |
 
 `pnpm validate` covers format/lint/typecheck/unit/build. Integration tests need
 Postgres (`pnpm services:up && pnpm test:integration`).
@@ -142,5 +151,6 @@ Postgres (`pnpm services:up && pnpm test:integration`).
 
 Never commit secrets, private keys, seed phrases, webhook secrets, or production
 `.env` files. Public defaults live in `.env`; server secrets are documented in
-`.env.example` and must stay out of `NEXT_PUBLIC_*`. Production rejects mock
-adapters.
+`.env.example` and must stay out of `NEXT_PUBLIC_*`. Production/staging reject
+mock adapters and raw buyer private keys in env. Live mode rejects the demo
+seller wallet `0x1111…`.

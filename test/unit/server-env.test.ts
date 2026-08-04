@@ -65,6 +65,37 @@ describe('parseServerEnv', () => {
       }),
     ).toThrow(/zero address/);
   });
+
+  it('requires SELLER_WALLET_ADDRESS when mock adapters are disabled', () => {
+    expect(() =>
+      parseServerEnv({
+        ...validEnv,
+        ALLOW_MOCK_ADAPTERS: 'false',
+      }),
+    ).toThrow(/SELLER_WALLET_ADDRESS is required/);
+  });
+
+  it('rejects the demo 0x1111… seller when mock adapters are disabled', () => {
+    expect(() =>
+      parseServerEnv({
+        ...validEnv,
+        ALLOW_MOCK_ADAPTERS: 'false',
+        SELLER_WALLET_ADDRESS: '0x1111111111111111111111111111111111111111',
+      }),
+    ).toThrow(/Demo seller wallet/);
+  });
+
+  it('allows live config when seller wallet is set and mocks are off', () => {
+    const env = parseServerEnv({
+      ...validEnv,
+      ALLOW_MOCK_ADAPTERS: 'false',
+      SELLER_WALLET_ADDRESS: '0x2222222222222222222222222222222222222222',
+    });
+    expect(env.ALLOW_MOCK_ADAPTERS).toBe(false);
+    expect(env.SELLER_WALLET_ADDRESS).toBe(
+      '0x2222222222222222222222222222222222222222',
+    );
+  });
 });
 
 describe('resetServerEnvCache', () => {

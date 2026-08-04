@@ -102,7 +102,7 @@ Use when demoing real Gateway settle on Arc testnet. Keep
 ```bash
 ALLOW_MOCK_ADAPTERS=false
 APP_ENV=development          # or demo — not production for env buyer key
-SELLER_WALLET_ADDRESS=0x...
+SELLER_WALLET_ADDRESS=0x...  # required; demo 0x1111… is rejected
 ARC_RPC_URL=https://rpc.testnet.arc.network
 ARC_CHAIN_ID=5042002
 ARC_USDC_CONTRACT_ADDRESS=0x3600000000000000000000000000000000000000
@@ -136,6 +136,7 @@ live hardware).
 | Symptom                            | Meaning                                       |
 | ---------------------------------- | --------------------------------------------- |
 | `PAYMENT_VERIFICATION_UNAVAILABLE` | Facilitator/RPC issue — no ledger credit      |
+| `PAYMENT_TRANSACTION_REUSED`       | Settlement hash already used on another buy   |
 | Agent `TX_MISSING`                 | Delivery may exist; Arc receipt not found yet |
 | `402` after signature              | Settle rejected — retry with fresh signature  |
 

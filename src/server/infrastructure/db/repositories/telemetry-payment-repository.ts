@@ -18,6 +18,18 @@ import type { DbOrTx } from '@/server/infrastructure/db/transaction';
 
 export type TelemetryRecordRow = typeof telemetryRecords.$inferSelect;
 
+/** Settlement tx hash already linked to a different payment requirement. */
+export class PaymentTransactionReuseError extends Error {
+  readonly code = 'PAYMENT_TRANSACTION_REUSED' as const;
+
+  constructor(readonly transactionHash: string) {
+    super(
+      `Payment transaction already linked to another requirement: ${transactionHash}`,
+    );
+    this.name = 'PaymentTransactionReuseError';
+  }
+}
+
 export async function findDeviceById(db: DbOrTx, deviceId: string) {
   const [row] = await db
     .select()
@@ -251,6 +263,9 @@ export async function creditAndDeliver(input: {
         .limit(1);
       if (existing === undefined) {
         throw new Error('Failed to claim payment transaction');
+      }
+      if (existing.paymentRequirementId !== input.paymentRequirementId) {
+        throw new PaymentTransactionReuseError(input.transactionHash);
       }
       paymentTransactionId = existing.id;
     }

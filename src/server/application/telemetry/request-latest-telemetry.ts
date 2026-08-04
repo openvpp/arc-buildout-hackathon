@@ -6,7 +6,7 @@ import {
   ARC_TESTNET_GATEWAY_WALLET,
   ARC_TESTNET_USDC_ADDRESS,
 } from '@/server/config/circle';
-import { getServerEnv } from '@/server/config/env';
+import { getServerEnv, type ServerEnv } from '@/server/config/env';
 import type { CircleGatewaySeller } from '@/server/domain/payments/circle-gateway';
 import type { TelemetryPricingPolicy } from '@/server/domain/shared/ports';
 import type { AuthenticatedPrincipal } from '@/server/infrastructure/auth/api-keys';
@@ -20,11 +20,33 @@ import {
   findWalletByNormalizedAddress,
   getAgentCursor,
   insertPaymentRequirement,
+  PaymentTransactionReuseError,
   principalHasWalletAccess,
   telemetryPayloadAsData,
 } from '@/server/infrastructure/db/repositories/telemetry-payment-repository';
 import { normalizeEvmAddress } from '@/server/infrastructure/db/repositories/wallet-repository';
 import { ApiError } from '@/server/transport/http/api-error';
+
+const MOCK_ONLY_SELLER_WALLET = '0x1111111111111111111111111111111111111111';
+
+function resolveSellerWalletAddress(env: ServerEnv): string {
+  if (
+    env.SELLER_WALLET_ADDRESS !== undefined &&
+    env.SELLER_WALLET_ADDRESS.length > 0
+  ) {
+    return env.SELLER_WALLET_ADDRESS;
+  }
+  if (env.ALLOW_MOCK_ADAPTERS) {
+    return MOCK_ONLY_SELLER_WALLET;
+  }
+  throw new ApiError({
+    code: 'INTERNAL_ERROR',
+    message:
+      'SELLER_WALLET_ADDRESS must be set when mock adapters are disabled.',
+    status: 500,
+    expose: false,
+  });
+}
 
 export type LatestTelemetryResult =
   | {
@@ -189,8 +211,7 @@ export async function requestLatestTelemetry(input: {
     price.pricingVersion,
   );
 
-  const seller =
-    env.SELLER_WALLET_ADDRESS ?? '0x1111111111111111111111111111111111111111';
+  const seller = resolveSellerWalletAddress(env);
   const token = env.ARC_USDC_CONTRACT_ADDRESS ?? ARC_TESTNET_USDC_ADDRESS;
   const gatewayWallet =
     env.CIRCLE_GATEWAY_WALLET_ADDRESS ?? ARC_TESTNET_GATEWAY_WALLET;
@@ -279,45 +300,57 @@ export async function requestLatestTelemetry(input: {
     });
   }
 
-  const settlement = await input.circleSeller.settle({
+  const settled = await input.circleSeller.settle({
     paymentSignatureHeader: input.paymentSignatureHeader,
     requirements: settleRequirements,
   });
 
-  if (!settlement.success) {
+  if (!settled.success) {
     throw new ApiError({
       code:
-        settlement.code === 'PAYMENT_VERIFICATION_UNAVAILABLE'
+        settled.code === 'PAYMENT_VERIFICATION_UNAVAILABLE'
           ? 'PAYMENT_VERIFICATION_UNAVAILABLE'
           : 'PAYMENT_TRANSACTION_INVALID',
-      message: settlement.message,
+      message: settled.message,
       status: 402,
     });
   }
 
-  const credited = await creditAndDeliver({
-    db: input.db,
-    principalId: input.principal.principalId,
-    walletId: wallet.id,
-    deviceId: device.id,
-    telemetryRecordId: latest.id,
-    paymentRequirementId: requirement.id,
-    chainId,
-    amountAtomic: requirement.amountAtomic,
-    asset: requirement.asset,
-    transactionHash: settlement.transactionHash,
-    payerAddress: settlement.payer,
-    tokenContractAddress: requirement.tokenContractAddress,
-  });
+  try {
+    const credited = await creditAndDeliver({
+      db: input.db,
+      principalId: input.principal.principalId,
+      walletId: wallet.id,
+      deviceId: device.id,
+      telemetryRecordId: latest.id,
+      paymentRequirementId: requirement.id,
+      chainId,
+      amountAtomic: requirement.amountAtomic,
+      asset: requirement.asset,
+      transactionHash: settled.transactionHash,
+      payerAddress: settled.payer,
+      tokenContractAddress: requirement.tokenContractAddress,
+    });
 
-  return buildDeliveredResult({
-    deliveryId: credited.deliveryId,
-    record: latest,
-    paymentRequirementId: requirement.id,
-    transactionHash: settlement.transactionHash,
-    verifiedAt: new Date().toISOString(),
-    chainId: String(chainId),
-  });
+    return buildDeliveredResult({
+      deliveryId: credited.deliveryId,
+      record: latest,
+      paymentRequirementId: requirement.id,
+      transactionHash: settled.transactionHash,
+      verifiedAt: new Date().toISOString(),
+      chainId: String(chainId),
+    });
+  } catch (error) {
+    if (error instanceof PaymentTransactionReuseError) {
+      throw new ApiError({
+        code: 'PAYMENT_TRANSACTION_REUSED',
+        message: 'Settlement transaction is already linked to another payment.',
+        status: 409,
+        details: { transactionHash: error.transactionHash },
+      });
+    }
+    throw error;
+  }
 }
 
 function buildDeliveredResult(input: {

@@ -191,6 +191,33 @@ export const serverEnvSchema = z
         message: 'Seller wallet must not be the zero address',
       });
     }
+
+    if (!env.ALLOW_MOCK_ADAPTERS) {
+      if (
+        env.SELLER_WALLET_ADDRESS === undefined ||
+        env.SELLER_WALLET_ADDRESS.length === 0
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SELLER_WALLET_ADDRESS'],
+          message:
+            'SELLER_WALLET_ADDRESS is required when ALLOW_MOCK_ADAPTERS is false',
+        });
+      }
+
+      if (
+        env.SELLER_WALLET_ADDRESS !== undefined &&
+        env.SELLER_WALLET_ADDRESS.toLowerCase() ===
+          '0x1111111111111111111111111111111111111111'
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['SELLER_WALLET_ADDRESS'],
+          message:
+            'Demo seller wallet 0x1111… is forbidden when mock adapters are disabled',
+        });
+      }
+    }
   });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;

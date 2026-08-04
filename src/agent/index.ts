@@ -180,22 +180,16 @@ async function verifyAndReport(input: {
     .update(JSON.stringify(input.delivered.telemetry.data), 'utf8')
     .digest('hex');
   const contentHashMatched =
-    contentHashComputed === input.delivered.provenance.contentHash ||
-    input.delivered.provenance.contentHash.length === 64;
+    contentHashComputed === input.delivered.provenance.contentHash;
 
   let status: 'VERIFIED' | 'TX_MISSING' | 'TX_FAILED' | 'HASH_MISMATCH' =
     'VERIFIED';
   if (!receiptFound) status = 'TX_MISSING';
   else if (!receiptSuccess) status = 'TX_FAILED';
-  else if (
-    contentHashComputed !== input.delivered.provenance.contentHash &&
-    !getServerEnv().ALLOW_MOCK_ADAPTERS
-  ) {
-    status = 'HASH_MISMATCH';
-  }
+  else if (!contentHashMatched) status = 'HASH_MISMATCH';
 
-  // Demo/mock settlement txs are not on-chain; still report VERIFIED when the
-  // backend returned a well-formed content hash after successful settle.
+  // Mock settlements are not on Arc. Do not invent TX_MISSING as failure; also
+  // do not treat a partial local re-hash as live hash evidence.
   if (getServerEnv().ALLOW_MOCK_ADAPTERS && !receiptFound) {
     status = 'VERIFIED';
   }

@@ -2,6 +2,7 @@ import {
   BatchFacilitatorClient,
   GATEWAY_AUTH_VALIDITY_WINDOW_SECONDS,
 } from '@circle-fin/x402-batching/server';
+import { z } from 'zod';
 
 import {
   ARC_TESTNET_CAIP2,
@@ -22,13 +23,50 @@ import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
 const log = createServerLogger({ component: 'circle-gateway-seller' });
 
+/**
+ * Narrow facilitator surface used by the seller so tests can inject doubles
+ * without calling Circle.
+ */
+export type CircleFacilitatorPort = {
+  settle(
+    payload: unknown,
+    requirements: CirclePaymentRequirements,
+  ): Promise<{
+    success: boolean;
+    transaction?: string;
+    payer?: string;
+    errorReason?: string;
+  }>;
+};
+
+const paymentSignatureEnvelopeSchema = z
+  .object({
+    mock: z.boolean().optional(),
+  })
+  .passthrough();
+
 function decodePaymentSignature(header: string): unknown {
-  const json = Buffer.from(header, 'base64').toString('utf8');
-  return JSON.parse(json) as unknown;
+  let json: string;
+  try {
+    json = Buffer.from(header, 'base64').toString('utf8');
+  } catch {
+    throw new Error('Payment signature is not valid base64');
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json) as unknown;
+  } catch {
+    throw new Error('Payment signature is not valid JSON');
+  }
+  const checked = paymentSignatureEnvelopeSchema.safeParse(parsed);
+  if (!checked.success) {
+    throw new Error('Payment signature payload shape is invalid');
+  }
+  return checked.data;
 }
 
 export function createCircleGatewaySeller(input?: {
-  facilitator?: BatchFacilitatorClient;
+  facilitator?: CircleFacilitatorPort;
 }): CircleGatewaySeller {
   const env = getServerEnv();
   const facilitatorUrl =
@@ -37,7 +75,7 @@ export function createCircleGatewaySeller(input?: {
       ? env.CIRCLE_GATEWAY_FACILITATOR_URL
       : CIRCLE_GATEWAY_FACILITATOR_DEFAULT_URL;
 
-  const facilitator =
+  const facilitator: CircleFacilitatorPort =
     input?.facilitator ??
     new BatchFacilitatorClient({
       url: facilitatorUrl,
@@ -102,16 +140,12 @@ export function createCircleGatewaySeller(input?: {
     async settle({ paymentSignatureHeader, requirements }) {
       try {
         const payload = decodePaymentSignature(paymentSignatureHeader);
-        // Circle docs: prefer settle() directly for production flows.
-        const settleResult = await facilitator.settle(
-          payload as never,
-          requirements,
-        );
+        const settleResult = await facilitator.settle(payload, requirements);
 
         if (!settleResult.success) {
           log.warn('circle.settle_failed', {
             errorReason:
-              'errorReason' in settleResult
+              settleResult.errorReason !== undefined
                 ? String(settleResult.errorReason)
                 : 'unknown',
           });

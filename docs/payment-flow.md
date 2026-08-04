@@ -22,7 +22,17 @@ raw ERC-20 `transfer` from the agent wallet.
 - Never return paid telemetry before settle + ledger/delivery commit
 - Never conflate `paymentTransactionHash` with `anchorTransactionHash`
 - Production forbids mock adapters and raw buyer private keys in env
+- Live mode (`ALLOW_MOCK_ADAPTERS=false`) **requires** a real `SELLER_WALLET_ADDRESS`
+  (demo `0x1111…` is forbidden)
+- Settlement `transactionHash` cannot be reused across different payment requirements
 - Only the latest telemetry record is sold; otherwise `NO_NEW_RECORD`
+
+## Mock vs live evidence
+
+| Mode             | Settle                            | Agent Step-6                              | CI                                                      |
+| ---------------- | --------------------------------- | ----------------------------------------- | ------------------------------------------------------- |
+| Mock adapters    | Deterministic fake hash           | May report `VERIFIED` without Arc receipt | Default for unit/demo                                   |
+| Live facilitator | `BatchFacilitatorClient.settle()` | Expect Arc receipt + hash check           | Inject facilitator **double** — never real Circle funds |
 
 ## Pricing
 
