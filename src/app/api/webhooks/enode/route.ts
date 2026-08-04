@@ -38,13 +38,14 @@ export const POST = createRouteHandler(async (request, context) => {
   const signature =
     request.headers.get('x-enode-signature') ??
     request.headers.get('x-webhook-signature');
+  const deliveryHeader = request.headers.get('x-enode-delivery');
 
   const result = await receiveEnodeWebhook({
     db: container.db,
-    outbox: container.outbox,
     rawBody,
     headers,
     signatureHeader: signature,
+    deliveryHeader,
   });
 
   // Acknowledge quickly; processing is asynchronous via outbox.

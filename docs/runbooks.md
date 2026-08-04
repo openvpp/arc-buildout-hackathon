@@ -54,8 +54,8 @@ do not treat it as the live money flow.
 
 - **Detect:** elevated `ENODE_WEBHOOK_INVALID`
 - **Contain:** keep endpoint rejecting invalid traffic
-- **Diagnose:** secret rotation skew, raw-body mutation, IP allowlist
-- **Remediate:** rotate/sync secrets; never disable verification in production
+- **Diagnose:** secret rotation skew, raw-body mutation, using SHA-256 instead of Enode’s HMAC-SHA1 (`sha1=<hex>`), wrong secret from webhook create
+- **Remediate:** rotate/sync secrets; verify against raw bytes; never disable verification in production
 - **Audit:** count rejected deliveries
 
 ## Worker queue backlog

@@ -5,10 +5,12 @@ import { getServerEnv } from '@/server/config/env';
 /**
  * Verify Enode webhook authenticity.
  *
- * When ENODE_WEBHOOK_SECRET is set, require HMAC-SHA256 over the raw body in
- * `x-enode-signature` (or `x-webhook-signature`). When unset in demo/dev/test
- * with ALLOW_MOCK_ADAPTERS, accept but record that crypto verification was
- * skipped. Production always requires the secret.
+ * Enode signs the raw body with HMAC-SHA1 and sends
+ * `x-enode-signature: sha1=<hex>` (see Enode webhook docs).
+ *
+ * When ENODE_WEBHOOK_SECRET is unset in demo/dev/test with
+ * ALLOW_MOCK_ADAPTERS, accept but record that crypto verification was
+ * skipped. Production/staging always require the secret.
  */
 export function verifyEnodeWebhook(input: {
   rawBody: Buffer;
@@ -32,14 +34,14 @@ export function verifyEnodeWebhook(input: {
     return { ok: false, reason: 'Missing webhook signature header' };
   }
 
-  const expected = createHmac('sha256', secret)
+  const provided = input.signatureHeader.trim();
+  const expected = `sha1=${createHmac('sha1', secret)
     .update(input.rawBody)
-    .digest('hex');
-  const provided = input.signatureHeader.replace(/^sha256=/i, '').trim();
+    .digest('hex')}`;
 
   try {
-    const a = Buffer.from(expected, 'hex');
-    const b = Buffer.from(provided, 'hex');
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(provided, 'utf8');
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
       return { ok: false, reason: 'Invalid webhook signature' };
     }
@@ -47,12 +49,10 @@ export function verifyEnodeWebhook(input: {
     return { ok: false, reason: 'Malformed webhook signature' };
   }
 
-  if (
-    env.ENODE_WEBHOOK_ALLOWED_IPS !== undefined &&
-    env.ENODE_WEBHOOK_ALLOWED_IPS.length > 0
-  ) {
-    // IP allowlist is enforced at the transport layer when x-forwarded-for is present.
-  }
-
   return { ok: true };
+}
+
+/** Compute Enode-style signature for tests / local fixtures. */
+export function signEnodeWebhookBody(rawBody: Buffer, secret: string): string {
+  return `sha1=${createHmac('sha1', secret).update(rawBody).digest('hex')}`;
 }

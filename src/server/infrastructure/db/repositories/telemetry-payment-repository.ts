@@ -166,7 +166,7 @@ export async function insertTelemetryRecord(
 }
 
 export async function insertWebhookDelivery(
-  db: Database,
+  db: DbOrTx,
   values: typeof webhookDeliveries.$inferInsert,
 ) {
   const [row] = await db.insert(webhookDeliveries).values(values).returning();

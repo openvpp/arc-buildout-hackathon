@@ -79,20 +79,37 @@ async function main(): Promise<void> {
     role: 'agent',
   });
 
-  await db.insert(devices).values({
-    walletId: wallet.id,
-    externalDeviceId: 'demo-enode-vehicle-1',
-    deviceType: 'vehicle',
-    vendor: 'DemoVendor',
-    model: 'DemoEV',
-    displayName: 'Demo Device (seed)',
-  });
+  const [device] = await db
+    .insert(devices)
+    .values({
+      walletId: wallet.id,
+      externalDeviceId: 'demo-enode-vehicle-1',
+      deviceType: 'vehicle',
+      vendor: 'DemoVendor',
+      model: 'DemoEV',
+      displayName: 'Demo Device (seed)',
+    })
+    .returning();
+
+  if (device === undefined) {
+    throw new Error('Failed to create demo device');
+  }
 
   await sql.end({ timeout: 5 });
 
   console.log('Demo seed complete (explicitly marked demo data).');
   console.log(`Demo principal id: ${agent.id}`);
   console.log(`Demo API key (shown once): ${keyMaterial.secret}`);
+  console.log(`Demo wallet address: ${demoAddress}`);
+  console.log(`Demo device id (AGENT_DEVICE_ID): ${device.id}`);
+  console.log('');
+  console.log('Copy into .env.local for the mock agent path:');
+  console.log(`AGENT_API_KEY=${keyMaterial.secret}`);
+  console.log(`AGENT_WALLET_ADDRESS=${demoAddress}`);
+  console.log(`AGENT_DEVICE_ID=${device.id}`);
+  console.log('AGENT_API_BASE_URL=http://localhost:3000');
+  console.log('');
+  console.log('Then: pnpm demo:inject-telemetry && pnpm agent:dev');
 }
 
 main().catch((error: unknown) => {

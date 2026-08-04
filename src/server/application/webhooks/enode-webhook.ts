@@ -13,14 +13,18 @@ import {
   hashCanonicalTelemetry,
 } from '@/server/domain/telemetry/canonical';
 import type { Database } from '@/server/infrastructure/db/client';
+import { enqueueOutboxEvent } from '@/server/infrastructure/db/repositories/outbox-repository';
 import {
   findDeviceByExternalId,
   insertTelemetryRecord,
   insertWebhookDelivery,
 } from '@/server/infrastructure/db/repositories/telemetry-payment-repository';
+import { withTransaction } from '@/server/infrastructure/db/transaction';
 import {
-  enodeVehicleTelemetryEventSchema,
-  mapEnodeEventToNormalizedTelemetry,
+  coerceEnodeVehicleEvent,
+  extractEnodeWebhookEvents,
+  mapUnifiedEnodeVehicleEvent,
+  summarizeEnodeWebhookEventTypes,
 } from '@/server/infrastructure/enode/webhook-mapper';
 import { verifyEnodeWebhook } from '@/server/infrastructure/enode/webhook-verifier';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
@@ -30,10 +34,10 @@ const log = createServerLogger({ component: 'enode-webhook' });
 
 export async function receiveEnodeWebhook(input: {
   db: Database;
-  outbox: OutboxRepository;
   rawBody: Buffer;
   headers: Record<string, string>;
   signatureHeader: string | null;
+  deliveryHeader?: string | null;
 }): Promise<{ deliveryId: string; duplicate: boolean }> {
   const verified = verifyEnodeWebhook({
     rawBody: input.rawBody,
@@ -59,48 +63,41 @@ export async function receiveEnodeWebhook(input: {
   }
 
   const payloadHash = createHash('sha256').update(input.rawBody).digest('hex');
+  const events = extractEnodeWebhookEvents(parsed);
+  const eventType = summarizeEnodeWebhookEventTypes(events);
 
-  const eventType =
-    typeof parsed === 'object' &&
-    parsed !== null &&
-    'type' in parsed &&
-    typeof parsed.type === 'string'
-      ? parsed.type
-      : 'unknown';
+  const deliveryIdHeader =
+    input.deliveryHeader !== undefined &&
+    input.deliveryHeader !== null &&
+    input.deliveryHeader.trim().length > 0
+      ? input.deliveryHeader.trim()
+      : null;
 
-  const providerEventId =
-    typeof parsed === 'object' &&
-    parsed !== null &&
-    'eventId' in parsed &&
-    typeof parsed.eventId === 'string'
-      ? parsed.eventId
-      : typeof parsed === 'object' &&
-          parsed !== null &&
-          'id' in parsed &&
-          typeof parsed.id === 'string'
-        ? parsed.id
-        : null;
-
+  const providerEventId = deliveryIdHeader;
   const dedupeKey = providerEventId ?? payloadHash;
 
   try {
-    const delivery = await insertWebhookDelivery(input.db, {
-      provider: 'enode',
-      providerEventId,
-      dedupeKey,
-      eventType,
-      signature: input.signatureHeader,
-      headers: input.headers,
-      rawPayload: parsed,
-      payloadHash,
-      processingStatus: 'queued',
-    });
+    const delivery = await withTransaction(input.db, async (tx) => {
+      const row = await insertWebhookDelivery(tx, {
+        provider: 'enode',
+        providerEventId,
+        dedupeKey,
+        eventType,
+        signature: input.signatureHeader,
+        headers: input.headers,
+        rawPayload: parsed,
+        payloadHash,
+        processingStatus: 'queued',
+      });
 
-    await input.outbox.enqueue({
-      aggregateType: 'webhook_delivery',
-      aggregateId: delivery.id,
-      eventType: 'PROCESS_ENODE_WEBHOOK',
-      payload: { webhookDeliveryId: delivery.id },
+      await enqueueOutboxEvent(tx, {
+        aggregateType: 'webhook_delivery',
+        aggregateId: row.id,
+        eventType: 'PROCESS_ENODE_WEBHOOK',
+        payload: { webhookDeliveryId: row.id },
+      });
+
+      return row;
     });
 
     return { deliveryId: delivery.id, duplicate: false };
@@ -140,100 +137,150 @@ export async function processEnodeWebhookDelivery(input: {
     return;
   }
 
-  const parsed = enodeVehicleTelemetryEventSchema.safeParse(
-    delivery.rawPayload,
-  );
-  if (!parsed.success) {
+  const events = extractEnodeWebhookEvents(delivery.rawPayload);
+  if (events.length === 0) {
     await input.db
       .update(webhookDeliveries)
       .set({
         processingStatus: 'unsupported',
         processedAt: new Date(),
         lastErrorCode: 'UNSUPPORTED_EVENT',
-        lastErrorMessage: 'Event shape not supported for telemetry ingestion',
+        lastErrorMessage: 'Webhook body had no events',
       })
       .where(eq(webhookDeliveries.id, delivery.id));
     return;
   }
 
-  const mapped = mapEnodeEventToNormalizedTelemetry(parsed.data);
-  const device = await findDeviceByExternalId(
-    input.db,
-    mapped.externalDeviceId,
-  );
-  if (device === null) {
+  let ingested = 0;
+  let skippedUnsupported = 0;
+  let skippedDuplicate = 0;
+  let missingDevices = 0;
+  const missingDeviceIds: string[] = [];
+
+  for (let index = 0; index < events.length; index += 1) {
+    const rawEvent = events[index];
+    const coerced = coerceEnodeVehicleEvent(rawEvent);
+    if (coerced === null) {
+      skippedUnsupported += 1;
+      continue;
+    }
+
+    const mapped = mapUnifiedEnodeVehicleEvent(coerced);
+    const sourceEventId =
+      mapped.sourceEventId ??
+      `${delivery.providerEventId ?? delivery.id}:${mapped.externalDeviceId}:${coerced.createdAt ?? index}`;
+
+    const device = await findDeviceByExternalId(
+      input.db,
+      mapped.externalDeviceId,
+    );
+    if (device === null) {
+      missingDevices += 1;
+      missingDeviceIds.push(mapped.externalDeviceId);
+      continue;
+    }
+
+    const receivedAt = delivery.receivedAt;
+    const recordedAt = mapped.sourceObservedAt ?? receivedAt;
+    const canonical = buildCanonicalTelemetryDocument({
+      deviceId: device.id,
+      source: 'enode',
+      sourceObservedAt: mapped.sourceObservedAt,
+      recordedAt,
+      receivedAt,
+      data: mapped.data,
+    });
+    const canonicalJson = canonicalizeTelemetry(canonical);
+    const { contentHash } = hashCanonicalTelemetry(canonicalJson);
+
+    try {
+      const record = await insertTelemetryRecord(input.db, {
+        deviceId: device.id,
+        source: 'enode',
+        sourceEventId,
+        sourceObservedAt: mapped.sourceObservedAt,
+        receivedAt,
+        recordedAt,
+        schemaVersion: TELEMETRY_SCHEMA_VERSION,
+        telemetryPayload: mapped.data,
+        canonicalPayload: canonical,
+        canonicalizationVersion: TELEMETRY_CANONICALIZATION_VERSION,
+        contentHashAlgorithm: TELEMETRY_HASH_ALGORITHM,
+        contentHash,
+        anchorStatus: 'unanchored',
+        dataOrigin:
+          env.APP_ENV === 'production' ? 'ENODE_PRODUCTION' : 'ENODE_SANDBOX',
+      });
+
+      await input.outbox.enqueue({
+        aggregateType: 'telemetry_record',
+        aggregateId: record.id,
+        eventType: 'ANCHOR_TELEMETRY',
+        payload: { telemetryRecordId: record.id, contentHash },
+      });
+      ingested += 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('unique') || message.includes('duplicate')) {
+        skippedDuplicate += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  const vehicleEvents = events.length - skippedUnsupported;
+
+  if (vehicleEvents === 0) {
+    await input.db
+      .update(webhookDeliveries)
+      .set({
+        processingStatus: 'unsupported',
+        processedAt: new Date(),
+        lastErrorCode: 'UNSUPPORTED_EVENT',
+        lastErrorMessage: 'No vehicle telemetry events in delivery',
+      })
+      .where(eq(webhookDeliveries.id, delivery.id));
+    return;
+  }
+
+  // Retry when every vehicle event failed device lookup (onboarding race).
+  if (ingested === 0 && skippedDuplicate === 0 && missingDevices > 0) {
     await input.db
       .update(webhookDeliveries)
       .set({
         processingStatus: 'failed',
         lastErrorCode: 'DEVICE_NOT_FOUND',
-        lastErrorMessage: `No device for external id ${mapped.externalDeviceId}`,
+        lastErrorMessage: `No device for external id(s): ${missingDeviceIds.slice(0, 5).join(', ')}`,
         attemptCount: delivery.attemptCount + 1,
       })
       .where(eq(webhookDeliveries.id, delivery.id));
-    throw new Error(`Device not found: ${mapped.externalDeviceId}`);
+    throw new Error(
+      `Device not found for Enode vehicle(s): ${missingDeviceIds.slice(0, 5).join(', ')}`,
+    );
   }
 
-  const receivedAt = delivery.receivedAt;
-  const recordedAt = mapped.sourceObservedAt ?? receivedAt;
-  const canonical = buildCanonicalTelemetryDocument({
-    deviceId: device.id,
-    source: 'enode',
-    sourceObservedAt: mapped.sourceObservedAt,
-    recordedAt,
-    receivedAt,
-    data: mapped.data,
+  await input.db
+    .update(webhookDeliveries)
+    .set({
+      processingStatus: 'processed',
+      processedAt: new Date(),
+      lastErrorCode:
+        missingDevices > 0 && ingested === 0 && skippedDuplicate > 0
+          ? 'DEVICE_NOT_FOUND'
+          : null,
+      lastErrorMessage:
+        missingDevices > 0
+          ? `ingested=${ingested} duplicate=${skippedDuplicate} missing=${missingDevices} unsupported=${skippedUnsupported}`
+          : null,
+    })
+    .where(eq(webhookDeliveries.id, delivery.id));
+
+  log.info('enode.webhook_processed', {
+    webhookDeliveryId: delivery.id,
+    ingested,
+    skippedDuplicate,
+    missingDevices,
+    skippedUnsupported,
   });
-  const canonicalJson = canonicalizeTelemetry(canonical);
-  const { contentHash } = hashCanonicalTelemetry(canonicalJson);
-
-  try {
-    const record = await insertTelemetryRecord(input.db, {
-      deviceId: device.id,
-      source: 'enode',
-      sourceEventId: mapped.sourceEventId,
-      sourceObservedAt: mapped.sourceObservedAt,
-      receivedAt,
-      recordedAt,
-      schemaVersion: TELEMETRY_SCHEMA_VERSION,
-      telemetryPayload: mapped.data,
-      canonicalPayload: canonical,
-      canonicalizationVersion: TELEMETRY_CANONICALIZATION_VERSION,
-      contentHashAlgorithm: TELEMETRY_HASH_ALGORITHM,
-      contentHash,
-      anchorStatus: 'unanchored',
-      dataOrigin:
-        env.APP_ENV === 'production' ? 'ENODE_PRODUCTION' : 'ENODE_SANDBOX',
-    });
-
-    await input.outbox.enqueue({
-      aggregateType: 'telemetry_record',
-      aggregateId: record.id,
-      eventType: 'ANCHOR_TELEMETRY',
-      payload: { telemetryRecordId: record.id, contentHash },
-    });
-
-    await input.db
-      .update(webhookDeliveries)
-      .set({
-        processingStatus: 'processed',
-        processedAt: new Date(),
-        lastErrorCode: null,
-        lastErrorMessage: null,
-      })
-      .where(eq(webhookDeliveries.id, delivery.id));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message.includes('unique') || message.includes('duplicate')) {
-      await input.db
-        .update(webhookDeliveries)
-        .set({
-          processingStatus: 'processed',
-          processedAt: new Date(),
-        })
-        .where(eq(webhookDeliveries.id, delivery.id));
-      return;
-    }
-    throw error;
-  }
 }

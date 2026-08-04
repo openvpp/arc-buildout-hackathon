@@ -63,11 +63,12 @@ cp .env.example .env.local
 # set DATABASE_URL + API_KEY_HASH_SECRET (≥32 chars)
 pnpm db:migrate
 pnpm db:seed              # optional demo principal/API key
+pnpm demo:inject-telemetry  # optional sellable demo telemetry row
 # optional Enode Link: set ENODE_CLIENT_* + ENODE_REDIRECT_URI, then /devices/onboard
 pnpm dev                  # http://localhost:3000
 pnpm worker:dev           # separate terminal (Enode webhook processing)
-# optional: configure AGENT_* + ARC_PAYMENT_SIGNER_PRIVATE_KEY (dev/demo only)
-pnpm agent:dev
+# mock agent: copy AGENT_* from seed, ALLOW_MOCK_ADAPTERS=true → pnpm agent:dev
+# full walkthrough: docs/demo-runbook.md
 ```
 
 ## Available commands
@@ -78,12 +79,15 @@ pnpm worker:dev / worker:start
 pnpm agent:dev / agent:start
 pnpm services:up / down / logs
 pnpm db:generate / migrate / check / seed / studio
+pnpm demo:inject-telemetry  # one demo-marked telemetry row for agent poll
 pnpm lint / format / typecheck
 pnpm test / test:unit / test:integration / test:backend / test:e2e
 pnpm openapi:generate / openapi:check
 pnpm validate             # format + lint + typecheck + unit + build
 pnpm validate:backend     # db:check + lint + typecheck + backend tests + openapi + build
 ```
+
+Stakeholder demo: [`docs/demo-runbook.md`](./docs/demo-runbook.md).
 
 ## Technology stack
 
@@ -105,6 +109,7 @@ Exact pinned versions are in [`package.json`](./package.json).
 - [`docs/database.md`](./docs/database.md)
 - [`docs/api.md`](./docs/api.md)
 - [`docs/payment-flow.md`](./docs/payment-flow.md)
+- [`docs/demo-runbook.md`](./docs/demo-runbook.md)
 - [`docs/provenance.md`](./docs/provenance.md)
 - [`docs/enode-integration.md`](./docs/enode-integration.md)
 - [`docs/security.md`](./docs/security.md)

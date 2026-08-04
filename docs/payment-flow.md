@@ -31,11 +31,15 @@ Server-side `TELEMETRY_PRICE_USDC_ATOMIC` (default `400` = `0.0004` USDC).
 ## Demo runbook
 
 1. `pnpm services:up && pnpm db:migrate && pnpm db:seed`
-2. Start API: `pnpm dev`
-3. Optional worker: `pnpm worker:dev` (Enode webhook processing)
-4. Optional agent: set `AGENT_*` + `ARC_PAYMENT_SIGNER_PRIVATE_KEY` (dev/demo only)
-   and run `pnpm agent:dev`
-5. For local CI-style settlement without Circle funds: `ALLOW_MOCK_ADAPTERS=true`
+2. `pnpm demo:inject-telemetry` — one sellable **demo-marked** telemetry row
+3. Start API: `pnpm dev`
+4. Optional worker: `pnpm worker:dev` (Enode webhook processing)
+5. Set `AGENT_*` from seed output; with mocks: `ALLOW_MOCK_ADAPTERS=true`
+   (no buyer key). Live Circle: see checklist in
+   [`docs/demo-runbook.md`](./demo-runbook.md).
+6. `pnpm agent:dev`
+
+Full stakeholder walkthrough (mock + live): [`docs/demo-runbook.md`](./demo-runbook.md).
 
 ### Facilitator / RPC outages
 

@@ -10,7 +10,10 @@ import {
 import { getServerEnv } from '@/server/config/env';
 import { formatAtomicAmount } from '@/server/domain/shared/money';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
-import { createCircleGatewayBuyer } from '@/server/infrastructure/payments/circle-gateway-buyer';
+import {
+  createCircleGatewayBuyer,
+  createMockCircleGatewayBuyer,
+} from '@/server/infrastructure/payments/circle-gateway-buyer';
 import {
   findGatewayBatchingOption,
   parsePaymentRequiredHeader,
@@ -88,7 +91,9 @@ async function pollOnce(input: {
     return;
   }
 
-  const buyer = createCircleGatewayBuyer();
+  const buyer = env.ALLOW_MOCK_ADAPTERS
+    ? createMockCircleGatewayBuyer()
+    : createCircleGatewayBuyer();
   const amountUsdc = Number(formatAtomicAmount(batching.amount, 6));
   await buyer.ensureLiquidity(amountUsdc);
   const signature = await buyer.createPaymentSignature({

@@ -31,16 +31,21 @@ are validated by `src/server/config/env.ts` and documented in `.env.example`.
 pnpm services:up       # Postgres + test Postgres
 pnpm db:migrate
 pnpm db:seed           # demo principal + API key (printed once)
+pnpm demo:inject-telemetry  # one sellable demo telemetry row
 pnpm worker:dev        # Enode webhook outbox processing
 pnpm validate:backend  # includes integration tests (needs Postgres)
 ```
+
+Stakeholder click-through: [`docs/demo-runbook.md`](./demo-runbook.md).
 
 Optional Circle demo agent (dev/demo only — never put buyer keys in
 `NEXT_PUBLIC_*`):
 
 ```bash
-# set AGENT_API_BASE_URL, AGENT_API_KEY, AGENT_WALLET_ADDRESS, AGENT_DEVICE_ID
-# and ARC_PAYMENT_SIGNER_PRIVATE_KEY (APP_ENV=development|demo|test only)
+# From seed output: AGENT_API_KEY, AGENT_WALLET_ADDRESS, AGENT_DEVICE_ID
+# AGENT_API_BASE_URL=http://localhost:3000
+# Mock path: ALLOW_MOCK_ADAPTERS=true (no ARC_PAYMENT_SIGNER_PRIVATE_KEY)
+# Live path: ALLOW_MOCK_ADAPTERS=false + ARC_PAYMENT_SIGNER_PRIVATE_KEY
 pnpm agent:dev
 ```
 
@@ -55,6 +60,7 @@ pnpm worker:dev     pnpm worker:start
 pnpm agent:dev      pnpm agent:start
 pnpm services:up    pnpm services:down  pnpm services:logs
 pnpm db:generate    pnpm db:migrate     pnpm db:check  pnpm db:seed
+pnpm demo:inject-telemetry
 pnpm lint           pnpm lint:fix
 pnpm format         pnpm format:check
 pnpm typecheck

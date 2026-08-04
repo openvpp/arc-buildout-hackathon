@@ -7,6 +7,7 @@ import type {
 
 import type { Database } from '../client';
 import { outboxEvents } from '../schema';
+import type { DbOrTx } from '../transaction';
 
 function mapOutbox(row: typeof outboxEvents.$inferSelect): OutboxEventRecord {
   return {
@@ -65,6 +66,36 @@ function mapRawOutbox(row: RawOutboxRow): OutboxEventRecord {
   };
 }
 
+export async function enqueueOutboxEvent(
+  db: DbOrTx,
+  input: {
+    aggregateType: string;
+    aggregateId: string;
+    eventType: string;
+    payload: Record<string, unknown>;
+    availableAt?: Date;
+  },
+): Promise<OutboxEventRecord> {
+  const [row] = await db
+    .insert(outboxEvents)
+    .values({
+      aggregateType: input.aggregateType,
+      aggregateId: input.aggregateId,
+      eventType: input.eventType,
+      payload: input.payload,
+      ...(input.availableAt !== undefined
+        ? { availableAt: input.availableAt }
+        : {}),
+    })
+    .returning();
+
+  if (row === undefined) {
+    throw new Error('Failed to enqueue outbox event');
+  }
+
+  return mapOutbox(row);
+}
+
 /**
  * PostgreSQL transactional outbox repository.
  *
@@ -73,24 +104,7 @@ function mapRawOutbox(row: RawOutboxRow): OutboxEventRecord {
 export function createOutboxRepository(db: Database): OutboxRepository {
   return {
     async enqueue(input) {
-      const [row] = await db
-        .insert(outboxEvents)
-        .values({
-          aggregateType: input.aggregateType,
-          aggregateId: input.aggregateId,
-          eventType: input.eventType,
-          payload: input.payload,
-          ...(input.availableAt !== undefined
-            ? { availableAt: input.availableAt }
-            : {}),
-        })
-        .returning();
-
-      if (row === undefined) {
-        throw new Error('Failed to enqueue outbox event');
-      }
-
-      return mapOutbox(row);
+      return enqueueOutboxEvent(db, input);
     },
 
     async claimNext(input) {
