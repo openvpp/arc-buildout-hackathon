@@ -45,25 +45,39 @@ Without it, onboarding shows an unconfigured state.
   → device appears under /devices
 ```
 
+## Dashboard mock buy flow (demo only)
+
+On `/dashboard`, each device card includes **Request latest** / **Pay (mock)**.
+
+```text
+Request latest
+  → POST /api/v1/demo/telemetry/latest { action: "quote" }
+  → NO_TELEMETRY_AVAILABLE | NO_NEW_RECORD | PAYMENT_REQUIRED | …
+
+Pay (mock)
+  → POST /api/v1/demo/telemetry/latest { action: "settle" }
+  → mock Circle settle → TELEMETRY_DELIVERED
+```
+
+Requires `ALLOW_MOCK_ADAPTERS=true` and `AGENT_API_KEY` in `.env.local` (server).
+Not live payment evidence. Production-style buyer remains the agent process.
+
 ## What the FE does **not** do
 
-- Call agent purchase `POST /api/v1/agent/telemetry/latest`
-- Settle Circle / show payment UI for buyers
+- Call agent purchase `POST /api/v1/agent/telemetry/latest` directly (uses demo BFF)
+- Live Circle settlement (mock path only when adapters allowed)
 - Post verification results (agent does `POST /api/v1/verification/results`)
-
-Telemetry and verification on `/dashboard` are **read-only** snapshot views after
-the agent has purchased and verified.
 
 ## Feature modules
 
-| Feature                     | Public surface                        | Notes                                            |
-| --------------------------- | ------------------------------------- | ------------------------------------------------ |
-| `src/features/auth`         | Web3Auth connect / session / id token | FE wallet identity                               |
-| `src/features/onboarding`   | `createOnboardingApi`                 | Typed client for Link / OAuth / finalize         |
-| `src/features/dashboard`    | `loadDashboardSnapshot`               | Server-only loader                               |
-| `src/features/telemetry`    | Gateway + schemas                     | Typed client exists; dashboard uses RSC/DB today |
-| `src/features/verification` | Status helpers                        | Badge tone on dashboard                          |
-| `src/features/wallets`      | Address formatting                    | Display helpers                                  |
+| Feature                     | Public surface                           | Notes                                            |
+| --------------------------- | ---------------------------------------- | ------------------------------------------------ |
+| `src/features/auth`         | Web3Auth connect / session / id token    | FE wallet identity                               |
+| `src/features/onboarding`   | `createOnboardingApi`                    | Typed client for Link / OAuth / finalize         |
+| `src/features/dashboard`    | Snapshot loader + mock Request/Pay panel | Demo buy BFF client                              |
+| `src/features/telemetry`    | Gateway + schemas                        | Typed client exists; dashboard uses RSC/DB today |
+| `src/features/verification` | Status helpers                           | Badge tone on dashboard                          |
+| `src/features/wallets`      | Address formatting                       | Display helpers                                  |
 
 Import features only via each package’s `index.ts`.
 
@@ -77,6 +91,7 @@ Called by the FE onboarding client or by agents/workers — not Next.js pages:
 | `GET`  | `/api/v1/vehicle-onboarding/oauth/enode-complete` | FE complete                                   |
 | `POST` | `/api/v1/vehicle-onboarding/pending/:id/complete` | FE complete                                   |
 | `GET`  | `/api/v1/devices/:deviceId/telemetry`             | Available read API (dashboard uses DB loader) |
+| `POST` | `/api/v1/demo/telemetry/latest`                   | FE dashboard mock buy (ALLOW_MOCK_ADAPTERS)   |
 | `POST` | `/api/v1/agent/telemetry/latest`                  | Agent only                                    |
 | `POST` | `/api/v1/verification/results`                    | Agent only                                    |
 | `POST` | `/api/webhooks/enode`                             | Enode → backend                               |

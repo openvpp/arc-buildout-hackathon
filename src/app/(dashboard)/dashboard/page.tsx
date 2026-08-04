@@ -6,7 +6,10 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { env } from '@/config/env';
-import { loadDashboardSnapshot } from '@/features/dashboard';
+import {
+  loadDashboardSnapshot,
+  RequestTelemetryPanel,
+} from '@/features/dashboard';
 import { verificationTone } from '@/features/verification';
 
 export const metadata: Metadata = {
@@ -181,6 +184,13 @@ export default async function DashboardPage() {
                         </span>
                       )}
                     </CardDescription>
+                    <RequestTelemetryPanel
+                      walletAddress={wallet.address}
+                      deviceId={device.id}
+                      deviceLabel={
+                        device.displayName ?? device.externalDeviceId
+                      }
+                    />
                   </Card>
                 );
               })}
