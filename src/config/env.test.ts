@@ -7,6 +7,8 @@ const validEnv: RawEnv = {
   NEXT_PUBLIC_APP_ENV: 'test',
   NEXT_PUBLIC_API_BASE_URL: 'http://localhost:4000',
   NEXT_PUBLIC_ARC_EXPLORER_BASE_URL: 'https://explorer.example',
+  NEXT_PUBLIC_WEB3AUTH_CLIENT_ID: '',
+  NEXT_PUBLIC_WEB3AUTH_NETWORK: 'sapphire_devnet',
 };
 
 describe('parseEnv', () => {

@@ -22,7 +22,9 @@ Ported from OpenVPP vehicle flow into Postgres / Next.js (not Mongo).
 - `/devices/onboard` — start Link (temporary wallet address stub)
 - `/enode/complete` — OAuth return + nickname finalize
 
-**Identity:** wallet address in body/localStorage until Web3Auth.
+**Identity:** Web3Auth (FE) provides the wallet address for Link / finalize.
+Server JWT verification of Web3Auth tokens is deferred — do not treat body
+`walletAddress` as strong auth yet.
 
 ### Env
 

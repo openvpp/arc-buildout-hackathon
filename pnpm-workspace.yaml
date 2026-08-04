@@ -4,7 +4,10 @@
 #   - sharp:         image optimization for next/image
 #   - unrs-resolver: native module resolver used by eslint-plugin-import-x
 #   - esbuild:       used by drizzle-kit and tsx for TypeScript execution
+#   - protobufjs / tiny-secp256k1: pulled in by @web3auth/modal
 allowBuilds:
   esbuild: true
+  protobufjs: true
   sharp: true
+  tiny-secp256k1: true
   unrs-resolver: true

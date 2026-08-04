@@ -11,6 +11,8 @@ declare global {
       readonly NEXT_PUBLIC_APP_ENV?: string;
       readonly NEXT_PUBLIC_API_BASE_URL?: string;
       readonly NEXT_PUBLIC_ARC_EXPLORER_BASE_URL?: string;
+      readonly NEXT_PUBLIC_WEB3AUTH_CLIENT_ID?: string;
+      readonly NEXT_PUBLIC_WEB3AUTH_NETWORK?: string;
 
       readonly NODE_ENV?: string;
       readonly APP_ENV?: string;

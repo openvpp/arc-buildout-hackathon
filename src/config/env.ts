@@ -42,6 +42,11 @@ export const envSchema = z.object({
   NEXT_PUBLIC_ARC_EXPLORER_BASE_URL: z.url(
     'NEXT_PUBLIC_ARC_EXPLORER_BASE_URL must be a valid URL',
   ),
+  /** Empty = Web3Auth UI disabled (CI / local without Client ID). */
+  NEXT_PUBLIC_WEB3AUTH_CLIENT_ID: z.string().default(''),
+  NEXT_PUBLIC_WEB3AUTH_NETWORK: z
+    .enum(['sapphire_devnet', 'sapphire_mainnet'])
+    .default('sapphire_devnet'),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -63,6 +68,8 @@ function readRawEnv(): RawEnv {
     NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
     NEXT_PUBLIC_ARC_EXPLORER_BASE_URL:
       process.env.NEXT_PUBLIC_ARC_EXPLORER_BASE_URL,
+    NEXT_PUBLIC_WEB3AUTH_CLIENT_ID: process.env.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID,
+    NEXT_PUBLIC_WEB3AUTH_NETWORK: process.env.NEXT_PUBLIC_WEB3AUTH_NETWORK,
   };
 }
 

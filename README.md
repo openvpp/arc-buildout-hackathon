@@ -43,13 +43,13 @@ Additional product rules already implemented:
 - **Latest record only** — agent polls on an interval; new record → `402`, else `NO_NEW_RECORD` / `NO_TELEMETRY_AVAILABLE`
 - **Demo wallets & devices** — `pnpm db:seed` + `pnpm demo:inject-telemetry`
 - **Multi-wallet / multi-device dashboard** — separate records per wallet and device
-- **Enode vehicle onboarding** — Link → OAuth → finalize (`/devices/onboard`)
+- **Enode vehicle onboarding** — Link → OAuth → finalize (`/devices/onboard`) with **Web3Auth** wallet connect (FE)
 - **Enode webhooks** — HMAC-SHA1, array deliveries, nested `vehicle` mapping → `telemetry_records`
 
 Still deferred:
 
 - Separate BE and FE repositories (this repo is a **monorepo**)
-- Web3Auth (onboarding currently uses a temporary wallet address stub)
+- Server-side Web3Auth JWT verification (onboarding still accepts `walletAddress` from the client for now)
 - BatchAnchor claiming `ANCHORED` on-chain (provenance stays `PENDING`)
 - End-to-end with real Circle funds in CI (facilitator doubles / mocks only)
 
@@ -73,6 +73,7 @@ cp .env.example .env.local
 # set DATABASE_URL + API_KEY_HASH_SECRET (≥32 chars)
 # mock path: ALLOW_MOCK_ADAPTERS=true
 # live path: ALLOW_MOCK_ADAPTERS=false + SELLER_WALLET_ADDRESS + Circle/Arc keys
+# Web3Auth: NEXT_PUBLIC_WEB3AUTH_CLIENT_ID (Sapphire Devnet) in .env.local
 pnpm db:migrate
 pnpm db:seed
 pnpm demo:inject-telemetry

@@ -79,12 +79,13 @@ With mocks enabled, the agent does **not** need `ARC_PAYMENT_SIGNER_PRIVATE_KEY`
 If the dashboard is empty, confirm seed ran against the same `DATABASE_URL` as
 `pnpm dev`, and that the agent settled at least once.
 
-### A6. Optional: Enode Link UI (still on mock payments)
+### A6. Optional: Enode Link UI
 
-With Enode sandbox credentials set (see `.env.example`):
+With Enode sandbox credentials **and** Web3Auth Client ID
+(`NEXT_PUBLIC_WEB3AUTH_CLIENT_ID`, Sapphire Devnet):
 
 1. Register `ENODE_REDIRECT_URI` (e.g. `http://localhost:3000/enode/complete`)
-2. Open `/devices/onboard`, enter a wallet address, start Link
+2. Open `/devices/onboard`, connect Web3Auth, start Link
 3. Complete OEM OAuth → nickname → device appears under `/devices`
 
 This does **not** replace inject for the agent demo unless you also ingest real

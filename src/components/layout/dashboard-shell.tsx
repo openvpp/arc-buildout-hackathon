@@ -9,7 +9,13 @@ import { siteConfig } from '@/config/site';
  * landmark, and the main content region. Server Component — only the nav's
  * active-state highlighting is client-side.
  */
-export function DashboardShell({ children }: { children: ReactNode }) {
+export function DashboardShell({
+  children,
+  headerActions,
+}: {
+  children: ReactNode;
+  headerActions?: ReactNode;
+}) {
   return (
     <div className="min-h-dvh bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <a
@@ -20,15 +26,18 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       </a>
 
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <Link href="/dashboard" className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight">
               {siteConfig.name}
             </span>
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-400">
-              Phase 1
+              Demo
             </span>
           </Link>
+          {headerActions !== undefined ? (
+            <div className="shrink-0">{headerActions}</div>
+          ) : null}
         </div>
       </header>
 

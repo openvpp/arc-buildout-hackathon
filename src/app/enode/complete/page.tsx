@@ -2,62 +2,51 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import {
-  Suspense,
-  useEffect,
-  useState,
-  useSyncExternalStore,
-  useTransition,
-} from 'react';
+import { Suspense, useEffect, useState, useTransition } from 'react';
 
 import { PageHeader } from '@/components/common/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import {
+  isWeb3AuthConfigured,
+  useConfiguredWalletSession,
+  WalletConnectButton,
+} from '@/features/auth';
 import { createOnboardingApi } from '@/features/onboarding';
 
-const WALLET_STORAGE_KEY = 'ev_onboard_wallet_address';
-
-function useStoredWalletAddress(): string {
-  return useSyncExternalStore(
-    () => () => undefined,
-    () => window.localStorage.getItem(WALLET_STORAGE_KEY) ?? '',
-    () => '',
-  );
-}
-
-type CompleteState =
+type OauthState =
+  | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'needs_form'; pendingId: string }
   | { kind: 'done'; deviceName: string }
   | { kind: 'error'; message: string };
 
-function EnodeCompleteInner() {
+function EnodeCompleteConfigured() {
   const searchParams = useSearchParams();
   const ovppPending = searchParams.get('ovppPending');
-  const walletAddress = useStoredWalletAddress();
+  const session = useConfiguredWalletSession();
   const [nickname, setNickname] = useState('');
-  const missingSetup =
-    ovppPending === null || walletAddress.trim().length === 0;
-  const [state, setState] = useState<CompleteState>(
-    missingSetup
-      ? {
-          kind: 'error',
-          message:
-            'Missing ovppPending or saved wallet address. Restart onboarding from Devices → Add vehicle.',
-        }
-      : { kind: 'loading' },
-  );
+  const [oauth, setOauth] = useState<OauthState>({ kind: 'idle' });
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (ovppPending === null || walletAddress.trim().length === 0) {
+    if (ovppPending === null) {
       return;
     }
+    if (
+      !session.isReady ||
+      session.status !== 'connected' ||
+      session.address === null
+    ) {
+      return;
+    }
+
     const pendingId = ovppPending;
-    const wallet = walletAddress.trim();
+    const wallet = session.address;
     const controller = new AbortController();
 
     void (async () => {
+      setOauth({ kind: 'loading' });
       try {
         const api = createOnboardingApi();
         await api.completeOAuth({
@@ -65,11 +54,11 @@ function EnodeCompleteInner() {
           walletAddress: wallet,
         });
         if (!controller.signal.aborted) {
-          setState({ kind: 'needs_form', pendingId });
+          setOauth({ kind: 'needs_form', pendingId });
         }
       } catch (e) {
         if (!controller.signal.aborted) {
-          setState({
+          setOauth({
             kind: 'error',
             message: e instanceof Error ? e.message : 'OAuth complete failed',
           });
@@ -80,32 +69,45 @@ function EnodeCompleteInner() {
     return () => {
       controller.abort();
     };
-  }, [ovppPending, walletAddress]);
+  }, [ovppPending, session.isReady, session.status, session.address]);
 
   function finish() {
-    if (state.kind !== 'needs_form') {
+    if (oauth.kind !== 'needs_form' || session.address === null) {
       return;
     }
+    const walletAddress = session.address;
     startTransition(async () => {
       try {
         const api = createOnboardingApi();
         const data = await api.finalize({
-          pendingId: state.pendingId,
-          walletAddress: walletAddress.trim(),
+          pendingId: oauth.pendingId,
+          walletAddress,
           ...(nickname.trim().length > 0 ? { nickname: nickname.trim() } : {}),
         });
-        setState({
+        setOauth({
           kind: 'done',
           deviceName: data.device.displayName ?? 'Vehicle',
         });
       } catch (e) {
-        setState({
+        setOauth({
           kind: 'error',
           message: e instanceof Error ? e.message : 'Finalize failed',
         });
       }
     });
   }
+
+  const view:
+    OauthState | { kind: 'needs_wallet' } | { kind: 'missing_pending' } =
+    ovppPending === null
+      ? { kind: 'missing_pending' }
+      : !session.isReady
+        ? { kind: 'loading' }
+        : session.status !== 'connected' || session.address === null
+          ? { kind: 'needs_wallet' }
+          : oauth.kind === 'idle'
+            ? { kind: 'loading' }
+            : oauth;
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-10">
@@ -115,15 +117,31 @@ function EnodeCompleteInner() {
       />
 
       <Card>
-        {state.kind === 'loading' ? (
+        {view.kind === 'loading' ? (
           <CardDescription>Confirming Enode connection…</CardDescription>
         ) : null}
 
-        {state.kind === 'error' ? (
+        {view.kind === 'needs_wallet' ? (
+          <>
+            <CardTitle>Reconnect wallet</CardTitle>
+            <CardDescription>
+              Sign in with the same Web3Auth account you used to start linking.
+            </CardDescription>
+            <div className="mt-4">
+              <WalletConnectButton />
+            </div>
+          </>
+        ) : null}
+
+        {view.kind === 'missing_pending' || view.kind === 'error' ? (
           <>
             <CardTitle>Could not finish</CardTitle>
             <CardDescription>
-              <span role="alert">{state.message}</span>
+              <span role="alert">
+                {view.kind === 'missing_pending'
+                  ? 'Missing ovppPending. Restart onboarding from Devices → Add vehicle.'
+                  : view.message}
+              </span>
             </CardDescription>
             <div className="mt-4">
               <Link
@@ -136,11 +154,12 @@ function EnodeCompleteInner() {
           </>
         ) : null}
 
-        {state.kind === 'needs_form' ? (
+        {view.kind === 'needs_form' ? (
           <>
             <CardTitle>Name your vehicle</CardTitle>
             <CardDescription>
-              Optional nickname, then save the device to this wallet.
+              Optional nickname, then save the device to{' '}
+              <span className="font-mono text-xs">{session.address}</span>.
             </CardDescription>
             <label className="mt-4 flex flex-col gap-1 text-sm">
               <span className="font-medium">Nickname</span>
@@ -161,11 +180,11 @@ function EnodeCompleteInner() {
           </>
         ) : null}
 
-        {state.kind === 'done' ? (
+        {view.kind === 'done' ? (
           <>
             <CardTitle>Connected</CardTitle>
             <CardDescription>
-              {state.deviceName} is linked. Telemetry can arrive via Enode
+              {view.deviceName} is linked. Telemetry can arrive via Enode
               webhooks.
             </CardDescription>
             <div className="mt-4 flex gap-3">
@@ -187,6 +206,27 @@ function EnodeCompleteInner() {
       </Card>
     </div>
   );
+}
+
+function EnodeCompleteInner() {
+  if (!isWeb3AuthConfigured()) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-10">
+        <PageHeader
+          title="Enode complete"
+          description="Web3Auth is required."
+        />
+        <Card>
+          <CardTitle>Web3Auth not configured</CardTitle>
+          <CardDescription>
+            Set NEXT_PUBLIC_WEB3AUTH_CLIENT_ID in .env.local and restart the
+            app.
+          </CardDescription>
+        </Card>
+      </div>
+    );
+  }
+  return <EnodeCompleteConfigured />;
 }
 
 export default function EnodeCompletePage() {

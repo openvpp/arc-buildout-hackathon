@@ -2,31 +2,39 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useSyncExternalStore, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { PageHeader } from '@/components/common/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import {
+  isWeb3AuthConfigured,
+  useConfiguredWalletSession,
+  WalletConnectButton,
+} from '@/features/auth';
 import { createOnboardingApi } from '@/features/onboarding';
 
-const WALLET_STORAGE_KEY = 'ev_onboard_wallet_address';
-
-function useStoredWalletAddress(): string {
-  return useSyncExternalStore(
-    () => () => undefined,
-    () => window.localStorage.getItem(WALLET_STORAGE_KEY) ?? '',
-    () => '',
+function UnconfiguredOnboard() {
+  return (
+    <Card>
+      <CardTitle>Web3Auth required</CardTitle>
+      <CardDescription>
+        Set{' '}
+        <code className="font-mono text-xs">
+          NEXT_PUBLIC_WEB3AUTH_CLIENT_ID
+        </code>{' '}
+        in <code className="font-mono text-xs">.env.local</code> (Sapphire
+        Devnet Client ID from the Web3Auth / MetaMask Embedded Wallets
+        dashboard), then restart{' '}
+        <code className="font-mono text-xs">pnpm dev</code>.
+      </CardDescription>
+    </Card>
   );
 }
 
-/**
- * Temporary Enode vehicle onboarding starter.
- * Wallet address is a stub until Web3Auth lands.
- */
-export default function DeviceOnboardPage() {
+function OnboardForm() {
   const router = useRouter();
-  const stored = useStoredWalletAddress();
-  const [walletAddress, setWalletAddress] = useState(stored);
+  const session = useConfiguredWalletSession();
   const [brand, setBrand] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -34,12 +42,16 @@ export default function DeviceOnboardPage() {
   function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    if (session.address === null) {
+      setError('Connect your wallet before starting Enode Link.');
+      return;
+    }
+    const walletAddress = session.address;
     startTransition(async () => {
       try {
-        window.localStorage.setItem(WALLET_STORAGE_KEY, walletAddress.trim());
         const api = createOnboardingApi();
         const data = await api.startLink({
-          walletAddress: walletAddress.trim(),
+          walletAddress,
           ...(brand.trim().length > 0 ? { brand: brand.trim() } : {}),
           frontendUrl: window.location.origin,
         });
@@ -51,36 +63,31 @@ export default function DeviceOnboardPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Add vehicle"
-        description="Connect an EV through Enode Link. Wallet auth is temporary until Web3Auth."
-      />
+    <Card>
+      <CardTitle>Enode vehicle link</CardTitle>
+      <CardDescription>
+        Sign in with Web3Auth, then continue to Enode / OEM login. You will
+        return here to finish onboarding.
+      </CardDescription>
 
-      <Card>
-        <CardTitle>Enode vehicle link</CardTitle>
-        <CardDescription>
-          You will be redirected to Enode / OEM login, then returned to this app
-          to finish onboarding.
-        </CardDescription>
+      <div className="mt-4 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700">
+          <div className="text-sm text-slate-700 dark:text-slate-200">
+            {session.status === 'connected' && session.address !== null ? (
+              <>
+                Connected:{' '}
+                <span className="font-mono text-xs">{session.address}</span>
+              </>
+            ) : session.status === 'initializing' ? (
+              'Initializing wallet…'
+            ) : (
+              'Connect a wallet to continue'
+            )}
+          </div>
+          <WalletConnectButton />
+        </div>
 
-        <form onSubmit={onSubmit} className="mt-4 flex flex-col gap-4">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-slate-800 dark:text-slate-200">
-              Wallet address (stub)
-            </span>
-            <input
-              required
-              pattern="^0x[a-fA-F0-9]{40}$"
-              value={walletAddress}
-              onChange={(e) => {
-                setWalletAddress(e.target.value);
-              }}
-              placeholder="0x…"
-              className="rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm dark:border-slate-700 dark:bg-slate-900"
-            />
-          </label>
-
+        <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-slate-800 dark:text-slate-200">
               Brand / vendor (optional)
@@ -102,7 +109,14 @@ export default function DeviceOnboardPage() {
           ) : null}
 
           <div className="flex flex-wrap gap-3">
-            <Button type="submit" disabled={pending}>
+            <Button
+              type="submit"
+              disabled={
+                pending ||
+                session.status !== 'connected' ||
+                session.address === null
+              }
+            >
               {pending ? 'Starting…' : 'Connect with Enode'}
             </Button>
             <Button
@@ -116,8 +130,19 @@ export default function DeviceOnboardPage() {
             </Button>
           </div>
         </form>
-      </Card>
+      </div>
+    </Card>
+  );
+}
 
+export default function DeviceOnboardPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Add vehicle"
+        description="Connect an EV through Enode Link using your Web3Auth wallet."
+      />
+      {isWeb3AuthConfigured() ? <OnboardForm /> : <UnconfiguredOnboard />}
       <p className="text-sm text-slate-600 dark:text-slate-400">
         <Link href="/devices" className="underline">
           Back to devices

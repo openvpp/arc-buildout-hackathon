@@ -30,6 +30,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  transpilePackages: ['@web3auth/modal'],
   // Typed routes are disabled so `pnpm typecheck` can run BEFORE `pnpm build`:
   // when enabled, Next writes an import of the generated `.next/types/routes.d.ts`
   // into `next-env.d.ts`, which does not exist on a fresh checkout. Re-enable in
