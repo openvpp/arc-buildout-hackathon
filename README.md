@@ -7,11 +7,14 @@ Production-grade **Next.js App Router** monorepo containing:
 3. A **demo autonomous agent** (`pnpm agent:dev`)
 
 > **Status:** Circle Gateway vertical slice + Enode Link onboarding + Enode
-> webhook ingest (HMAC-SHA1 / array envelope) + BatchAnchor provenance jobs
-> (mock / provisional live ABI). Live Circle settle is fail-closed when mocks
-> are off; CI uses facilitator doubles / mocks, not real funds. A BE/FE repo
-> split remains deferred. See [`docs/payment-flow.md`](./docs/payment-flow.md),
-> [`docs/provenance.md`](./docs/provenance.md), and
+> webhook ingest (HMAC-SHA1 / array envelope / optional IP allowlist) +
+> BatchAnchor provenance jobs (mock / provisional live ABI) + Web3Auth JWT
+> onboarding auth with `principal_wallets` binding + agent rate limits. Live
+> Circle settle is fail-closed when mocks are off; CI uses facilitator doubles /
+> mocks, not real funds. A BE/FE repo split remains deferred. See
+> [`docs/payment-flow.md`](./docs/payment-flow.md),
+> [`docs/provenance.md`](./docs/provenance.md),
+> [`docs/security.md`](./docs/security.md), and
 > [`docs/demo-runbook.md`](./docs/demo-runbook.md).
 
 ## Overview
@@ -44,8 +47,11 @@ Additional product rules already implemented:
 - **Latest record only** — agent polls on an interval; new record → `402`, else `NO_NEW_RECORD` / `NO_TELEMETRY_AVAILABLE`
 - **Demo wallets & devices** — `pnpm db:seed` + `pnpm demo:inject-telemetry`
 - **Multi-wallet / multi-device dashboard** — separate records per wallet and device
-- **Enode vehicle onboarding** — Link → OAuth → finalize (`/devices/onboard`) with **Web3Auth** wallet connect (FE)
-- **Enode webhooks** — HMAC-SHA1, array deliveries, nested `vehicle` mapping → `telemetry_records`
+- **Enode vehicle onboarding** — Link → OAuth → finalize (`/devices/onboard`) with **Web3Auth** connect + **JWT** on onboarding APIs
+- **Dashboard wallet binding** — verified Web3Auth identities upsert `dashboard_user` + `principal_wallets` (`owner`)
+- **Enode webhooks** — HMAC-SHA1, array deliveries, nested `vehicle` mapping; optional `ENODE_WEBHOOK_ALLOWED_IPS`
+- **BatchAnchor provenance** — worker `ANCHOR_TELEMETRY` / `CHECK_ANCHOR_CONFIRMATIONS`; `PROVENANCE_DELIVERY_MODE`
+- **Agent rate limits** — DB-backed limiter on `POST /api/v1/agent/telemetry/latest` (default 60 / 60s)
 
 Still deferred:
 
@@ -139,12 +145,13 @@ guards — not a production deployment checklist.
 | ----------------------------- | ------ | --------------------------------------------------------------------------------- |
 | Circle 402 → settle → deliver | Code   | Live needs facilitator + Arc RPC + funded wallets; seller required when mocks off |
 | Settlement tx-hash reuse      | Done   | Cross-requirement reuse → `PAYMENT_TRANSACTION_REUSED`                            |
-| Enode webhook ingest          | Code   | HMAC-SHA1 + array/`vehicle` mapping; needs secret + worker                        |
-| Enode vehicle Link onboarding | Code   | Sandbox credentials + redirect URI                                                |
+| Enode webhook ingest          | Code   | HMAC-SHA1 + array/`vehicle` mapping; optional IP allowlist; needs secret + worker |
+| Enode vehicle Link onboarding | Code   | Sandbox credentials + redirect URI + Web3Auth Bearer JWT                          |
+| Web3Auth JWT + wallet binding | Demo   | JWKS verify + `principal_wallets`; mock `Bearer mock:0x…` only when mocks on      |
 | BatchAnchor provenance        | Demo   | Mock/live adapters + worker; `pending` sells early, `strict` waits for `ANCHORED` |
+| Rate limiting on agent APIs   | Done   | `AGENT_RATE_LIMIT_*` (default 60/60s per principal); `Retry-After` from window    |
 | Buyer signing in prod         | No     | Env private key forbidden in prod; KMS/reference still deferred                   |
-| Rate limiting on agent APIs   | No     | Bucket helper exists; not mounted on routes                                       |
-| Separate BE/FE repos          | No     | Monorepo by design for now                                                        |
+| Separate BE/FE repos          | No     | Monorepo by design; boundaries in `docs/architecture.md`                          |
 | CI with real Circle funds     | No     | Facilitator doubles / `ALLOW_MOCK_ADAPTERS` only                                  |
 
 `pnpm validate` covers format/lint/typecheck/unit/build. Integration tests need
