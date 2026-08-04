@@ -121,6 +121,7 @@ Exact pinned versions are in [`package.json`](./package.json).
 
 ## Documentation
 
+- [`docs/frontend.md`](./docs/frontend.md)
 - [`docs/backend-architecture.md`](./docs/backend-architecture.md)
 - [`docs/database.md`](./docs/database.md)
 - [`docs/api.md`](./docs/api.md)
