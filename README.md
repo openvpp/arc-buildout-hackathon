@@ -11,7 +11,7 @@ Production-grade **Next.js App Router** monorepo containing:
 > BatchAnchor provenance jobs (mock / provisional live ABI) + Web3Auth JWT
 > onboarding auth with `principal_wallets` binding + agent rate limits. Live
 > Circle settle is fail-closed when mocks are off; CI uses facilitator doubles /
-> mocks, not real funds. A BE/FE repo split remains deferred. See
+> mocks, not real funds. See
 > [`docs/payment-flow.md`](./docs/payment-flow.md),
 > [`docs/provenance.md`](./docs/provenance.md),
 > [`docs/security.md`](./docs/security.md), and
@@ -55,10 +55,8 @@ Additional product rules already implemented:
 
 Still deferred:
 
-- Separate BE and FE repositories (this repo is a **monorepo**; boundaries documented)
 - Cookie/session-scoped dashboard principal (RSC lists bound wallets today)
 - Production KMS for BatchAnchor / buyer signing (raw private keys forbidden in prod/staging)
-- End-to-end with real Circle funds in CI (facilitator doubles / mocks only)
 - Real BatchAnchor contract ABI (provisional `anchorContentHash` ships for demos)
 
 ## Mock vs live Circle
@@ -151,8 +149,6 @@ guards — not a production deployment checklist.
 | BatchAnchor provenance        | Demo   | Mock/live adapters + worker; `pending` sells early, `strict` waits for `ANCHORED` |
 | Rate limiting on agent APIs   | Done   | `AGENT_RATE_LIMIT_*` (default 60/60s per principal); `Retry-After` from window    |
 | Buyer signing in prod         | No     | Env private key forbidden in prod; KMS/reference still deferred                   |
-| Separate BE/FE repos          | No     | Monorepo by design; boundaries in `docs/architecture.md`                          |
-| CI with real Circle funds     | No     | Facilitator doubles / `ALLOW_MOCK_ADAPTERS` only                                  |
 
 `pnpm validate` covers format/lint/typecheck/unit/build. Integration tests need
 Postgres (`pnpm services:up && pnpm test:integration`).
