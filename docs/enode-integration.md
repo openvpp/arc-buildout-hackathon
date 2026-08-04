@@ -1,31 +1,46 @@
 # Enode integration
 
-**Status:** webhook ingest path implemented; live Enode HTTP API client deferred.
+**Status:** vehicle Link onboarding + webhook ingest implemented; live Enode
+HTTP sync beyond Link remains limited to credentials you configure.
 
-## Implemented webhook flow
+## Vehicle onboarding (Enode Link)
 
-`POST /api/webhooks/enode`
+Ported from OpenVPP vehicle flow into Postgres / Next.js (not Mongo).
 
-1. Capture raw body bytes
-2. Verify authenticity (configured controls; mocks only when `ALLOW_MOCK_ADAPTERS`)
-3. Persist `webhook_deliveries` with payload hash / dedupe key
-4. Enqueue `PROCESS_ENODE_WEBHOOK` outbox event
-5. Return quickly; normalize asynchronously in the worker
-6. Worker inserts immutable `telemetry_records` with canonical JSON + SHA-256 hash
+### APIs
 
-Never log full webhook bodies by default. Unknown event types must not crash
-ingestion. Do not claim `ANCHORED` from webhook processing.
+| Method | Path                                              | Purpose                                 |
+| ------ | ------------------------------------------------- | --------------------------------------- |
+| `POST` | `/api/v1/vehicle-onboarding/link`                 | Create pending + Enode `linkUrl`        |
+| `GET`  | `/api/v1/vehicle-onboarding/oauth/enode-complete` | After OEM redirect                      |
+| `GET`  | `/api/v1/vehicle-onboarding/pending/:id`          | Pending status                          |
+| `POST` | `/api/v1/vehicle-onboarding/pending/:id/complete` | Persist `devices` + `enode_connections` |
 
-## Deferred: Enode API client
+### FE
 
-`EnodeClient` port: `src/server/domain/shared/ports.ts`  
-Fail-closed stub: `createFailClosedEnodeClient` in
-`src/server/infrastructure/blockchain/adapters.ts`.
+- `/devices/onboard` — start Link (temporary wallet address stub)
+- `/enode/complete` — OAuth return + nickname finalize
 
-Polling/sync against Enode’s HTTP APIs is **not** implemented. Production must
-not pretend stubbed client calls succeeded.
+**Identity:** wallet address in body/localStorage until Web3Auth.
+
+### Env
+
+See `.env.example` (`ENODE_*`, `PENDING_DEVICE_OAUTH_TTL_HOURS`). Register
+`ENODE_REDIRECT_URI` in the Enode developer console.
+
+### Tables
+
+- `pending_device_connections` — wizard state
+- `enode_api_tokens` — cached client-credentials bearer
+- `enode_connections` / `devices` — canonical rows (`external_device_id` = Enode vehicle id)
+
+## Webhook flow
+
+`POST /api/webhooks/enode` → `webhook_deliveries` → outbox `PROCESS_ENODE_WEBHOOK`
+→ immutable `telemetry_records` + content hash.
+
+Never claim `ANCHORED` from webhook processing.
 
 ## Configuration
 
-See `.env.example` for `ENODE_*` variables. Secrets must never be
-`NEXT_PUBLIC_*`.
+Secrets must never be `NEXT_PUBLIC_*`.

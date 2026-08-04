@@ -49,11 +49,15 @@ declare global {
       readonly BATCH_ANCHOR_CONTRACT_VERSION?: string;
       readonly BATCH_ANCHOR_SIGNER_KEY_REFERENCE?: string;
       readonly ENODE_API_BASE_URL?: string;
+      readonly ENODE_OAUTH_TOKEN_URL?: string;
       readonly ENODE_API_VERSION?: string;
       readonly ENODE_CLIENT_ID?: string;
       readonly ENODE_CLIENT_SECRET?: string;
+      readonly ENODE_REDIRECT_URI?: string;
+      readonly ENODE_FRONTEND_URL?: string;
       readonly ENODE_WEBHOOK_SECRET?: string;
       readonly ENODE_WEBHOOK_ALLOWED_IPS?: string;
+      readonly PENDING_DEVICE_OAUTH_TTL_HOURS?: string;
       readonly ALLOW_MOCK_ADAPTERS?: string;
       readonly WORKER_ID?: string;
       readonly WORKER_POLL_INTERVAL_MS?: string;

@@ -192,6 +192,25 @@ export const openApiDocument = {
         responses: { '200': { description: 'Device telemetry snapshot' } },
       },
     },
+    '/api/v1/vehicle-onboarding/link': {
+      post: {
+        tags: ['Dashboard'],
+        summary: 'Start Enode vehicle Link session',
+        operationId: 'createVehicleLink',
+        responses: {
+          '200': { description: 'linkUrl + pendingConnectionId' },
+          '400': { description: 'Validation / provider unavailable' },
+        },
+      },
+    },
+    '/api/v1/vehicle-onboarding/oauth/enode-complete': {
+      get: {
+        tags: ['Dashboard'],
+        summary: 'Complete Enode OAuth redirect',
+        operationId: 'enodeOAuthComplete',
+        responses: { '200': { description: 'Pending moved to pending_form' } },
+      },
+    },
     '/api/v1/verification/results': {
       post: {
         tags: ['Verification'],

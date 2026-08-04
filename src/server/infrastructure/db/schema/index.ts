@@ -721,6 +721,87 @@ export const agentVerificationResults = pgTable(
   ],
 );
 
+/**
+ * Cached Enode client-credentials access token (app-scoped, not per user).
+ */
+export const enodeApiTokens = pgTable(
+  'enode_api_tokens',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    tokenKey: text('token_key').notNull(),
+    accessToken: text('access_token').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [uniqueIndex('enode_api_tokens_key_uidx').on(table.tokenKey)],
+);
+
+/**
+ * Enode Link wizard state: pending_oauth → pending_form → completed.
+ * Temporary walletAddress identity until Web3Auth lands.
+ */
+export const pendingDeviceConnections = pgTable(
+  'pending_device_connections',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    walletAddress: text('wallet_address').notNull(),
+    normalizedWalletAddress: text('normalized_wallet_address').notNull(),
+    walletId: uuid('wallet_id').references(() => wallets.id, {
+      onDelete: 'set null',
+    }),
+    environment: text('environment').notNull().default('production'),
+    deviceType: text('device_type').notNull().default('electric_vehicle'),
+    brand: text('brand').notNull(),
+    normalizedBrand: text('normalized_brand').notNull(),
+    provider: text('provider').notNull().default('enode'),
+    providerVendorId: text('provider_vendor_id'),
+    status: text('status').notNull().default('pending_oauth'),
+    linkUrl: text('link_url'),
+    providerConnectionId: text('provider_connection_id'),
+    providerDeviceId: text('provider_device_id'),
+    providerUserId: text('provider_user_id'),
+    providerData: jsonb('provider_data').$type<Record<string, unknown>>(),
+    formData: jsonb('form_data').$type<Record<string, unknown>>(),
+    error: jsonb('error').$type<Record<string, unknown>>(),
+    requestMetadata: jsonb('request_metadata').$type<Record<string, unknown>>(),
+    resultDeviceId: uuid('result_device_id').references(() => devices.id, {
+      onDelete: 'set null',
+    }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'pending_device_connections_status_check',
+      sql`${table.status} in ('pending_oauth', 'oauth_completed', 'pending_form', 'completed', 'failed', 'expired', 'cancelled')`,
+    ),
+    check(
+      'pending_device_connections_provider_check',
+      sql`${table.provider} in ('enode')`,
+    ),
+    index('pending_device_connections_wallet_status_idx').on(
+      table.normalizedWalletAddress,
+      table.status,
+    ),
+    index('pending_device_connections_provider_device_idx').on(
+      table.provider,
+      table.providerDeviceId,
+    ),
+    index('pending_device_connections_expires_idx').on(table.expiresAt),
+  ],
+);
+
 /** Convenience boolean helpers for schema consumers (not persisted). */
 export const schemaMeta = {
   usesFloatingPointForTokens: false as const,

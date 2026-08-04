@@ -109,11 +109,19 @@ export const serverEnvSchema = z
     BATCH_ANCHOR_SIGNER_KEY_REFERENCE: z.string().optional(),
 
     ENODE_API_BASE_URL: optionalUrl,
+    ENODE_OAUTH_TOKEN_URL: optionalUrl,
     ENODE_API_VERSION: z.string().optional(),
     ENODE_CLIENT_ID: z.string().optional(),
     ENODE_CLIENT_SECRET: z.string().optional(),
+    ENODE_REDIRECT_URI: optionalUrl,
+    ENODE_FRONTEND_URL: optionalUrl,
     ENODE_WEBHOOK_SECRET: z.string().optional(),
     ENODE_WEBHOOK_ALLOWED_IPS: z.string().optional(),
+    PENDING_DEVICE_OAUTH_TTL_HOURS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(24),
 
     ALLOW_MOCK_ADAPTERS: z
       .enum(['true', 'false'])
@@ -229,11 +237,15 @@ export function readRawServerEnv(
     BATCH_ANCHOR_CONTRACT_VERSION: source.BATCH_ANCHOR_CONTRACT_VERSION,
     BATCH_ANCHOR_SIGNER_KEY_REFERENCE: source.BATCH_ANCHOR_SIGNER_KEY_REFERENCE,
     ENODE_API_BASE_URL: source.ENODE_API_BASE_URL,
+    ENODE_OAUTH_TOKEN_URL: source.ENODE_OAUTH_TOKEN_URL,
     ENODE_API_VERSION: source.ENODE_API_VERSION,
     ENODE_CLIENT_ID: source.ENODE_CLIENT_ID,
     ENODE_CLIENT_SECRET: source.ENODE_CLIENT_SECRET,
+    ENODE_REDIRECT_URI: source.ENODE_REDIRECT_URI,
+    ENODE_FRONTEND_URL: source.ENODE_FRONTEND_URL,
     ENODE_WEBHOOK_SECRET: source.ENODE_WEBHOOK_SECRET,
     ENODE_WEBHOOK_ALLOWED_IPS: source.ENODE_WEBHOOK_ALLOWED_IPS,
+    PENDING_DEVICE_OAUTH_TTL_HOURS: source.PENDING_DEVICE_OAUTH_TTL_HOURS,
     ALLOW_MOCK_ADAPTERS: source.ALLOW_MOCK_ADAPTERS,
     WORKER_ID: source.WORKER_ID,
     WORKER_POLL_INTERVAL_MS: source.WORKER_POLL_INTERVAL_MS,

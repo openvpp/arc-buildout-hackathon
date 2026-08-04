@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
@@ -23,6 +24,14 @@ export default async function DevicesPage() {
           title="Devices"
           description="EV devices grouped by the wallet that owns them."
         />
+        <div>
+          <Link
+            href="/devices/onboard"
+            className="inline-flex rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white"
+          >
+            Add vehicle
+          </Link>
+        </div>
         <EmptyState
           title="Backend data unavailable"
           description={
@@ -47,10 +56,19 @@ export default async function DevicesPage() {
         description="EV devices grouped by the wallet that owns them."
       />
 
+      <div>
+        <Link
+          href="/devices/onboard"
+          className="inline-flex rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white"
+        >
+          Add vehicle
+        </Link>
+      </div>
+
       {deviceCount === 0 ? (
         <EmptyState
           title="No devices yet"
-          description="Seed demo data to populate devices."
+          description="Connect an EV with Enode Link to populate devices."
         />
       ) : (
         <div className="flex flex-col gap-6">

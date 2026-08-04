@@ -43,11 +43,13 @@ Additional product rules already implemented:
 - **Latest record only** — agent polls on an interval; new record → `402`, else `NO_NEW_RECORD` / `NO_TELEMETRY_AVAILABLE`
 - **Demo wallets & devices** — `pnpm db:seed`
 - **Multi-wallet / multi-device dashboard** — separate records per wallet and device
+- **Enode vehicle onboarding** — Link → OAuth → finalize → `devices` + `enode_connections` (`/devices/onboard`, see [`docs/enode-integration.md`](./docs/enode-integration.md))
 
 Still deferred / different from a future split-repo production setup:
 
 - Separate BE and FE repositories (this repo is a **monorepo**)
-- Live production Enode sync (webhook path exists; needs real Enode credentials + running worker/DB)
+- Web3Auth (onboarding currently uses a temporary wallet address stub)
+- Live production Enode sync beyond Link (webhook path exists; needs real Enode credentials + running worker/DB)
 - BatchAnchor claiming `ANCHORED` on-chain (provenance stays `PENDING` for now)
 - End-to-end with real Circle funds (path exists; CI uses facilitator doubles / `ALLOW_MOCK_ADAPTERS`)
 
@@ -61,6 +63,7 @@ cp .env.example .env.local
 # set DATABASE_URL + API_KEY_HASH_SECRET (≥32 chars)
 pnpm db:migrate
 pnpm db:seed              # optional demo principal/API key
+# optional Enode Link: set ENODE_CLIENT_* + ENODE_REDIRECT_URI, then /devices/onboard
 pnpm dev                  # http://localhost:3000
 pnpm worker:dev           # separate terminal (Enode webhook processing)
 # optional: configure AGENT_* + ARC_PAYMENT_SIGNER_PRIVATE_KEY (dev/demo only)
