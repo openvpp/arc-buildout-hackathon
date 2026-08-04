@@ -56,8 +56,8 @@ export default async function DashboardPage() {
         <EmptyState
           title="Backend data unavailable"
           description={
-            loaded.reason === 'no_seed_principal'
-              ? 'Run pnpm db:migrate && pnpm db:seed, then refresh.'
+            loaded.reason === 'no_bound_wallets'
+              ? 'No bound wallets yet. Run pnpm db:seed and/or complete Web3Auth onboarding.'
               : 'Start Postgres (pnpm services:up), migrate, and ensure DATABASE_URL is set.'
           }
         />

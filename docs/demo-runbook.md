@@ -13,7 +13,9 @@ Stakeholder click-through for the EV telemetry nanopayment vertical slice.
 
 - Mock settlement (`ALLOW_MOCK_ADAPTERS=true`) is **not** live payment evidence.
 - `pnpm demo:inject-telemetry` inserts **demo-marked** sandbox data (`ENODE_SANDBOX`, `source=demo-inject`) — never claim it is a live Enode vehicle.
-- Provenance may stay `PENDING` until BatchAnchor is implemented.
+- Provenance anchors via worker (`ANCHOR_TELEMETRY` → `CHECK_ANCHOR_CONFIRMATIONS`).
+  Demo `.env.example` uses `PROVENANCE_DELIVERY_MODE=pending` so clicks work before
+  the worker confirms; use `strict` only with the worker running.
 
 Two paths below: **A mock** (fastest) and **B live Circle checklist**.
 
@@ -34,6 +36,7 @@ cp .env.example .env.local
 #   DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ev_telemetry
 #   API_KEY_HASH_SECRET=<≥32 chars>
 #   ALLOW_MOCK_ADAPTERS=true
+#   PROVENANCE_DELIVERY_MODE=pending
 #   APP_ENV=development
 pnpm db:migrate
 pnpm db:seed
@@ -54,12 +57,13 @@ Repeat this whenever you need a **new** unpaid record (agent otherwise gets
 
 ```bash
 pnpm dev                 # http://localhost:3000
-# optional for dashboard refresh — not required for agent settle:
-# pnpm worker:dev
+pnpm worker:dev          # mock BatchAnchor submit/confirm (needed for ANCHORED / strict)
 pnpm agent:dev           # polls latest telemetry
 ```
 
 With mocks enabled, the agent does **not** need `ARC_PAYMENT_SIGNER_PRIVATE_KEY`.
+With `PROVENANCE_DELIVERY_MODE=pending`, the agent can settle before the worker
+marks the record `anchored`.
 
 ### A4. Expected agent log sequence
 

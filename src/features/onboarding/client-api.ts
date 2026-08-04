@@ -24,19 +24,24 @@ const finalizeSchema = z.object({
   }),
 });
 
+function authHeaders(idToken: string): Record<string, string> {
+  return { Authorization: `Bearer ${idToken}` };
+}
+
 /**
- * Dashboard onboarding calls (read/write via typed API client).
- * Temporary until Web3Auth replaces walletAddress body auth.
+ * Dashboard onboarding calls. Requires a Web3Auth identity token.
  */
 export function createOnboardingApi(client: ApiClient = new ApiClient()) {
   return {
     async startLink(input: {
+      idToken: string;
       walletAddress: string;
       brand?: string;
       frontendUrl: string;
     }) {
       const result = await client.request('/api/v1/vehicle-onboarding/link', {
         method: 'POST',
+        headers: authHeaders(input.idToken),
         body: {
           walletAddress: input.walletAddress,
           ...(input.brand !== undefined && input.brand.length > 0
@@ -52,11 +57,16 @@ export function createOnboardingApi(client: ApiClient = new ApiClient()) {
       return result.data;
     },
 
-    async completeOAuth(input: { ovppPending: string; walletAddress: string }) {
+    async completeOAuth(input: {
+      idToken: string;
+      ovppPending: string;
+      walletAddress: string;
+    }) {
       const result = await client.request(
         '/api/v1/vehicle-onboarding/oauth/enode-complete',
         {
           method: 'GET',
+          headers: authHeaders(input.idToken),
           searchParams: {
             ovppPending: input.ovppPending,
             walletAddress: input.walletAddress,
@@ -71,6 +81,7 @@ export function createOnboardingApi(client: ApiClient = new ApiClient()) {
     },
 
     async finalize(input: {
+      idToken: string;
       pendingId: string;
       walletAddress: string;
       nickname?: string;
@@ -79,6 +90,7 @@ export function createOnboardingApi(client: ApiClient = new ApiClient()) {
         `/api/v1/vehicle-onboarding/pending/${input.pendingId}/complete`,
         {
           method: 'POST',
+          headers: authHeaders(input.idToken),
           body: {
             walletAddress: input.walletAddress,
             formData: {

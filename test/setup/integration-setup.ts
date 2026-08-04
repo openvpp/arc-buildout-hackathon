@@ -21,4 +21,5 @@ beforeAll(() => {
   }
   setEnv('APP_ENV', 'test');
   setEnv('ALLOW_MOCK_ADAPTERS', 'true');
+  setEnv('PROVENANCE_DELIVERY_MODE', 'pending');
 });

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
+import { bindDashboardOwnerWallet } from '@/server/application/onboarding/bind-dashboard-owner';
 import { createVehicleLink } from '@/server/application/onboarding/create-vehicle-link';
 import { getContainer } from '@/server/bootstrap/container';
+import { verifyWeb3AuthIdentity } from '@/server/infrastructure/auth/web3auth-identity';
 import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
 import { createRouteHandler } from '@/server/transport/http/route-handler';
@@ -23,7 +25,7 @@ const bodySchema = z
 
 /**
  * POST /api/v1/vehicle-onboarding/link
- * Temporary wallet-address auth stub until Web3Auth.
+ * Requires Authorization: Bearer <Web3Auth idToken>.
  */
 export const POST = createRouteHandler(async (request, context) => {
   const parsed = bodySchema.safeParse(await request.json());
@@ -36,9 +38,16 @@ export const POST = createRouteHandler(async (request, context) => {
     });
   }
 
+  const identity = await verifyWeb3AuthIdentity({
+    authorizationHeader: request.headers.get('authorization'),
+    claimedWalletAddress: parsed.data.walletAddress,
+  });
+
   const container = getContainer();
+  await bindDashboardOwnerWallet(container.db, identity);
+
   const result = await createVehicleLink(container.db, {
-    walletAddress: parsed.data.walletAddress,
+    walletAddress: identity.walletAddress,
     ...(parsed.data.brand !== undefined ? { brand: parsed.data.brand } : {}),
     ...(parsed.data.vendor !== undefined ? { vendor: parsed.data.vendor } : {}),
     ...(parsed.data.frontendUrl !== undefined

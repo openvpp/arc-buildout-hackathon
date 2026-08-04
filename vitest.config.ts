@@ -18,6 +18,7 @@ const sharedEnv = {
   API_KEY_HASH_SECRET: 'test-api-key-hash-secret-32chars!!',
   APP_ENV: 'test',
   ALLOW_MOCK_ADAPTERS: 'true',
+  PROVENANCE_DELIVERY_MODE: 'pending',
 };
 
 export default defineConfig({

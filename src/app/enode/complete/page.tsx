@@ -25,6 +25,12 @@ function EnodeCompleteConfigured() {
   const searchParams = useSearchParams();
   const ovppPending = searchParams.get('ovppPending');
   const session = useConfiguredWalletSession();
+  const {
+    isReady: sessionReady,
+    status: sessionStatus,
+    address: sessionAddress,
+    getIdToken,
+  } = session;
   const [nickname, setNickname] = useState('');
   const [oauth, setOauth] = useState<OauthState>({ kind: 'idle' });
   const [pending, startTransition] = useTransition();
@@ -34,22 +40,24 @@ function EnodeCompleteConfigured() {
       return;
     }
     if (
-      !session.isReady ||
-      session.status !== 'connected' ||
-      session.address === null
+      !sessionReady ||
+      sessionStatus !== 'connected' ||
+      sessionAddress === null
     ) {
       return;
     }
 
     const pendingId = ovppPending;
-    const wallet = session.address;
+    const wallet = sessionAddress;
     const controller = new AbortController();
 
     void (async () => {
       setOauth({ kind: 'loading' });
       try {
+        const idToken = await getIdToken();
         const api = createOnboardingApi();
         await api.completeOAuth({
+          idToken,
           ovppPending: pendingId,
           walletAddress: wallet,
         });
@@ -69,7 +77,7 @@ function EnodeCompleteConfigured() {
     return () => {
       controller.abort();
     };
-  }, [ovppPending, session.isReady, session.status, session.address]);
+  }, [ovppPending, sessionReady, sessionStatus, sessionAddress, getIdToken]);
 
   function finish() {
     if (oauth.kind !== 'needs_form' || session.address === null) {
@@ -78,8 +86,10 @@ function EnodeCompleteConfigured() {
     const walletAddress = session.address;
     startTransition(async () => {
       try {
+        const idToken = await session.getIdToken();
         const api = createOnboardingApi();
         const data = await api.finalize({
+          idToken,
           pendingId: oauth.pendingId,
           walletAddress,
           ...(nickname.trim().length > 0 ? { nickname: nickname.trim() } : {}),

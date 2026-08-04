@@ -7,10 +7,11 @@ Production-grade **Next.js App Router** monorepo containing:
 3. A **demo autonomous agent** (`pnpm agent:dev`)
 
 > **Status:** Circle Gateway vertical slice + Enode Link onboarding + Enode
-> webhook ingest (HMAC-SHA1 / array envelope). Live Circle settle is
-> fail-closed when mocks are off; CI uses facilitator doubles / mocks, not
-> real funds. BatchAnchor and a BE/FE repo split remain deferred. See
-> [`docs/payment-flow.md`](./docs/payment-flow.md) and
+> webhook ingest (HMAC-SHA1 / array envelope) + BatchAnchor provenance jobs
+> (mock / provisional live ABI). Live Circle settle is fail-closed when mocks
+> are off; CI uses facilitator doubles / mocks, not real funds. A BE/FE repo
+> split remains deferred. See [`docs/payment-flow.md`](./docs/payment-flow.md),
+> [`docs/provenance.md`](./docs/provenance.md), and
 > [`docs/demo-runbook.md`](./docs/demo-runbook.md).
 
 ## Overview
@@ -48,10 +49,11 @@ Additional product rules already implemented:
 
 Still deferred:
 
-- Separate BE and FE repositories (this repo is a **monorepo**)
-- Server-side Web3Auth JWT verification (onboarding still accepts `walletAddress` from the client for now)
-- BatchAnchor claiming `ANCHORED` on-chain (provenance stays `PENDING`)
+- Separate BE and FE repositories (this repo is a **monorepo**; boundaries documented)
+- Cookie/session-scoped dashboard principal (RSC lists bound wallets today)
+- Production KMS for BatchAnchor / buyer signing (raw private keys forbidden in prod/staging)
 - End-to-end with real Circle funds in CI (facilitator doubles / mocks only)
+- Real BatchAnchor contract ABI (provisional `anchorContentHash` ships for demos)
 
 ## Mock vs live Circle
 
@@ -139,7 +141,7 @@ guards — not a production deployment checklist.
 | Settlement tx-hash reuse      | Done   | Cross-requirement reuse → `PAYMENT_TRANSACTION_REUSED`                            |
 | Enode webhook ingest          | Code   | HMAC-SHA1 + array/`vehicle` mapping; needs secret + worker                        |
 | Enode vehicle Link onboarding | Code   | Sandbox credentials + redirect URI                                                |
-| BatchAnchor provenance        | No     | Deliveries report `PENDING`; do not claim `ANCHORED`                              |
+| BatchAnchor provenance        | Demo   | Mock/live adapters + worker; `pending` sells early, `strict` waits for `ANCHORED` |
 | Buyer signing in prod         | No     | Env private key forbidden in prod; KMS/reference still deferred                   |
 | Rate limiting on agent APIs   | No     | Bucket helper exists; not mounted on routes                                       |
 | Separate BE/FE repos          | No     | Monorepo by design for now                                                        |

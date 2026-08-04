@@ -149,7 +149,7 @@ export type PaymentVerifier = {
 };
 
 /**
- * Provenance anchoring port — BatchAnchor adapter lands in a later phase.
+ * Provenance anchoring port — BatchAnchor submit/confirm via worker jobs.
  */
 export type ProvenanceAnchor = {
   anchorTelemetry(input: {

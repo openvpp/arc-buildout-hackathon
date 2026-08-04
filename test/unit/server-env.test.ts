@@ -85,6 +85,21 @@ describe('parseServerEnv', () => {
     ).toThrow(/Demo seller wallet/);
   });
 
+  it('rejects production with a BatchAnchor signer private key', () => {
+    expect(() =>
+      parseServerEnv({
+        ...validEnv,
+        APP_ENV: 'production',
+        ALLOW_MOCK_ADAPTERS: 'false',
+        DATABASE_URL: 'postgresql://user:pass@db.example.com:5432/ev_telemetry',
+        API_KEY_HASH_SECRET: 'prod-api-key-hash-secret-32chars!!',
+        SELLER_WALLET_ADDRESS: '0x2222222222222222222222222222222222222222',
+        BATCH_ANCHOR_SIGNER_PRIVATE_KEY:
+          '0x1111111111111111111111111111111111111111111111111111111111111111',
+      }),
+    ).toThrow(/BatchAnchor signer private keys are forbidden/);
+  });
+
   it('allows live config when seller wallet is set and mocks are off', () => {
     const env = parseServerEnv({
       ...validEnv,

@@ -36,7 +36,7 @@ export async function ensureWalletForAddress(
     chainId,
     address: walletAddress.trim(),
     normalizedAddress: normalized,
-    label: 'Onboarded wallet (stub auth)',
+    label: 'Web3Auth onboarded wallet',
   });
   return {
     walletId: created.id,

@@ -28,12 +28,24 @@ export function jsonOk<T>(
 }
 
 export function jsonError(error: ApiError, requestId: string): NextResponse {
+  const retryAfter =
+    error.status === 429
+      ? (() => {
+          const fromDetails = error.details?.['retryAfterSeconds'];
+          return typeof fromDetails === 'number' &&
+            Number.isFinite(fromDetails) &&
+            fromDetails > 0
+            ? String(Math.ceil(fromDetails))
+            : '60';
+        })()
+      : undefined;
+
   return NextResponse.json(toApiErrorBody(error, requestId), {
     status: error.status,
     headers: {
       ...NO_STORE_HEADERS,
       [REQUEST_ID_HEADER]: requestId,
-      ...(error.status === 429 ? { 'Retry-After': '60' } : {}),
+      ...(retryAfter !== undefined ? { 'Retry-After': retryAfter } : {}),
     },
   });
 }

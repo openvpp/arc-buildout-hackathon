@@ -15,8 +15,8 @@ import type { AuthService } from '@/server/infrastructure/auth/auth-service';
 import {
   createFailClosedEnodeClient,
   createFailClosedPaymentVerifier,
-  createFailClosedProvenanceAnchor,
 } from '@/server/infrastructure/blockchain/adapters';
+import { createProvenanceAnchorForEnv } from '@/server/infrastructure/blockchain/provenance-anchor';
 import {
   checkDatabaseConnectivity,
   getDb,
@@ -71,7 +71,7 @@ export function createContainer(): AppContainer {
     devices: createDeviceRepository(db),
     outbox: createOutboxRepository(db),
     paymentVerifier: createFailClosedPaymentVerifier(),
-    provenanceAnchor: createFailClosedProvenanceAnchor(),
+    provenanceAnchor: createProvenanceAnchorForEnv(),
     enodeClient: createFailClosedEnodeClient(),
     pricing: createConfiguredPricingPolicy(),
     circleSeller: createCircleSellerForEnv(),

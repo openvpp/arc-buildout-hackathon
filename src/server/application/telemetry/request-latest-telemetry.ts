@@ -199,6 +199,23 @@ export async function requestLatestTelemetry(input: {
     });
   }
 
+  if (
+    env.PROVENANCE_DELIVERY_MODE === 'strict' &&
+    latest.anchorStatus !== 'anchored'
+  ) {
+    throw new ApiError({
+      code: 'PROVENANCE_PENDING',
+      message:
+        'Telemetry is not yet provenance-anchored. Retry after the worker confirms the BatchAnchor.',
+      status: 409,
+      details: {
+        telemetryRecordId: latest.id,
+        anchorStatus: latest.anchorStatus,
+        deliveryMode: env.PROVENANCE_DELIVERY_MODE,
+      },
+    });
+  }
+
   const price = await input.pricing.getPrice({
     deviceId: device.id,
     telemetryRecordId: latest.id,

@@ -30,6 +30,10 @@ declare global {
       readonly PAYMENT_REQUIREMENT_TTL_SECONDS?: string;
       readonly PAYMENT_PROTOCOL_VERSION?: string;
       readonly PROVENANCE_DELIVERY_MODE?: string;
+      readonly AGENT_RATE_LIMIT_PER_WINDOW?: string;
+      readonly AGENT_RATE_LIMIT_WINDOW_SECONDS?: string;
+      readonly WEB3AUTH_CLIENT_ID?: string;
+      readonly WEB3AUTH_JWKS_URLS?: string;
       readonly SELLER_WALLET_ADDRESS?: string;
       readonly ARC_RPC_URL?: string;
       readonly ARC_RPC_FALLBACK_URL?: string;
@@ -49,6 +53,7 @@ declare global {
       readonly AGENT_DEVICE_ID?: string;
       readonly BATCH_ANCHOR_CONTRACT_ADDRESS?: string;
       readonly BATCH_ANCHOR_CONTRACT_VERSION?: string;
+      readonly BATCH_ANCHOR_SIGNER_PRIVATE_KEY?: string;
       readonly BATCH_ANCHOR_SIGNER_KEY_REFERENCE?: string;
       readonly ENODE_API_BASE_URL?: string;
       readonly ENODE_OAUTH_TOKEN_URL?: string;

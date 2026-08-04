@@ -1,3 +1,5 @@
+import { checkTelemetryAnchorConfirmations } from '@/server/application/provenance/check-anchor-confirmations';
+import { submitTelemetryAnchor } from '@/server/application/provenance/submit-telemetry-anchor';
 import { processEnodeWebhookDelivery } from '@/server/application/webhooks/enode-webhook';
 import { getContainer } from '@/server/bootstrap/container';
 import type { JobHandler } from '@/server/infrastructure/jobs/worker';
@@ -26,19 +28,32 @@ export const foundationJobHandlers: Readonly<Record<string, JobHandler>> = {
     });
   },
   ANCHOR_TELEMETRY: async (event) => {
-    log.info('job.deferred', {
-      jobId: event.id,
-      eventType: event.eventType,
-      reason:
-        'BatchAnchor submission deferred — provenance remains PENDING until adapter lands',
-      telemetryRecordId: event.payload['telemetryRecordId'],
+    const telemetryRecordId = event.payload['telemetryRecordId'];
+    if (typeof telemetryRecordId !== 'string') {
+      throw new Error('ANCHOR_TELEMETRY missing telemetryRecordId');
+    }
+    const contentHash = event.payload['contentHash'];
+    const container = getContainer();
+    await submitTelemetryAnchor({
+      db: container.db,
+      outbox: container.outbox,
+      provenanceAnchor: container.provenanceAnchor,
+      telemetryRecordId,
+      ...(typeof contentHash === 'string' ? { contentHash } : {}),
     });
   },
   CHECK_ANCHOR_CONFIRMATIONS: async (event) => {
-    log.info('job.deferred', {
-      jobId: event.id,
-      eventType: event.eventType,
-      reason: 'Anchor confirmation checks deferred',
+    const telemetryRecordId = event.payload['telemetryRecordId'];
+    if (typeof telemetryRecordId !== 'string') {
+      throw new Error('CHECK_ANCHOR_CONFIRMATIONS missing telemetryRecordId');
+    }
+    const transactionHash = event.payload['transactionHash'];
+    const container = getContainer();
+    await checkTelemetryAnchorConfirmations({
+      db: container.db,
+      provenanceAnchor: container.provenanceAnchor,
+      telemetryRecordId,
+      ...(typeof transactionHash === 'string' ? { transactionHash } : {}),
     });
   },
   RECONCILE_PAYMENT: async (event) => {

@@ -19,12 +19,14 @@ Ported from OpenVPP vehicle flow into Postgres / Next.js (not Mongo).
 
 ### FE
 
-- `/devices/onboard` — start Link (temporary wallet address stub)
+- `/devices/onboard` — start Link (Web3Auth Bearer + wallet connect)
 - `/enode/complete` — OAuth return + nickname finalize
 
-**Identity:** Web3Auth (FE) provides the wallet address for Link / finalize.
-Server JWT verification of Web3Auth tokens is deferred — do not treat body
-`walletAddress` as strong auth yet.
+**Identity:** Onboarding APIs require `Authorization: Bearer <Web3Auth
+idToken>`. The server verifies the JWT (JWKS) and that the claimed
+`walletAddress` is bound to the token, then upserts a `dashboard_user`
+principal + `principal_wallets` (`owner`). With `ALLOW_MOCK_ADAPTERS=true`,
+`Bearer mock:0x…` is accepted for local tests only.
 
 ### Env
 
@@ -52,7 +54,7 @@ worker
        map vehicle.chargeState|odometer|location
        → find device by external_device_id
        → insert telemetry_records + content hash
-       → enqueue deferred ANCHOR_TELEMETRY (no-op until BatchAnchor)
+       → enqueue ANCHOR_TELEMETRY (worker → BatchAnchor mock/live)
 ```
 
 Never claim `ANCHORED` from webhook processing.
@@ -95,9 +97,8 @@ race) or succeed after Link finalize.
 
 ### Still deferred
 
-- IP allowlist from Enode DNS TXT (`ENODE_WEBHOOK_ALLOWED_IPS` env is reserved)
+- IP allowlist refresh from Enode DNS TXT (static `ENODE_WEBHOOK_ALLOWED_IPS` is wired)
 - Live Enode HTTP pull / reconcile jobs
-- BatchAnchor confirming `ANCHORED`
 
 ## Configuration
 

@@ -49,12 +49,14 @@ describe('circle gateway latest-telemetry integration', () => {
     setEnv('APP_ENV', 'test');
     setEnv('ALLOW_MOCK_ADAPTERS', 'true');
     setEnv('TELEMETRY_PRICE_USDC_ATOMIC', '400');
+    setEnv('PROVENANCE_DELIVERY_MODE', 'pending');
     parseServerEnv({
       DATABASE_URL: databaseUrl,
       API_KEY_HASH_SECRET: hashSecret,
       APP_ENV: 'test',
       ALLOW_MOCK_ADAPTERS: 'true',
       TELEMETRY_PRICE_USDC_ATOMIC: '400',
+      PROVENANCE_DELIVERY_MODE: 'pending',
     });
 
     await resetAndMigrateTestDatabase(sql);

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
+import { bindDashboardOwnerWallet } from '@/server/application/onboarding/bind-dashboard-owner';
 import { onEnodeOAuthComplete } from '@/server/application/onboarding/pending-oauth';
 import { getContainer } from '@/server/bootstrap/container';
+import { verifyWeb3AuthIdentity } from '@/server/infrastructure/auth/web3auth-identity';
 import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
 import { createRouteHandler } from '@/server/transport/http/route-handler';
@@ -32,10 +34,17 @@ export const GET = createRouteHandler(async (request, context) => {
     });
   }
 
+  const identity = await verifyWeb3AuthIdentity({
+    authorizationHeader: request.headers.get('authorization'),
+    claimedWalletAddress: parsed.data.walletAddress,
+  });
+
   const container = getContainer();
+  await bindDashboardOwnerWallet(container.db, identity);
+
   const result = await onEnodeOAuthComplete(container.db, {
     pendingId: parsed.data.ovppPending,
-    walletAddress: parsed.data.walletAddress,
+    walletAddress: identity.walletAddress,
   });
 
   if (!result.ok) {

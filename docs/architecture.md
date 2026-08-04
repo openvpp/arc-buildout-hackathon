@@ -57,6 +57,30 @@ UI layers; domain/application cannot import Next.js/React.
 - `.env` holds committed public defaults; `.env.local` / process env hold server
   secrets locally.
 
+## Backend vs frontend boundaries (same monorepo)
+
+This repo deliberately keeps BE and FE together for the hackathon vertical
+slice. Process and module boundaries already exist; **do not** invent a second
+git repository until extraction is a deliberate ops goal.
+
+| Concern            | Lives in                                                  | Notes                                  |
+| ------------------ | --------------------------------------------------------- | -------------------------------------- |
+| Dashboard UI       | `src/app/(dashboard)`, `src/features/*`, `src/components` | Viewer only                            |
+| HTTP transport     | `src/app/api/**`                                          | Thin Route Handlers — no domain logic  |
+| Domain / jobs / DB | `src/server/**`, `src/worker`                             | Source of truth for payments/telemetry |
+| Agent buyer        | `src/agent`                                               | Separate process; API-key client       |
+| Public config      | `src/config/env.ts` (`NEXT_PUBLIC_*`)                     | Browser-safe only                      |
+| Secrets            | `src/server/config/env.ts`                                | Never `NEXT_PUBLIC_*`                  |
+
+**FE → BE contract:** prefer `NEXT_PUBLIC_API_BASE_URL` + `ApiClient` /
+OpenAPI. Dashboard RSC loaders may call `src/server` application use cases in
+this monorepo; that path is a convenience, not permission to move ledger logic
+into React components.
+
+**When extracting later:** move `src/server` + `src/worker` + `src/agent` with
+Postgres; keep the Next dashboard calling the remote API base URL; share types
+via OpenAPI generation.
+
 ## Backend (same repository)
 
 See [`docs/backend-architecture.md`](./backend-architecture.md). Route Handlers
@@ -101,12 +125,15 @@ schema validation, conservative security headers in `next.config.ts`.
 - Ledger credit + delivery + cursor after successful settle
 - Demo agent Arc settlement receipt + content-hash verification
 - Dashboard read APIs + multi-wallet/device UI wiring
+- BatchAnchor provenance jobs + `PROVENANCE_DELIVERY_MODE` enforcement
+- Web3Auth JWT onboarding auth + `principal_wallets` owner binding
+- Enode webhook IP allowlist + agent telemetry rate limits
 
 **Still deferred:**
 
-- BatchAnchor provenance + enforced `PROVENANCE_DELIVERY_MODE=strict`
+- Production KMS for BatchAnchor / buyer signing
 - Live Enode HTTP API client sync
-- Production KMS buyer signing
-- Rate limiting mounted on agent routes
-- Separate BE/FE repositories
+- Separate BE/FE **repositories** (monorepo boundaries documented above)
+- Final BatchAnchor contract ABI (provisional ABI ships)
+- Cookie/session-scoped dashboard auth (bound wallets listed until then)
 - A concrete `Content-Security-Policy` once origins are finalized

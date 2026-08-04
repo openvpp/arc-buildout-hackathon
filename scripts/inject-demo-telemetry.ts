@@ -19,6 +19,8 @@ import {
   canonicalizeTelemetry,
   hashCanonicalTelemetry,
 } from '../src/server/domain/telemetry/canonical';
+import { enqueueOutboxEvent } from '../src/server/infrastructure/db/repositories/outbox-repository';
+import * as schema from '../src/server/infrastructure/db/schema';
 import {
   devices,
   telemetryRecords,
@@ -34,7 +36,7 @@ async function main(): Promise<void> {
   }
 
   const sql = postgres(url, { max: 1 });
-  const db = drizzle(sql);
+  const db = drizzle(sql, { schema });
 
   const [device] = await db
     .select({
@@ -107,11 +109,22 @@ async function main(): Promise<void> {
       contentHash: telemetryRecords.contentHash,
     });
 
-  await sql.end({ timeout: 5 });
-
   if (record === undefined) {
+    await sql.end({ timeout: 5 });
     throw new Error('Failed to insert demo telemetry');
   }
+
+  await enqueueOutboxEvent(db, {
+    aggregateType: 'telemetry_record',
+    aggregateId: record.id,
+    eventType: 'ANCHOR_TELEMETRY',
+    payload: {
+      telemetryRecordId: record.id,
+      contentHash: record.contentHash,
+    },
+  });
+
+  await sql.end({ timeout: 5 });
 
   console.log(
     'Demo telemetry injected (explicitly marked demo / ENODE_SANDBOX).',
@@ -120,6 +133,9 @@ async function main(): Promise<void> {
   console.log(`contentHash: ${record.contentHash}`);
   console.log(`deviceId: ${device.id}`);
   console.log(`walletAddress: ${wallet?.address ?? '(unknown)'}`);
+  console.log(
+    'Queued ANCHOR_TELEMETRY outbox job (run pnpm worker:dev to mock-anchor).',
+  );
   console.log(
     'Re-run this script to create a newer unpaid record for another agent poll.',
   );

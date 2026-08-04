@@ -49,8 +49,10 @@ function OnboardForm() {
     const walletAddress = session.address;
     startTransition(async () => {
       try {
+        const idToken = await session.getIdToken();
         const api = createOnboardingApi();
         const data = await api.startLink({
+          idToken,
           walletAddress,
           ...(brand.trim().length > 0 ? { brand: brand.trim() } : {}),
           frontendUrl: window.location.origin,

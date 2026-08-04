@@ -10,6 +10,7 @@ import {
 } from '@/server/config/constants';
 import { getServerEnv } from '@/server/config/env';
 import { credentialHasScope } from '@/server/infrastructure/auth/api-keys';
+import { consumeRateLimit } from '@/server/infrastructure/rate-limit/rate-limiter';
 import { ApiError } from '@/server/transport/http/api-error';
 import {
   jsonOk,
@@ -41,6 +42,21 @@ export const POST = createRouteHandler(async (request, context) => {
     });
   }
 
+  const env = getServerEnv();
+  const rate = await consumeRateLimit(container.db, {
+    bucketKey: `agent:telemetry:${principal.principalId}`,
+    limit: env.AGENT_RATE_LIMIT_PER_WINDOW,
+    windowSeconds: env.AGENT_RATE_LIMIT_WINDOW_SECONDS,
+  });
+  if (!rate.allowed) {
+    throw new ApiError({
+      code: 'RATE_LIMITED',
+      message: 'Agent telemetry rate limit exceeded. Retry later.',
+      status: 429,
+      details: { retryAfterSeconds: rate.retryAfterSeconds },
+    });
+  }
+
   const json: unknown = await request.json();
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
@@ -63,8 +79,6 @@ export const POST = createRouteHandler(async (request, context) => {
     paymentSignatureHeader: paymentSignature,
     resourceUrl: request.url,
   });
-
-  const env = getServerEnv();
 
   switch (result.kind) {
     case 'NO_TELEMETRY_AVAILABLE':

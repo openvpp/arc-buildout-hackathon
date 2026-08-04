@@ -5,8 +5,8 @@
 - No secrets in git, `NEXT_PUBLIC_*`, frontend bundles, or logs
 - API keys stored as HMAC-SHA256 hashes with `API_KEY_HASH_SECRET`
 - Wallet private keys / seed phrases never stored in the frontend
-- `ARC_PAYMENT_SIGNER_PRIVATE_KEY` allowed only in development/demo/test;
-  forbidden in production/staging (production buyer signing needs KMS/reference)
+- `ARC_PAYMENT_SIGNER_PRIVATE_KEY` / `BATCH_ANCHOR_SIGNER_PRIVATE_KEY` allowed
+  only in development/demo/test; forbidden in production/staging
 - Production rejects `ALLOW_MOCK_ADAPTERS=true`
 
 ## API
@@ -16,9 +16,12 @@
 - Authorization in the application layer (not only UI navigation)
 - Prefer `404` over `403` for resource enumeration where documented
 - Idempotency for financial writes (ledger / delivery constraints)
-- Rate-limit bucket table + helper exist under
-  `src/server/infrastructure/rate-limit/` — **not yet mounted** on agent routes;
-  do not claim production rate limiting until wired
+- Agent telemetry rate-limited via `consumeRateLimit` (`AGENT_RATE_LIMIT_*`,
+  default 60 / 60s per principal); `Retry-After` reflects the window reset
+- Onboarding APIs require `Authorization: Bearer <Web3Auth idToken>` (or
+  `Bearer mock:0x…` only when `ALLOW_MOCK_ADAPTERS=true`)
+- Enode webhooks: HMAC-SHA1 required; optional
+  `ENODE_WEBHOOK_ALLOWED_IPS` (IPv4 / CIDR) rejects other sources when set
 
 ## Headers
 

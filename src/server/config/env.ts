@@ -90,6 +90,16 @@ export const serverEnvSchema = z
     PAYMENT_PROTOCOL_VERSION: z.string().min(1).default('1.0.0'),
     PROVENANCE_DELIVERY_MODE: z.enum(['strict', 'pending']).default('strict'),
 
+    AGENT_RATE_LIMIT_PER_WINDOW: z.coerce.number().int().positive().default(60),
+    AGENT_RATE_LIMIT_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60),
+
+    WEB3AUTH_CLIENT_ID: z.string().optional(),
+    WEB3AUTH_JWKS_URLS: z.string().optional(),
+
     SELLER_WALLET_ADDRESS: ethereumAddress.optional(),
     ARC_RPC_URL: optionalUrl,
     ARC_RPC_FALLBACK_URL: optionalUrl,
@@ -106,6 +116,7 @@ export const serverEnvSchema = z
     AGENT_API_BASE_URL: optionalUrl,
     BATCH_ANCHOR_CONTRACT_ADDRESS: ethereumAddress.optional(),
     BATCH_ANCHOR_CONTRACT_VERSION: z.string().optional(),
+    BATCH_ANCHOR_SIGNER_PRIVATE_KEY: z.string().optional(),
     BATCH_ANCHOR_SIGNER_KEY_REFERENCE: z.string().optional(),
 
     ENODE_API_BASE_URL: optionalUrl,
@@ -168,6 +179,18 @@ export const serverEnvSchema = z
           path: ['ARC_PAYMENT_SIGNER_PRIVATE_KEY'],
           message:
             'Raw buyer private keys are forbidden in production/staging environment variables',
+        });
+      }
+
+      if (
+        env.BATCH_ANCHOR_SIGNER_PRIVATE_KEY !== undefined &&
+        env.BATCH_ANCHOR_SIGNER_PRIVATE_KEY.length > 0
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['BATCH_ANCHOR_SIGNER_PRIVATE_KEY'],
+          message:
+            'Raw BatchAnchor signer private keys are forbidden in production/staging environment variables',
         });
       }
 
@@ -246,6 +269,11 @@ export function readRawServerEnv(
     PAYMENT_REQUIREMENT_TTL_SECONDS: source.PAYMENT_REQUIREMENT_TTL_SECONDS,
     PAYMENT_PROTOCOL_VERSION: source.PAYMENT_PROTOCOL_VERSION,
     PROVENANCE_DELIVERY_MODE: source.PROVENANCE_DELIVERY_MODE,
+    AGENT_RATE_LIMIT_PER_WINDOW: source.AGENT_RATE_LIMIT_PER_WINDOW,
+    AGENT_RATE_LIMIT_WINDOW_SECONDS: source.AGENT_RATE_LIMIT_WINDOW_SECONDS,
+    WEB3AUTH_CLIENT_ID:
+      source.WEB3AUTH_CLIENT_ID ?? source.NEXT_PUBLIC_WEB3AUTH_CLIENT_ID,
+    WEB3AUTH_JWKS_URLS: source.WEB3AUTH_JWKS_URLS,
     SELLER_WALLET_ADDRESS: source.SELLER_WALLET_ADDRESS,
     ARC_RPC_URL: source.ARC_RPC_URL,
     ARC_RPC_FALLBACK_URL: source.ARC_RPC_FALLBACK_URL,
@@ -262,6 +290,7 @@ export function readRawServerEnv(
     AGENT_API_BASE_URL: source.AGENT_API_BASE_URL,
     BATCH_ANCHOR_CONTRACT_ADDRESS: source.BATCH_ANCHOR_CONTRACT_ADDRESS,
     BATCH_ANCHOR_CONTRACT_VERSION: source.BATCH_ANCHOR_CONTRACT_VERSION,
+    BATCH_ANCHOR_SIGNER_PRIVATE_KEY: source.BATCH_ANCHOR_SIGNER_PRIVATE_KEY,
     BATCH_ANCHOR_SIGNER_KEY_REFERENCE: source.BATCH_ANCHOR_SIGNER_KEY_REFERENCE,
     ENODE_API_BASE_URL: source.ENODE_API_BASE_URL,
     ENODE_OAUTH_TOKEN_URL: source.ENODE_OAUTH_TOKEN_URL,

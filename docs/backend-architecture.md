@@ -40,16 +40,18 @@ is a separate process and never runs in the browser.
 
 **Still deferred / not production-complete:**
 
-- BatchAnchor on-chain provenance (`ANCHORED`)
+- Production KMS BatchAnchor / buyer signing (raw private keys forbidden in prod/staging)
 - Live Enode HTTP API client sync (`EnodeClient` remains fail-closed)
-- Production KMS buyer signing (raw `ARC_PAYMENT_SIGNER_PRIVATE_KEY` forbidden in prod/staging)
-- Rate limiting wired onto agent routes (bucket table exists; not mounted yet)
-- `PROVENANCE_DELIVERY_MODE=strict` enforcement (env exists; delivery currently allows `PENDING`)
-- Separate BE/FE repositories (this repo is a monorepo)
+- Replace provisional BatchAnchor ABI with the contract project artifact
+- Cookie/session-scoped dashboard principal (RSC lists all bound wallets for now)
+- Separate BE/FE repositories (monorepo process/module split documented in architecture.md)
 
-Production mode rejects mock adapters (`ALLOW_MOCK_ADAPTERS` must be false).
-Legacy `PaymentVerifier` / `ProvenanceAnchor` ports remain fail-closed stubs;
-the live money path uses `CircleGatewaySeller.settle()`, not ERC-20 log verify.
+`PROVENANCE_DELIVERY_MODE` is enforced (`strict` → `PROVENANCE_PENDING` until
+`anchored`). Demo default is `pending`. Provenance uses
+`createProvenanceAnchorForEnv()` (mock / live / fail-closed).
+
+Agent telemetry uses DB rate limits. Enode webhooks honor optional IP allowlists.
+Onboarding requires verified Web3Auth identity tokens.
 
 ## Key modules
 

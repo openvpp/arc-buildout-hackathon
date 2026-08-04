@@ -1,10 +1,12 @@
 'use client';
 
 import {
+  useAuthTokenInfo,
   useWeb3Auth,
   useWeb3AuthConnect,
   useWeb3AuthDisconnect,
 } from '@web3auth/modal/react';
+import { useCallback } from 'react';
 import { useAccount } from 'wagmi';
 
 export type WalletSession =
@@ -14,6 +16,7 @@ export type WalletSession =
       readonly address: null;
       readonly connect: null;
       readonly disconnect: null;
+      readonly getIdToken: null;
     }
   | {
       readonly status: 'initializing' | 'disconnected' | 'connected';
@@ -23,6 +26,7 @@ export type WalletSession =
       readonly connectError: string | null;
       readonly connect: () => Promise<void>;
       readonly disconnect: () => Promise<void>;
+      readonly getIdToken: () => Promise<string>;
     };
 
 /**
@@ -41,6 +45,7 @@ export function useConfiguredWalletSession(): Exclude<
     error: connectError,
   } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
+  const { getAuthTokenInfo } = useAuthTokenInfo();
   const { address } = useAccount();
 
   const normalizedAddress =
@@ -54,17 +59,30 @@ export function useConfiguredWalletSession(): Exclude<
       ? 'connected'
       : 'disconnected';
 
+  const getIdToken = useCallback(async () => {
+    const token = await getAuthTokenInfo();
+    if (typeof token !== 'string' || token.length === 0) {
+      throw new Error('Web3Auth identity token unavailable.');
+    }
+    return token;
+  }, [getAuthTokenInfo]);
+
+  const connectWallet = useCallback(async () => {
+    await connect();
+  }, [connect]);
+
+  const disconnectWallet = useCallback(async () => {
+    await disconnect();
+  }, [disconnect]);
+
   return {
     status,
     isReady: isInitialized,
     address: normalizedAddress,
     isConnecting,
     connectError: connectError?.message ?? null,
-    connect: async () => {
-      await connect();
-    },
-    disconnect: async () => {
-      await disconnect();
-    },
+    connect: connectWallet,
+    disconnect: disconnectWallet,
+    getIdToken,
   };
 }

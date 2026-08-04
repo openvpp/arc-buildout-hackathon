@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
+import { bindDashboardOwnerWallet } from '@/server/application/onboarding/bind-dashboard-owner';
 import { finalizePendingVehicleConnection } from '@/server/application/onboarding/finalize-pending';
 import { getContainer } from '@/server/bootstrap/container';
+import { verifyWeb3AuthIdentity } from '@/server/infrastructure/auth/web3auth-identity';
 import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
 import { createRouteHandler } from '@/server/transport/http/route-handler';
@@ -40,11 +42,18 @@ export const POST = createRouteHandler(async (request, requestContext) => {
     });
   }
 
+  const identity = await verifyWeb3AuthIdentity({
+    authorizationHeader: request.headers.get('authorization'),
+    claimedWalletAddress: parsed.data.walletAddress,
+  });
+
   const container = getContainer();
+  await bindDashboardOwnerWallet(container.db, identity);
+
   try {
     const result = await finalizePendingVehicleConnection(container.db, {
       pendingConnectionId: id,
-      walletAddress: parsed.data.walletAddress,
+      walletAddress: identity.walletAddress,
       ...(parsed.data.formData !== undefined
         ? { formData: parsed.data.formData }
         : {}),
