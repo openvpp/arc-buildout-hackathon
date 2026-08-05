@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
   isWeb3AuthConfigured,
+  resolveWalletAddressForOnboarding,
   useConfiguredWalletSession,
   WalletConnectButton,
 } from '@/features/auth';
@@ -55,11 +56,15 @@ function EnodeCompleteConfigured() {
       setOauth({ kind: 'loading' });
       try {
         const idToken = await getIdToken();
+        const boundWalletAddress = resolveWalletAddressForOnboarding({
+          idToken,
+          sessionAddress: wallet,
+        });
         const api = createOnboardingApi();
         await api.completeOAuth({
           idToken,
           ovppPending: pendingId,
-          walletAddress: wallet,
+          walletAddress: boundWalletAddress,
         });
         if (!controller.signal.aborted) {
           setOauth({ kind: 'needs_form', pendingId });
@@ -87,11 +92,15 @@ function EnodeCompleteConfigured() {
     startTransition(async () => {
       try {
         const idToken = await session.getIdToken();
+        const boundWalletAddress = resolveWalletAddressForOnboarding({
+          idToken,
+          sessionAddress: walletAddress,
+        });
         const api = createOnboardingApi();
         const data = await api.finalize({
           idToken,
           pendingId: oauth.pendingId,
-          walletAddress,
+          walletAddress: boundWalletAddress,
           ...(nickname.trim().length > 0 ? { nickname: nickname.trim() } : {}),
         });
         setOauth({

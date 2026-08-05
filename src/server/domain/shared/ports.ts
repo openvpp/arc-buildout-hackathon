@@ -34,6 +34,11 @@ export type DeviceRecord = {
   readonly model: string | null;
   readonly displayName: string | null;
   readonly status: string;
+  readonly nftTokenId: string | null;
+  readonly nftContractAddress: string | null;
+  readonly nftTransactionHash: string | null;
+  readonly nftMetadataUri: string | null;
+  readonly network: string | null;
   readonly lastSeenAt: Date | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -164,6 +169,17 @@ export type ProvenanceAnchor = {
     contentHash: string;
     anchorTransactionHash: string;
   }): Promise<{ valid: boolean; reason?: string }>;
+};
+
+/**
+ * DeviceNFT mint port — Arc registry of linked EVs (distinct from BatchAnchor).
+ */
+export type DeviceNftMinter = {
+  mintDevice(input: {
+    to: string;
+    typeId: bigint;
+    deviceURI: string;
+  }): Promise<{ tokenId: string; transactionHash: string }>;
 };
 
 /**

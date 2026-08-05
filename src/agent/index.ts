@@ -46,6 +46,54 @@ type DeliveredResponse = {
   };
 };
 
+type LatestDeviceResponse = {
+  device: {
+    deviceId: string;
+    externalDeviceId: string;
+    displayName: string | null;
+  };
+};
+
+async function resolveDeviceId(input: {
+  apiBaseUrl: string;
+  apiKey: string;
+  walletAddress: string;
+  overrideDeviceId: string | undefined;
+}): Promise<string | null> {
+  if (
+    input.overrideDeviceId !== undefined &&
+    input.overrideDeviceId.length > 0
+  ) {
+    return input.overrideDeviceId;
+  }
+
+  const url = new URL(`${input.apiBaseUrl}/api/v1/agent/devices/latest`);
+  url.searchParams.set('walletAddress', input.walletAddress);
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      [API_KEY_HEADER]: input.apiKey,
+    },
+  });
+
+  if (response.status === 404) {
+    log.info('agent.no_device');
+    return null;
+  }
+  if (!response.ok) {
+    log.warn('agent.device_lookup_failed', { status: response.status });
+    return null;
+  }
+
+  const body = (await response.json()) as LatestDeviceResponse;
+  log.info('agent.device_resolved', {
+    deviceId: body.device.deviceId,
+    externalDeviceId: body.device.externalDeviceId,
+    displayName: body.device.displayName,
+  });
+  return body.device.deviceId;
+}
+
 async function pollOnce(input: {
   apiBaseUrl: string;
   apiKey: string;
@@ -69,7 +117,10 @@ async function pollOnce(input: {
 
   if (first.status === 200) {
     const body = (await first.json()) as { status: string };
-    log.info('agent.poll_result', { status: body.status });
+    log.info('agent.poll_result', {
+      status: body.status,
+      deviceId: input.deviceId,
+    });
     return;
   }
 
@@ -165,15 +216,20 @@ async function verifyAndReport(input: {
 
   let receiptFound = false;
   let receiptSuccess = false;
-  try {
-    const receipt = await client.getTransactionReceipt({
-      hash: input.delivered.payment.transactionHash as `0x${string}`,
-    });
-    receiptFound = true;
-    receiptSuccess = receipt.status === 'success';
-  } catch {
-    receiptFound = false;
-    receiptSuccess = false;
+  const settlementRef = input.delivered.payment.transactionHash;
+  const isOnchainTx = /^0x[a-fA-F0-9]{64}$/.test(settlementRef);
+
+  if (isOnchainTx) {
+    try {
+      const receipt = await client.getTransactionReceipt({
+        hash: settlementRef as `0x${string}`,
+      });
+      receiptFound = true;
+      receiptSuccess = receipt.status === 'success';
+    } catch {
+      receiptFound = false;
+      receiptSuccess = false;
+    }
   }
 
   const contentHashComputed = createHash('sha256')
@@ -184,7 +240,11 @@ async function verifyAndReport(input: {
 
   let status: 'VERIFIED' | 'TX_MISSING' | 'TX_FAILED' | 'HASH_MISMATCH' =
     'VERIFIED';
-  if (!receiptFound) status = 'TX_MISSING';
+  if (!isOnchainTx) {
+    // Circle Gateway settle returns a transfer UUID until the batch lands
+    // on-chain; treat facilitator success + content hash as verified.
+    status = contentHashMatched ? 'VERIFIED' : 'HASH_MISMATCH';
+  } else if (!receiptFound) status = 'TX_MISSING';
   else if (!receiptSuccess) status = 'TX_FAILED';
   else if (!contentHashMatched) status = 'HASH_MISMATCH';
 
@@ -223,24 +283,29 @@ async function main(): Promise<void> {
       : 'http://localhost:3000';
   const apiKey = process.env.AGENT_API_KEY;
   const walletAddress = process.env.AGENT_WALLET_ADDRESS;
-  const deviceId = process.env.AGENT_DEVICE_ID;
+  const overrideDeviceId = process.env.AGENT_DEVICE_ID;
 
-  if (
-    apiKey === undefined ||
-    walletAddress === undefined ||
-    deviceId === undefined
-  ) {
-    throw new Error(
-      'AGENT_API_KEY, AGENT_WALLET_ADDRESS, and AGENT_DEVICE_ID are required',
-    );
+  if (apiKey === undefined || walletAddress === undefined) {
+    throw new Error('AGENT_API_KEY and AGENT_WALLET_ADDRESS are required');
   }
 
   log.info('agent.starting', {
     pollIntervalSeconds: env.AGENT_POLL_INTERVAL_SECONDS,
+    deviceOverride:
+      overrideDeviceId !== undefined && overrideDeviceId.length > 0,
   });
 
   const tick = async () => {
     try {
+      const deviceId = await resolveDeviceId({
+        apiBaseUrl,
+        apiKey,
+        walletAddress,
+        overrideDeviceId,
+      });
+      if (deviceId === null) {
+        return;
+      }
       await pollOnce({ apiBaseUrl, apiKey, walletAddress, deviceId });
     } catch (error) {
       log.error('agent.tick_failed', {

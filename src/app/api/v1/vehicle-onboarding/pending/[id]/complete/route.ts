@@ -63,6 +63,7 @@ export const POST = createRouteHandler(async (request, requestContext) => {
       {
         success: true,
         wasExistingDevice: result.wasExistingDevice,
+        mintWarning: result.mintWarning,
         device: {
           id: result.device.id,
           walletId: result.device.walletId,
@@ -71,6 +72,10 @@ export const POST = createRouteHandler(async (request, requestContext) => {
           vendor: result.device.vendor,
           model: result.device.model,
           status: result.device.status,
+          nftTokenId: result.device.nftTokenId,
+          nftContractAddress: result.device.nftContractAddress,
+          nftTransactionHash: result.device.nftTransactionHash,
+          network: result.device.network,
         },
       },
       requestContext.requestId,

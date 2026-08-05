@@ -56,14 +56,23 @@ const responseSchema = z.union([
 export type DemoTelemetryResponse = z.infer<typeof responseSchema>;
 
 /**
- * Mock-only dashboard purchase client (BFF keeps AGENT_API_KEY server-side).
+ * Dashboard purchase client. BFF settles with server Circle buyer (or mock).
+ * Requires Web3Auth id token for device-owner auth.
  */
 export function createDemoTelemetryApi(client: ApiClient = new ApiClient()) {
   return {
-    async quote(input: { walletAddress: string; deviceId: string }) {
+    async quote(input: {
+      idToken: string;
+      walletAddress: string;
+      deviceId: string;
+    }) {
       return request(client, { ...input, action: 'quote' });
     },
-    async settle(input: { walletAddress: string; deviceId: string }) {
+    async settle(input: {
+      idToken: string;
+      walletAddress: string;
+      deviceId: string;
+    }) {
       return request(client, { ...input, action: 'settle' });
     },
   };
@@ -72,6 +81,7 @@ export function createDemoTelemetryApi(client: ApiClient = new ApiClient()) {
 async function request(
   client: ApiClient,
   input: {
+    idToken: string;
     walletAddress: string;
     deviceId: string;
     action: 'quote' | 'settle';
@@ -79,14 +89,17 @@ async function request(
 ): Promise<DemoTelemetryResponse> {
   const result = await client.request('/api/v1/demo/telemetry/latest', {
     method: 'POST',
-    body: input,
+    headers: { Authorization: `Bearer ${input.idToken}` },
+    body: {
+      walletAddress: input.walletAddress,
+      deviceId: input.deviceId,
+      action: input.action,
+    },
+    // Live Circle settle can exceed the default 15s client timeout.
+    timeoutMs: input.action === 'settle' ? 60_000 : 30_000,
     schema: responseSchema,
   });
   if (!result.ok) {
-    // 402 is expected for quote — ApiClient treats non-2xx as errors.
-    // Retries via a loose parse of status/message are not available here;
-    // use settle for pay. For quote we need the server to return 200 with
-    // PAYMENT_REQUIRED in the body, or handle 402 specially.
     throw result.error;
   }
   return result.data;

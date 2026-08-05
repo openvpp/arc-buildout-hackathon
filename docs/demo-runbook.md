@@ -118,7 +118,7 @@ ARC_PAYMENT_SIGNER_PRIVATE_KEY=0x...   # buyer — DEMO/DEV ONLY
 # fund buyer Gateway balance / set ARC_GATEWAY_AUTO_DEPOSIT_AMOUNT as needed
 AGENT_API_KEY=...                      # from seed or issued credential
 AGENT_WALLET_ADDRESS=0x...             # payer / agent wallet address
-AGENT_DEVICE_ID=...                    # UUID of target device
+# AGENT_DEVICE_ID=...                  # optional override; else auto-discover
 AGENT_API_BASE_URL=http://localhost:3000
 ```
 

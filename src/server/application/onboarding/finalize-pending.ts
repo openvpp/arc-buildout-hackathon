@@ -1,6 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 
 import { ensureWalletForAddress } from '@/server/application/onboarding/ensure-wallet';
+import { getServerEnv } from '@/server/config/env';
+import {
+  buildSimpleDeviceMetadataUri,
+  createDeviceNftMinter,
+} from '@/server/infrastructure/blockchain/device-nft';
+import { arcNetworkLabel } from '@/server/infrastructure/blockchain/network-provider';
 import type { Database } from '@/server/infrastructure/db/client';
 import { normalizeEvmAddress } from '@/server/infrastructure/db/repositories/wallet-repository';
 import {
@@ -14,6 +20,9 @@ import {
   mapEnodeVehicle,
   pickEnodeVehicleIdFromList,
 } from '@/server/infrastructure/enode/vehicle-mapper';
+import { createServerLogger } from '@/server/infrastructure/logging/logger';
+
+const log = createServerLogger({ component: 'finalize-pending' });
 
 function throwWithCode(message: string, code: string): never {
   const e = new Error(message) as Error & { code: string };
@@ -127,21 +136,44 @@ export async function finalizePendingVehicleConnection(
     .limit(1);
 
   if (existingDevice !== undefined && existingDevice.status === 'active') {
+    let device = existingDevice;
+    let mintWarning: string | null = null;
+    if (
+      existingDevice.nftTokenId === null ||
+      existingDevice.nftTokenId.length === 0
+    ) {
+      const mintResult = await tryMintDeviceNft({
+        deviceId: existingDevice.id,
+        walletAddress: wallet.address,
+        vehicleId: mapped.vehicleId,
+        displayName: existingDevice.displayName ?? nickname,
+        make: mapped.make,
+        model: mapped.model,
+        year: mapped.year,
+        db,
+      });
+      mintWarning = mintResult.warning;
+      if (mintResult.device !== null) {
+        device = mintResult.device;
+      }
+    }
+
     await db
       .update(pendingDeviceConnections)
       .set({
         status: 'completed',
         completedAt: new Date(),
         providerDeviceId: mapped.vehicleId,
-        resultDeviceId: existingDevice.id,
+        resultDeviceId: device.id,
         formData: { ...fd, mergedAt: new Date().toISOString() },
         updatedAt: new Date(),
       })
       .where(eq(pendingDeviceConnections.id, pending.id));
 
     return {
-      device: existingDevice,
+      device,
       wasExistingDevice: true,
+      mintWarning,
     };
   }
 
@@ -210,6 +242,25 @@ export async function finalizePendingVehicleConnection(
     throwWithCode('Failed to persist device', 'DEVICE_PERSIST_FAILED');
   }
 
+  let mintWarning: string | null = null;
+  let mintedDevice = device;
+  if (device.nftTokenId === null || device.nftTokenId.length === 0) {
+    const mintResult = await tryMintDeviceNft({
+      deviceId: device.id,
+      walletAddress: wallet.address,
+      vehicleId: mapped.vehicleId,
+      displayName: nickname,
+      make: mapped.make,
+      model: mapped.model,
+      year: mapped.year,
+      db,
+    });
+    mintWarning = mintResult.warning;
+    if (mintResult.device !== null) {
+      mintedDevice = mintResult.device;
+    }
+  }
+
   await db
     .update(pendingDeviceConnections)
     .set({
@@ -217,14 +268,86 @@ export async function finalizePendingVehicleConnection(
       completedAt: new Date(),
       providerDeviceId: mapped.vehicleId,
       providerUserId: enodeUserId,
-      resultDeviceId: device.id,
+      resultDeviceId: mintedDevice.id,
       formData: { ...fd, mergedAt: new Date().toISOString() },
       updatedAt: new Date(),
     })
     .where(eq(pendingDeviceConnections.id, pending.id));
 
   return {
-    device,
+    device: mintedDevice,
     wasExistingDevice: false,
+    mintWarning,
   };
+}
+
+async function tryMintDeviceNft(input: {
+  db: Database;
+  deviceId: string;
+  walletAddress: string;
+  vehicleId: string;
+  displayName: string;
+  make: string | null;
+  model: string | null;
+  year: number | null;
+}): Promise<{
+  device: typeof devices.$inferSelect | null;
+  warning: string | null;
+}> {
+  const env = getServerEnv();
+  const minter = createDeviceNftMinter();
+  if (minter === null) {
+    log.info('finalize.mint_skipped', {
+      reason: 'DeviceNFT mint not configured for Arc',
+      deviceId: input.deviceId,
+    });
+    return {
+      device: null,
+      warning:
+        'Device linked; DeviceNFT mint skipped (Arc mint env incomplete).',
+    };
+  }
+
+  const deviceURI = buildSimpleDeviceMetadataUri({
+    vehicleId: input.vehicleId,
+    displayName: input.displayName,
+    make: input.make,
+    model: input.model,
+    year: input.year,
+    walletAddress: input.walletAddress,
+  });
+
+  try {
+    const minted = await minter.mintDevice({
+      to: input.walletAddress,
+      typeId: BigInt(env.DEVICE_NFT_TYPE_ID),
+      deviceURI,
+    });
+
+    const contractAddress = env.DEVICE_NFT_CONTRACT_ADDRESS ?? null;
+    const [updated] = await input.db
+      .update(devices)
+      .set({
+        nftTokenId: minted.tokenId,
+        nftContractAddress: contractAddress,
+        nftTransactionHash: minted.transactionHash,
+        nftMetadataUri: deviceURI,
+        network: arcNetworkLabel(env),
+        updatedAt: new Date(),
+      })
+      .where(eq(devices.id, input.deviceId))
+      .returning();
+
+    return { device: updated ?? null, warning: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'mint failed';
+    log.error('finalize.mint_failed', {
+      deviceId: input.deviceId,
+      errorMessage: message,
+    });
+    return {
+      device: null,
+      warning: `Device linked; DeviceNFT mint failed: ${message}`,
+    };
+  }
 }

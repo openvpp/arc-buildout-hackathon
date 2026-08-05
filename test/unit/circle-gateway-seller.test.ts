@@ -104,6 +104,57 @@ describe('circle gateway seller', () => {
     });
   });
 
+  it('accepts Circle Gateway transfer UUID as settlement reference', async () => {
+    const facilitator: CircleFacilitatorPort = {
+      async settle() {
+        return {
+          success: true,
+          transaction: 'a506c0df-35c0-4e09-aff4-d2d361aeed9b',
+          payer: '0xdddddddddddddddddddddddddddddddddddddddd',
+        };
+      },
+    };
+    const seller = createCircleGatewaySeller({ facilitator });
+    const requirements = sampleRequirements(seller);
+
+    const result = await seller.settle({
+      paymentSignatureHeader: Buffer.from(
+        JSON.stringify({ accepted: requirements }),
+        'utf8',
+      ).toString('base64'),
+      requirements,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      transactionHash: 'a506c0df-35c0-4e09-aff4-d2d361aeed9b',
+      payer: '0xdddddddddddddddddddddddddddddddddddddddd',
+      network: ARC_TESTNET_CAIP2,
+    });
+  });
+
+  it('rejects success with empty transaction reference', async () => {
+    const facilitator: CircleFacilitatorPort = {
+      async settle() {
+        return { success: true, transaction: '' };
+      },
+    };
+    const seller = createCircleGatewaySeller({ facilitator });
+    const requirements = sampleRequirements(seller);
+
+    const result = await seller.settle({
+      paymentSignatureHeader: Buffer.from('{"ok":true}', 'utf8').toString(
+        'base64',
+      ),
+      requirements,
+    });
+    expect(result).toEqual({
+      success: false,
+      code: 'PAYMENT_SETTLEMENT_FAILED',
+      message: 'Settlement succeeded without a transaction reference.',
+    });
+  });
+
   it('maps facilitator success:false to settlement failure', async () => {
     const facilitator: CircleFacilitatorPort = {
       async settle() {

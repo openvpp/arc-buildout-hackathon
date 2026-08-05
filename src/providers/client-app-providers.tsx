@@ -1,11 +1,25 @@
 'use client';
 
-import { Web3AuthProvider } from '@web3auth/modal/react';
+import { Web3AuthProvider, useWeb3Auth } from '@web3auth/modal/react';
 import { WagmiProvider } from '@web3auth/modal/react/wagmi';
 import type { ReactNode } from 'react';
 
 import { createWeb3AuthContextConfig } from '@/features/auth';
 import { QueryProvider } from '@/providers/query-provider';
+
+/**
+ * Mount Wagmi only after Web3Auth init + EIP-155 chains exist.
+ * Avoids createConfig(chains: undefined) → TypeError reading '[0]'.
+ */
+function WagmiWhenReady({ children }: { children: ReactNode }) {
+  const { isInitialized, web3Auth } = useWeb3Auth();
+  const chains = web3Auth.coreOptions.chains;
+  const chainCount = Array.isArray(chains) ? chains.length : 0;
+  if (!isInitialized || chainCount === 0) {
+    return children;
+  }
+  return <WagmiProvider>{children}</WagmiProvider>;
+}
 
 /**
  * Client composition: Web3Auth (when configured) → React Query → Wagmi.
@@ -21,7 +35,7 @@ export function ClientAppProviders({ children }: { children: ReactNode }) {
   return (
     <Web3AuthProvider config={config}>
       <QueryProvider>
-        <WagmiProvider>{children}</WagmiProvider>
+        <WagmiWhenReady>{children}</WagmiWhenReady>
       </QueryProvider>
     </Web3AuthProvider>
   );

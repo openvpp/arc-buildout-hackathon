@@ -41,6 +41,8 @@ declare global {
       readonly ARC_BLOCK_EXPLORER_BASE_URL?: string;
       readonly ARC_USDC_CONTRACT_ADDRESS?: string;
       readonly ARC_REQUIRED_CONFIRMATIONS?: string;
+      readonly ARC_AUTH_TOKEN?: string;
+      readonly USE_ARC_NETWORK?: string;
       readonly CIRCLE_GATEWAY_FACILITATOR_URL?: string;
       readonly CIRCLE_GATEWAY_AUTH_TOKEN?: string;
       readonly CIRCLE_GATEWAY_WALLET_ADDRESS?: string;
@@ -55,6 +57,10 @@ declare global {
       readonly BATCH_ANCHOR_CONTRACT_VERSION?: string;
       readonly BATCH_ANCHOR_SIGNER_PRIVATE_KEY?: string;
       readonly BATCH_ANCHOR_SIGNER_KEY_REFERENCE?: string;
+      readonly DEVICE_NFT_CONTRACT_ADDRESS?: string;
+      readonly DEVICE_NFT_MINTER_PRIVATE_KEY?: string;
+      readonly PRIVATE_KEY?: string;
+      readonly DEVICE_NFT_TYPE_ID?: string;
       readonly ENODE_API_BASE_URL?: string;
       readonly ENODE_OAUTH_TOKEN_URL?: string;
       readonly ENODE_API_VERSION?: string;

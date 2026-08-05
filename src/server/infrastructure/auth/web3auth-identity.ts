@@ -95,8 +95,10 @@ function extractWalletAddress(
   const wanted = normalizeHexAddress(claimedAddress);
   const wallets = asWalletClaims(payload);
 
+  // Accept any wallets[].address (Web3Auth v2 may omit type, or use
+  // walletPublicAddress / app-key EVM address rather than provider eoaAddress).
   for (const wallet of wallets) {
-    if (wallet.type === 'ethereum' && typeof wallet.address === 'string') {
+    if (typeof wallet.address === 'string') {
       if (wallet.address.trim().toLowerCase() === wanted) {
         return wanted;
       }
@@ -105,8 +107,21 @@ function extractWalletAddress(
 
   for (const wallet of wallets) {
     if (
-      wallet.type === 'web3auth_app_key' &&
+      (wallet.type === 'web3auth_app_key' || wallet.type === 'ethereum') &&
       wallet.curve === 'secp256k1' &&
+      typeof wallet.public_key === 'string'
+    ) {
+      const derived = addressFromSecp256k1PublicKey(wallet.public_key);
+      if (derived === wanted) {
+        return wanted;
+      }
+    }
+  }
+
+  // Curve may be omitted on some app-key entries.
+  for (const wallet of wallets) {
+    if (
+      wallet.type === 'web3auth_app_key' &&
       typeof wallet.public_key === 'string'
     ) {
       const derived = addressFromSecp256k1PublicKey(wallet.public_key);
@@ -120,6 +135,10 @@ function extractWalletAddress(
     code: 'ACCESS_DENIED',
     message: 'Wallet address is not owned by the verified Web3Auth identity.',
     status: 403,
+    details: {
+      claimedWalletAddress: wanted,
+      boundWalletCount: wallets.length,
+    },
   });
 }
 

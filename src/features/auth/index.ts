@@ -8,3 +8,7 @@ export {
   type WalletSession,
 } from './use-wallet-session';
 export { WalletConnectButton } from './wallet-connect-button';
+export {
+  ownedEvmAddressesFromIdToken,
+  resolveWalletAddressForOnboarding,
+} from './web3auth-id-token';

@@ -107,6 +107,11 @@ export const serverEnvSchema = z
     ARC_BLOCK_EXPLORER_BASE_URL: optionalUrl,
     ARC_USDC_CONTRACT_ADDRESS: ethereumAddress.optional(),
     ARC_REQUIRED_CONFIRMATIONS: z.coerce.number().int().positive().default(3),
+    ARC_AUTH_TOKEN: z.string().optional(),
+    USE_ARC_NETWORK: z
+      .enum(['true', 'false'])
+      .default('false')
+      .transform((value) => value === 'true'),
     CIRCLE_GATEWAY_FACILITATOR_URL: optionalUrl,
     CIRCLE_GATEWAY_AUTH_TOKEN: z.string().optional(),
     CIRCLE_GATEWAY_WALLET_ADDRESS: ethereumAddress.optional(),
@@ -119,6 +124,11 @@ export const serverEnvSchema = z
     BATCH_ANCHOR_CONTRACT_VERSION: z.string().optional(),
     BATCH_ANCHOR_SIGNER_PRIVATE_KEY: z.string().optional(),
     BATCH_ANCHOR_SIGNER_KEY_REFERENCE: z.string().optional(),
+    DEVICE_NFT_CONTRACT_ADDRESS: ethereumAddress.optional(),
+    DEVICE_NFT_MINTER_PRIVATE_KEY: z.string().optional(),
+    /** ovpp-backend alias for DeviceNFTOwnerWallet / minter. */
+    PRIVATE_KEY: z.string().optional(),
+    DEVICE_NFT_TYPE_ID: z.coerce.number().int().nonnegative().default(1),
 
     ENODE_API_BASE_URL: optionalUrl,
     ENODE_OAUTH_TOKEN_URL: optionalUrl,
@@ -192,6 +202,27 @@ export const serverEnvSchema = z
           path: ['BATCH_ANCHOR_SIGNER_PRIVATE_KEY'],
           message:
             'Raw BatchAnchor signer private keys are forbidden in production/staging environment variables',
+        });
+      }
+
+      if (
+        env.DEVICE_NFT_MINTER_PRIVATE_KEY !== undefined &&
+        env.DEVICE_NFT_MINTER_PRIVATE_KEY.length > 0
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['DEVICE_NFT_MINTER_PRIVATE_KEY'],
+          message:
+            'Raw DeviceNFT minter private keys are forbidden in production/staging environment variables',
+        });
+      }
+
+      if (env.PRIVATE_KEY !== undefined && env.PRIVATE_KEY.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['PRIVATE_KEY'],
+          message:
+            'Raw PRIVATE_KEY is forbidden in production/staging environment variables',
         });
       }
 
@@ -282,6 +313,8 @@ export function readRawServerEnv(
     ARC_BLOCK_EXPLORER_BASE_URL: source.ARC_BLOCK_EXPLORER_BASE_URL,
     ARC_USDC_CONTRACT_ADDRESS: source.ARC_USDC_CONTRACT_ADDRESS,
     ARC_REQUIRED_CONFIRMATIONS: source.ARC_REQUIRED_CONFIRMATIONS,
+    ARC_AUTH_TOKEN: source.ARC_AUTH_TOKEN,
+    USE_ARC_NETWORK: source.USE_ARC_NETWORK,
     CIRCLE_GATEWAY_FACILITATOR_URL: source.CIRCLE_GATEWAY_FACILITATOR_URL,
     CIRCLE_GATEWAY_AUTH_TOKEN: source.CIRCLE_GATEWAY_AUTH_TOKEN,
     CIRCLE_GATEWAY_WALLET_ADDRESS: source.CIRCLE_GATEWAY_WALLET_ADDRESS,
@@ -294,6 +327,10 @@ export function readRawServerEnv(
     BATCH_ANCHOR_CONTRACT_VERSION: source.BATCH_ANCHOR_CONTRACT_VERSION,
     BATCH_ANCHOR_SIGNER_PRIVATE_KEY: source.BATCH_ANCHOR_SIGNER_PRIVATE_KEY,
     BATCH_ANCHOR_SIGNER_KEY_REFERENCE: source.BATCH_ANCHOR_SIGNER_KEY_REFERENCE,
+    DEVICE_NFT_CONTRACT_ADDRESS: source.DEVICE_NFT_CONTRACT_ADDRESS,
+    DEVICE_NFT_MINTER_PRIVATE_KEY: source.DEVICE_NFT_MINTER_PRIVATE_KEY,
+    PRIVATE_KEY: source.PRIVATE_KEY,
+    DEVICE_NFT_TYPE_ID: source.DEVICE_NFT_TYPE_ID,
     ENODE_API_BASE_URL: source.ENODE_API_BASE_URL,
     ENODE_OAUTH_TOKEN_URL: source.ENODE_OAUTH_TOKEN_URL,
     ENODE_API_VERSION: source.ENODE_API_VERSION,

@@ -1,10 +1,16 @@
 import { z } from 'zod';
 
+import { bindDashboardOwnerWallet } from '@/server/application/onboarding/bind-dashboard-owner';
 import { requestLatestTelemetry } from '@/server/application/telemetry/request-latest-telemetry';
 import { getContainer } from '@/server/bootstrap/container';
 import { getServerEnv } from '@/server/config/env';
-import { credentialHasScope } from '@/server/infrastructure/auth/api-keys';
-import { createMockCircleGatewayBuyer } from '@/server/infrastructure/payments/circle-gateway-buyer';
+import { formatAtomicAmount } from '@/server/domain/shared/money';
+import type { AuthenticatedPrincipal } from '@/server/infrastructure/auth/api-keys';
+import { verifyWeb3AuthIdentity } from '@/server/infrastructure/auth/web3auth-identity';
+import {
+  createCircleGatewayBuyer,
+  createMockCircleGatewayBuyer,
+} from '@/server/infrastructure/payments/circle-gateway-buyer';
 import {
   findGatewayBatchingOption,
   parsePaymentRequiredHeader,
@@ -25,51 +31,52 @@ const bodySchema = z
   .strict();
 
 /**
- * Demo-only BFF for dashboard mock buy flow.
- * Keeps AGENT_API_KEY on the server. Forbidden unless ALLOW_MOCK_ADAPTERS=true.
+ * Dashboard BFF for “Request latest” quote/settle.
+ * Auth: Web3Auth Bearer (device owner). Settle: live Circle buyer unless mocks on.
  */
 export const POST = createRouteHandler(async (request, context) => {
   const env = getServerEnv();
-  if (!env.ALLOW_MOCK_ADAPTERS) {
-    throw new ApiError({
-      code: 'SERVICE_UNAVAILABLE',
-      message:
-        'Demo telemetry purchase is only available when ALLOW_MOCK_ADAPTERS=true.',
-      status: 503,
-    });
-  }
-
-  const apiKey = env.AGENT_API_KEY;
-  if (apiKey === undefined || apiKey.length === 0) {
-    throw new ApiError({
-      code: 'SERVICE_UNAVAILABLE',
-      message:
-        'AGENT_API_KEY is required in server env for the demo purchase UI.',
-      status: 503,
-    });
-  }
-
   const parsed = bodySchema.safeParse(await request.json());
   if (!parsed.success) {
     throw new ApiError({
       code: 'VALIDATION_FAILED',
-      message: 'Invalid demo telemetry request.',
+      message: 'Invalid telemetry purchase request.',
       status: 400,
       details: { issues: parsed.error.issues },
     });
   }
 
-  const container = getContainer();
-  const principal = await container.auth.authenticateApiKey(apiKey);
-  if (!credentialHasScope(principal.scopes, 'telemetry:request')) {
-    throw new ApiError({
-      code: 'ACCESS_DENIED',
-      message: 'Demo agent key missing telemetry:request scope.',
-      status: 403,
-    });
+  if (!env.ALLOW_MOCK_ADAPTERS) {
+    if (
+      env.ARC_PAYMENT_SIGNER_PRIVATE_KEY === undefined ||
+      env.ARC_PAYMENT_SIGNER_PRIVATE_KEY.length === 0
+    ) {
+      throw new ApiError({
+        code: 'SERVICE_UNAVAILABLE',
+        message:
+          'ARC_PAYMENT_SIGNER_PRIVATE_KEY is required for live dashboard settle.',
+        status: 503,
+      });
+    }
   }
 
+  const identity = await verifyWeb3AuthIdentity({
+    authorizationHeader: request.headers.get('authorization'),
+    claimedWalletAddress: parsed.data.walletAddress,
+  });
+
+  const container = getContainer();
+  const bound = await bindDashboardOwnerWallet(container.db, identity);
+  const principal: AuthenticatedPrincipal = {
+    principalId: bound.principalId,
+    principalType: 'dashboard_user',
+    credentialId: 'web3auth-session',
+    scopes: ['telemetry:request', 'telemetry:read', 'devices:read'],
+    keyPrefix: 'web3auth',
+  };
+
   const resourceUrl = `${new URL(request.url).origin}/api/v1/agent/telemetry/latest`;
+  const liveMode = !env.ALLOW_MOCK_ADAPTERS;
 
   if (parsed.data.action === 'quote') {
     const result = await requestLatestTelemetry({
@@ -82,7 +89,9 @@ export const POST = createRouteHandler(async (request, context) => {
       paymentSignatureHeader: null,
       resourceUrl,
     });
-    return respond(result, env.PAYMENT_PROTOCOL_VERSION, context.requestId);
+    return respond(result, env.PAYMENT_PROTOCOL_VERSION, context.requestId, {
+      liveMode,
+    });
   }
 
   const quoted = await requestLatestTelemetry({
@@ -97,7 +106,9 @@ export const POST = createRouteHandler(async (request, context) => {
   });
 
   if (quoted.kind !== 'PAYMENT_REQUIRED') {
-    return respond(quoted, env.PAYMENT_PROTOCOL_VERSION, context.requestId);
+    return respond(quoted, env.PAYMENT_PROTOCOL_VERSION, context.requestId, {
+      liveMode,
+    });
   }
 
   const paymentRequired = parsePaymentRequiredHeader(
@@ -107,13 +118,17 @@ export const POST = createRouteHandler(async (request, context) => {
   if (batching === null) {
     throw new ApiError({
       code: 'INTERNAL_ERROR',
-      message: 'Demo payment requirements missing Gateway batching option.',
+      message: 'Payment requirements missing Gateway batching option.',
       status: 500,
       expose: false,
     });
   }
 
-  const buyer = createMockCircleGatewayBuyer();
+  const buyer = liveMode
+    ? createCircleGatewayBuyer()
+    : createMockCircleGatewayBuyer();
+  const amountUsdc = Number(formatAtomicAmount(batching.amount, 6));
+  await buyer.ensureLiquidity(amountUsdc);
   const signature = await buyer.createPaymentSignature({
     x402Version: paymentRequired.x402Version,
     requirements: batching,
@@ -131,13 +146,16 @@ export const POST = createRouteHandler(async (request, context) => {
     resourceUrl,
   });
 
-  return respond(settled, env.PAYMENT_PROTOCOL_VERSION, context.requestId);
+  return respond(settled, env.PAYMENT_PROTOCOL_VERSION, context.requestId, {
+    liveMode,
+  });
 });
 
 function respond(
   result: Awaited<ReturnType<typeof requestLatestTelemetry>>,
   paymentProtocolVersion: string,
   requestId: string,
+  options: { liveMode: boolean },
 ) {
   switch (result.kind) {
     case 'NO_TELEMETRY_AVAILABLE':
@@ -167,8 +185,9 @@ function respond(
           paymentProtocolVersion,
           paymentRequirement: result.paymentRequirement,
           telemetryReference: result.telemetryReference,
-          demoNote:
-            'Mock settle only. Click Pay (mock) — not live Circle evidence.',
+          demoNote: options.liveMode
+            ? 'Live Circle Gateway settle via server payment signer.'
+            : 'Mock settle only — not live Circle evidence.',
         },
         requestId,
       );
@@ -180,7 +199,9 @@ function respond(
           telemetry: result.telemetry,
           payment: result.payment,
           provenance: result.provenance,
-          demoNote: 'Mock settlement — not live payment evidence.',
+          demoNote: options.liveMode
+            ? undefined
+            : 'Mock settlement — not live payment evidence.',
         },
         requestId,
       );

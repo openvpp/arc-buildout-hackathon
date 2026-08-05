@@ -92,6 +92,26 @@ export const openApiDocument = {
         },
       },
     },
+    '/api/v1/agent/devices/latest': {
+      get: {
+        tags: ['Agent'],
+        summary: 'Newest onboarded device for a wallet',
+        operationId: 'getLatestAgentDevice',
+        security: [{ ApiKeyAuth: [] }],
+        parameters: [
+          {
+            name: 'walletAddress',
+            in: 'query',
+            required: true,
+            schema: { type: 'string' },
+          },
+        ],
+        responses: {
+          '200': { description: 'Latest device for wallet' },
+          '404': { description: 'No device for wallet' },
+        },
+      },
+    },
     '/api/v1/agent/telemetry/latest': {
       post: {
         tags: ['Agent'],

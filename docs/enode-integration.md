@@ -100,6 +100,36 @@ race) or succeed after Link finalize.
 - IP allowlist refresh from Enode DNS TXT (static `ENODE_WEBHOOK_ALLOWED_IPS` is wired)
 - Live Enode HTTP pull / reconcile jobs
 
+## Arc DeviceNFT mint (on finalize)
+
+When configured, `POST .../pending/:id/complete` mints a DeviceNFT on Arc after
+persisting the Postgres device. Fail-open: link succeeds even if mint fails
+(`mintWarning` in the response).
+
+```bash
+USE_ARC_NETWORK=true
+ARC_RPC_URL=https://rpc.testnet.arc.network/<token>
+ARC_CHAIN_ID=5042002
+ARC_AUTH_TOKEN=<token>
+DEVICE_NFT_CONTRACT_ADDRESS=0xf1AB69B6C1eAddCf47C6019805Ac37F2d78FA908
+DEVICE_NFT_MINTER_PRIVATE_KEY=0x…   # demo/dev only
+DEVICE_NFT_TYPE_ID=1
+```
+
+Mint stores `nft_token_id`, `nft_transaction_hash`, `nft_metadata_uri`, and
+`network` on `devices`. Payment settlement hashes remain separate.
+
+Canonical id chain:
+
+`Enode vehicle.id` → `pending.provider_device_id` → `devices.external_device_id`
+
+## Agent device discovery
+
+Demo agent does **not** require `AGENT_DEVICE_ID`. It calls
+`GET /api/v1/agent/devices/latest?walletAddress=` and uses the newest onboarded
+device for that wallet (Enode-linked preferred). Optional `AGENT_DEVICE_ID`
+overrides discovery.
+
 ## Configuration
 
 Secrets must never be `NEXT_PUBLIC_*`. Production/staging require

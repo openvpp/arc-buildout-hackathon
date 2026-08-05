@@ -24,6 +24,38 @@ import { createServerLogger } from '@/server/infrastructure/logging/logger';
 const log = createServerLogger({ component: 'circle-gateway-seller' });
 
 /**
+ * Circle Gateway batch settle returns a transfer UUID in `transaction` on
+ * success (on-chain txHash arrives later when the batch lands). Legacy /
+ * mock doubles may still return a 0x hash. Accept either non-empty string.
+ */
+export function extractSettlementTransactionReference(settleResult: {
+  readonly transaction?: unknown;
+  readonly transactionHash?: unknown;
+  readonly txHash?: unknown;
+  readonly id?: unknown;
+}): string | null {
+  const candidates = [
+    settleResult.transaction,
+    settleResult.transactionHash,
+    settleResult.txHash,
+    settleResult.id,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') {
+      continue;
+    }
+    const trimmed = candidate.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+    return trimmed.startsWith('0x') || trimmed.startsWith('0X')
+      ? trimmed.toLowerCase()
+      : trimmed;
+  }
+  return null;
+}
+
+/**
  * Narrow facilitator surface used by the seller so tests can inject doubles
  * without calling Circle.
  */
@@ -34,6 +66,9 @@ export type CircleFacilitatorPort = {
   ): Promise<{
     success: boolean;
     transaction?: string;
+    transactionHash?: string;
+    txHash?: string;
+    id?: string;
     payer?: string;
     errorReason?: string;
   }>;
@@ -157,20 +192,27 @@ export function createCircleGatewaySeller(input?: {
         }
 
         const transactionHash =
-          typeof settleResult.transaction === 'string'
-            ? settleResult.transaction
-            : '';
-        if (!transactionHash.startsWith('0x')) {
+          extractSettlementTransactionReference(settleResult);
+        if (transactionHash === null) {
+          log.warn('circle.settle_missing_reference', {
+            hasTransactionField: settleResult.transaction !== undefined,
+          });
           return {
             success: false,
             code: 'PAYMENT_SETTLEMENT_FAILED',
-            message: 'Settlement succeeded without a transaction hash.',
+            message: 'Settlement succeeded without a transaction reference.',
           };
         }
 
+        log.info('circle.settle_ok', {
+          referenceKind: transactionHash.startsWith('0x')
+            ? 'onchain_tx'
+            : 'gateway_transfer_id',
+        });
+
         return {
           success: true,
-          transactionHash: transactionHash.toLowerCase(),
+          transactionHash,
           payer:
             typeof settleResult.payer === 'string' ? settleResult.payer : '',
           network: requirements.network,

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { useConfiguredWalletSession } from '@/features/auth';
 
 import {
   createDemoTelemetryApi,
@@ -21,15 +22,22 @@ export function RequestTelemetryPanel(props: {
   readonly deviceLabel: string;
 }) {
   const router = useRouter();
+  const session = useConfiguredWalletSession();
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<PanelState>({ kind: 'idle' });
+
+  async function idTokenOrThrow(): Promise<string> {
+    return session.getIdToken();
+  }
 
   function runQuote() {
     setState({ kind: 'idle' });
     startTransition(async () => {
       try {
+        const idToken = await idTokenOrThrow();
         const api = createDemoTelemetryApi();
         const data = await api.quote({
+          idToken,
           walletAddress: props.walletAddress,
           deviceId: props.deviceId,
         });
@@ -40,7 +48,7 @@ export function RequestTelemetryPanel(props: {
           message:
             error instanceof Error
               ? error.message
-              : 'Request failed (is ALLOW_MOCK_ADAPTERS + AGENT_API_KEY set?)',
+              : 'Request failed — connect Web3Auth and ensure telemetry exists.',
         });
       }
     });
@@ -49,18 +57,23 @@ export function RequestTelemetryPanel(props: {
   function runSettle() {
     startTransition(async () => {
       try {
+        const idToken = await idTokenOrThrow();
         const api = createDemoTelemetryApi();
         const data = await api.settle({
+          idToken,
           walletAddress: props.walletAddress,
           deviceId: props.deviceId,
         });
         setState({ kind: 'result', data });
-        router.refresh();
+        // Defer RSC refresh so Web3Auth/Wagmi aren't torn down mid-settle paint.
+        window.setTimeout(() => {
+          router.refresh();
+        }, 0);
       } catch (error) {
         setState({
           kind: 'error',
           message:
-            error instanceof Error ? error.message : 'Mock settle failed',
+            error instanceof Error ? error.message : 'Payment settle failed',
         });
       }
     });
@@ -72,14 +85,15 @@ export function RequestTelemetryPanel(props: {
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        Demo buy flow for {props.deviceLabel} (mock Circle only — not live
-        payment).
+        Request latest telemetry for {props.deviceLabel}. If there is a new
+        Enode event you have not bought, you get a Circle Gateway nanopayment
+        quote, then settle.
       </p>
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           className="px-2 py-1 text-xs"
-          disabled={pending}
+          disabled={pending || session.status !== 'connected'}
           onClick={runQuote}
         >
           {pending ? 'Working…' : 'Request latest'}
@@ -89,13 +103,19 @@ export function RequestTelemetryPanel(props: {
             type="button"
             variant="secondary"
             className="px-2 py-1 text-xs"
-            disabled={pending}
+            disabled={pending || session.status !== 'connected'}
             onClick={runSettle}
           >
-            Pay (mock)
+            Pay & unlock
           </Button>
         ) : null}
       </div>
+
+      {session.status !== 'connected' ? (
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          Connect Web3Auth to request / pay for latest telemetry.
+        </p>
+      ) : null}
 
       {state.kind === 'error' ? (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">
@@ -109,16 +129,21 @@ export function RequestTelemetryPanel(props: {
           {result.status === 'PAYMENT_REQUIRED' ? (
             <p>
               Amount {result.paymentRequirement.amountDisplay}{' '}
-              {result.paymentRequirement.asset} → then Pay (mock).
+              {result.paymentRequirement.asset} → then Pay & unlock.
             </p>
           ) : null}
           {result.status === 'NO_NEW_RECORD' ? (
             <p>
-              Already delivered this record. Inject new telemetry to buy again.
+              Already delivered the latest record. Wait for a new Enode webhook
+              (or inject telemetry) to buy again.
             </p>
           ) : null}
           {result.status === 'NO_TELEMETRY_AVAILABLE' ? (
-            <p>No sellable telemetry yet. Run pnpm demo:inject-telemetry.</p>
+            <p>
+              No telemetry yet for this device. Enode webhooks must reach{' '}
+              <code>/api/webhooks/enode</code> (public tunnel), or run{' '}
+              <code>pnpm demo:inject-telemetry</code>.
+            </p>
           ) : null}
           {result.status === 'TELEMETRY_DELIVERED' ? (
             <p className="break-all">

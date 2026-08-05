@@ -22,6 +22,13 @@
       "when": 1785876393368,
       "tag": "20260804204633_mute_wallop",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785976260000,
+      "tag": "20260806000000_device_nft_columns",
+      "breakpoints": true
     }
   ]
 }
