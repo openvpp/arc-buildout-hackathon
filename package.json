@@ -29,7 +29,7 @@
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts",
     "db:check": "drizzle-kit check",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx scripts/seed-demo.ts",
+    "db:seed": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/seed-demo.ts",
     "demo:inject-telemetry": "tsx scripts/inject-demo-telemetry.ts",
     "demo:dummy-webhook": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/send-dummy-enode-webhook.ts",
     "db:reset:test": "tsx scripts/reset-test-database.ts",
