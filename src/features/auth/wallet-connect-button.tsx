@@ -71,14 +71,7 @@ function ConfiguredWalletConnectButton() {
 /** Header control: Connect / address / Disconnect via Web3Auth. */
 export function WalletConnectButton() {
   if (!isWeb3AuthConfigured()) {
-    return (
-      <span
-        className="max-w-56 text-right text-[10px] text-slate-500 dark:text-slate-400"
-        title="Set NEXT_PUBLIC_WEB3AUTH_CLIENT_ID in .env.local"
-      >
-        Web3Auth not configured
-      </span>
-    );
+    return null;
   }
   return <ConfiguredWalletConnectButton />;
 }

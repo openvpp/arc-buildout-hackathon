@@ -233,13 +233,13 @@ function EnodeCompleteInner() {
       <div className="mx-auto flex max-w-lg flex-col gap-6 px-4 py-10">
         <PageHeader
           title="Enode complete"
-          description="Web3Auth is required."
+          description="Finish linking your vehicle."
         />
         <Card>
-          <CardTitle>Web3Auth not configured</CardTitle>
+          <CardTitle>Connect unavailable</CardTitle>
           <CardDescription>
-            Set NEXT_PUBLIC_WEB3AUTH_CLIENT_ID in .env.local and restart the
-            app.
+            Wallet login is not available right now. Return to devices and try
+            again later.
           </CardDescription>
         </Card>
       </div>

@@ -24,11 +24,11 @@ export default async function WalletsPage() {
           description="Each wallet may own one or more devices. Telemetry and verification are shown per wallet and device."
         />
         <EmptyState
-          title="Backend data unavailable"
+          title="No data"
           description={
             loaded.reason === 'no_bound_wallets'
-              ? 'No bound wallets yet. Run pnpm db:seed and/or complete Web3Auth onboarding.'
-              : 'Start Postgres (pnpm services:up), migrate, and ensure DATABASE_URL is set.'
+              ? 'Connect a wallet and onboard a device to get started.'
+              : 'Nothing to show right now.'
           }
         />
       </div>
@@ -44,8 +44,8 @@ export default async function WalletsPage() {
 
       {loaded.snapshot.length === 0 ? (
         <EmptyState
-          title="No wallets yet"
-          description="Seed demo data to populate wallets."
+          title="No data"
+          description="Connect a wallet and onboard a device to get started."
         />
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">

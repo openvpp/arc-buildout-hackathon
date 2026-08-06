@@ -21,7 +21,7 @@ describe('DashboardPage', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Dashboard' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('Backend data unavailable')).toBeInTheDocument();
+    expect(screen.getByText('No data')).toBeInTheDocument();
   });
 });
 

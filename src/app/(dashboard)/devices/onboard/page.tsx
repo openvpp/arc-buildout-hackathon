@@ -18,16 +18,10 @@ import { createOnboardingApi } from '@/features/onboarding';
 function UnconfiguredOnboard() {
   return (
     <Card>
-      <CardTitle>Web3Auth required</CardTitle>
+      <CardTitle>Connect unavailable</CardTitle>
       <CardDescription>
-        Set{' '}
-        <code className="font-mono text-xs">
-          NEXT_PUBLIC_WEB3AUTH_CLIENT_ID
-        </code>{' '}
-        in <code className="font-mono text-xs">.env.local</code> (Sapphire
-        Devnet Client ID from the Web3Auth / MetaMask Embedded Wallets
-        dashboard), then restart{' '}
-        <code className="font-mono text-xs">pnpm dev</code>.
+        Wallet login is not available right now. Try again later or contact the
+        demo host.
       </CardDescription>
     </Card>
   );

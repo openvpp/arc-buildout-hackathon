@@ -57,11 +57,11 @@ export default async function DashboardPage() {
           description="Verified EV telemetry and independent on-chain verification, per wallet and device."
         />
         <EmptyState
-          title="Backend data unavailable"
+          title="No data"
           description={
             loaded.reason === 'no_bound_wallets'
-              ? 'No bound wallets yet. Run pnpm db:seed and/or complete Web3Auth onboarding.'
-              : 'Start Postgres (pnpm services:up), migrate, and ensure DATABASE_URL is set.'
+              ? 'Connect a wallet and onboard a device to get started.'
+              : 'Nothing to show right now.'
           }
         />
       </div>
