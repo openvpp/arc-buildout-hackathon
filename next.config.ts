@@ -11,8 +11,11 @@ import type { NextConfig } from 'next';
  * non-breaking policy depends on the (not-yet-integrated) backend origin and
  * runtime script strategy. It is tracked as a Phase 2 hardening task in
  * `docs/architecture.md` rather than shipped as a permissive placeholder.
+ *
+ * HSTS is opt-in (`ENABLE_HSTS=true`). Sending it on plain HTTP droplet/IP
+ * demos can confuse browsers and break CSS/JS loads over http://.
  */
-const securityHeaders = [
+const securityHeaders: { key: string; value: string }[] = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
@@ -21,11 +24,14 @@ const securityHeaders = [
     key: 'Permissions-Policy',
     value: 'camera=(), microphone=(), geolocation=(), payment=()',
   },
-  {
+];
+
+if (process.env.ENABLE_HSTS === 'true') {
+  securityHeaders.push({
     key: 'Strict-Transport-Security',
     value: 'max-age=63072000; includeSubDomains; preload',
-  },
-] as const;
+  });
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -41,7 +47,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/:path*',
-        headers: [...securityHeaders],
+        headers: securityHeaders,
       },
     ];
   },
