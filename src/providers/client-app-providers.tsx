@@ -13,9 +13,12 @@ import { QueryProvider } from '@/providers/query-provider';
  */
 function WagmiWhenReady({ children }: { children: ReactNode }) {
   const { isInitialized, web3Auth } = useWeb3Auth();
+  if (!isInitialized || web3Auth === null) {
+    return children;
+  }
   const chains = web3Auth.coreOptions.chains;
   const chainCount = Array.isArray(chains) ? chains.length : 0;
-  if (!isInitialized || chainCount === 0) {
+  if (chainCount === 0) {
     return children;
   }
   return <WagmiProvider>{children}</WagmiProvider>;
