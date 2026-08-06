@@ -27,7 +27,7 @@ async function resolveVehicleId(databaseUrl: string): Promise<{
   deviceId: string;
   displayName: string | null;
 }> {
-  const override = process.env.EXTERNAL_DEVICE_ID?.trim();
+  const override = process.env['EXTERNAL_DEVICE_ID']?.trim();
   const sql = postgres(databaseUrl, { max: 1 });
   const db = drizzle(sql, { schema });
 
