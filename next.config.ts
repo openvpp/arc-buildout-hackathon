@@ -26,7 +26,7 @@ const securityHeaders: { key: string; value: string }[] = [
   },
 ];
 
-if (process.env.ENABLE_HSTS === 'true') {
+if (process.env['ENABLE_HSTS'] === 'true') {
   securityHeaders.push({
     key: 'Strict-Transport-Security',
     value: 'max-age=63072000; includeSubDomains; preload',
