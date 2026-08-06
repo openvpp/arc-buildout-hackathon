@@ -12,3 +12,8 @@ export {
   ownedEvmAddressesFromIdToken,
   resolveWalletAddressForOnboarding,
 } from './web3auth-id-token';
+export {
+  RequireWagmi,
+  useIsWagmiReady,
+  WagmiReadyProvider,
+} from './wagmi-ready';

@@ -4,7 +4,11 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { useConfiguredWalletSession } from '@/features/auth';
+import {
+  isWeb3AuthConfigured,
+  RequireWagmi,
+  useConfiguredWalletSession,
+} from '@/features/auth';
 
 import {
   createDemoTelemetryApi,
@@ -17,6 +21,33 @@ type PanelState =
   | { kind: 'error'; message: string };
 
 export function RequestTelemetryPanel(props: {
+  readonly walletAddress: string;
+  readonly deviceId: string;
+  readonly deviceLabel: string;
+}) {
+  if (!isWeb3AuthConfigured()) {
+    return (
+      <div className="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          Connect Web3Auth to request / pay for latest telemetry.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <RequireWagmi
+      fallback={
+        <div className="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
+          <p className="text-xs text-slate-500">Initializing wallet…</p>
+        </div>
+      }
+    >
+      <RequestTelemetryPanelConnected {...props} />
+    </RequireWagmi>
+  );
+}
+
+function RequestTelemetryPanelConnected(props: {
   readonly walletAddress: string;
   readonly deviceId: string;
   readonly deviceLabel: string;

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
   isWeb3AuthConfigured,
+  RequireWagmi,
   resolveWalletAddressForOnboarding,
   useConfiguredWalletSession,
   WalletConnectButton,
@@ -23,6 +24,15 @@ function UnconfiguredOnboard() {
         Wallet login is not available right now. Try again later or contact the
         demo host.
       </CardDescription>
+    </Card>
+  );
+}
+
+function InitializingOnboard() {
+  return (
+    <Card>
+      <CardTitle>Enode vehicle link</CardTitle>
+      <CardDescription>Initializing wallet…</CardDescription>
     </Card>
   );
 }
@@ -143,7 +153,13 @@ export default function DeviceOnboardPage() {
         title="Add vehicle"
         description="Connect an EV through Enode Link using your Web3Auth wallet."
       />
-      {isWeb3AuthConfigured() ? <OnboardForm /> : <UnconfiguredOnboard />}
+      {isWeb3AuthConfigured() ? (
+        <RequireWagmi fallback={<InitializingOnboard />}>
+          <OnboardForm />
+        </RequireWagmi>
+      ) : (
+        <UnconfiguredOnboard />
+      )}
       <p className="text-sm text-slate-600 dark:text-slate-400">
         <Link href="/devices" className="underline">
           Back to devices

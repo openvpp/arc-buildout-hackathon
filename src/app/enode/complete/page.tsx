@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
   isWeb3AuthConfigured,
+  RequireWagmi,
   resolveWalletAddressForOnboarding,
   useConfiguredWalletSession,
   WalletConnectButton,
@@ -245,7 +246,17 @@ function EnodeCompleteInner() {
       </div>
     );
   }
-  return <EnodeCompleteConfigured />;
+  return (
+    <RequireWagmi
+      fallback={
+        <div className="mx-auto max-w-lg px-4 py-10 text-sm text-slate-600">
+          Initializing wallet…
+        </div>
+      }
+    >
+      <EnodeCompleteConfigured />
+    </RequireWagmi>
+  );
 }
 
 export default function EnodeCompletePage() {
