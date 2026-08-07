@@ -1,20 +1,21 @@
-import { desc, eq, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 import {
   getLatestTelemetryWithVerification,
   listBoundWallets,
   listDevicesForWallet,
+  listRecentTelemetryForDevice,
+  TELEMETRY_HISTORY_LIMIT,
 } from '@/server/application/dashboard/list-dashboard';
 import { MAX_PAGE_SIZE } from '@/server/config/constants';
 import type { Database } from '@/server/infrastructure/db/client';
 import {
   principalWallets,
   principals,
-  telemetryRecords,
 } from '@/server/infrastructure/db/schema';
 
-/** Recent telemetry rows returned per device (bounded). */
-export const ADMIN_TELEMETRY_HISTORY_LIMIT = 20;
+/** @deprecated Prefer TELEMETRY_HISTORY_LIMIT — kept for admin test stability. */
+export const ADMIN_TELEMETRY_HISTORY_LIMIT = TELEMETRY_HISTORY_LIMIT;
 
 export type AdminWalletBinding = {
   readonly principalId: string;
@@ -68,25 +69,7 @@ async function listBindingsForWallets(
   return byWallet;
 }
 
-export async function listRecentTelemetryForDevice(
-  db: Database,
-  deviceId: string,
-  limit: number = ADMIN_TELEMETRY_HISTORY_LIMIT,
-): Promise<AdminTelemetryHistoryItem[]> {
-  const capped = Math.min(Math.max(limit, 1), ADMIN_TELEMETRY_HISTORY_LIMIT);
-  return db
-    .select({
-      id: telemetryRecords.id,
-      recordedAt: telemetryRecords.recordedAt,
-      contentHash: telemetryRecords.contentHash,
-      anchorStatus: telemetryRecords.anchorStatus,
-      anchorTransactionHash: telemetryRecords.anchorTransactionHash,
-    })
-    .from(telemetryRecords)
-    .where(eq(telemetryRecords.deviceId, deviceId))
-    .orderBy(desc(telemetryRecords.recordedAt), desc(telemetryRecords.id))
-    .limit(capped);
-}
+export { listRecentTelemetryForDevice };
 
 /**
  * Cross-tenant admin snapshot: bound wallets, principal bindings, devices,

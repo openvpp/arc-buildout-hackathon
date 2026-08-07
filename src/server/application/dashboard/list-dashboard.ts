@@ -9,6 +9,17 @@ import {
   wallets,
 } from '@/server/infrastructure/db/schema';
 
+/** Recent telemetry metadata rows returned per device (bounded). */
+export const TELEMETRY_HISTORY_LIMIT = 20;
+
+export type TelemetryHistoryItem = {
+  readonly id: string;
+  readonly recordedAt: Date;
+  readonly contentHash: string;
+  readonly anchorStatus: string;
+  readonly anchorTransactionHash: string | null;
+};
+
 export async function listWalletsForPrincipal(
   db: Database,
   principalId: string,
@@ -107,4 +118,59 @@ export async function listDashboardSnapshot(db: Database, principalId: string) {
 export async function listDashboardSnapshotForBoundWallets(db: Database) {
   const walletRows = await listBoundWallets(db);
   return buildSnapshotForWallets(db, walletRows);
+}
+
+export async function listRecentTelemetryForDevice(
+  db: Database,
+  deviceId: string,
+  limit: number = TELEMETRY_HISTORY_LIMIT,
+): Promise<TelemetryHistoryItem[]> {
+  const capped = Math.min(Math.max(limit, 1), TELEMETRY_HISTORY_LIMIT);
+  return db
+    .select({
+      id: telemetryRecords.id,
+      recordedAt: telemetryRecords.recordedAt,
+      contentHash: telemetryRecords.contentHash,
+      anchorStatus: telemetryRecords.anchorStatus,
+      anchorTransactionHash: telemetryRecords.anchorTransactionHash,
+    })
+    .from(telemetryRecords)
+    .where(eq(telemetryRecords.deviceId, deviceId))
+    .orderBy(desc(telemetryRecords.recordedAt), desc(telemetryRecords.id))
+    .limit(capped);
+}
+
+/**
+ * Device detail for dashboard viewers: only devices whose wallet appears in
+ * principal_wallets. History is metadata-only (no telemetry payload).
+ */
+export async function getBoundDeviceDetail(db: Database, deviceId: string) {
+  const [device] = await db
+    .select()
+    .from(devices)
+    .where(eq(devices.id, deviceId))
+    .limit(1);
+  if (device === undefined) {
+    return null;
+  }
+
+  const walletRows = await listBoundWallets(db);
+  const wallet = walletRows.find((row) => row.id === device.walletId);
+  if (wallet === undefined) {
+    return null;
+  }
+
+  const { latest, verification } = await getLatestTelemetryWithVerification(
+    db,
+    device.id,
+  );
+  const history = await listRecentTelemetryForDevice(db, device.id);
+
+  return {
+    wallet,
+    device,
+    latest,
+    verification,
+    history,
+  };
 }

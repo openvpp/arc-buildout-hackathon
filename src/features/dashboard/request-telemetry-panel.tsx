@@ -12,6 +12,7 @@ import {
   RequireWagmi,
   useConfiguredWalletSession,
 } from '@/features/auth';
+import { readTelemetryReadingFields } from '@/features/telemetry';
 
 import {
   createDemoTelemetryApi,
@@ -302,7 +303,7 @@ function UnlockedTelemetry({
 }) {
   const txHash = result.payment.transactionHash;
   const explorerHref = `${env.NEXT_PUBLIC_ARC_EXPLORER_BASE_URL.replace(/\/$/, '')}/tx/${txHash}`;
-  const soc = readStateOfCharge(result.telemetry.data);
+  const readings = readTelemetryReadingFields(result.telemetry.data);
   const verified = verifyState.kind === 'result';
 
   return (
@@ -316,12 +317,14 @@ function UnlockedTelemetry({
       </div>
 
       <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div>
-          <dt className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
-            State of charge
-          </dt>
-          <dd className="text-sm font-semibold">{soc}%</dd>
-        </div>
+        {readings.map((field) => (
+          <div key={field.label}>
+            <dt className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
+              {field.label}
+            </dt>
+            <dd className="text-sm font-semibold">{field.value}</dd>
+          </div>
+        ))}
         <div>
           <dt className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
             Recorded at
@@ -329,6 +332,12 @@ function UnlockedTelemetry({
           <dd className="font-mono text-[11px] break-all">
             {result.telemetry.recordedAt}
           </dd>
+        </div>
+        <div>
+          <dt className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
+            Provenance
+          </dt>
+          <dd>{result.provenance.status}</dd>
         </div>
         <div className="sm:col-span-2">
           <dt className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
@@ -345,12 +354,6 @@ function UnlockedTelemetry({
           <dd className="font-mono text-[11px] break-all">
             {result.provenance.contentHash}
           </dd>
-        </div>
-        <div className="sm:col-span-2">
-          <dt className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
-            Provenance
-          </dt>
-          <dd>{result.provenance.status}</dd>
         </div>
       </dl>
 
@@ -426,12 +429,4 @@ function UnlockedTelemetry({
       ) : null}
     </div>
   );
-}
-
-function readStateOfCharge(payload: unknown): string {
-  if (typeof payload !== 'object' || payload === null) {
-    return '—';
-  }
-  const value = (payload as Record<string, unknown>)['stateOfChargePercent'];
-  return value === undefined || value === null ? '—' : String(value);
 }

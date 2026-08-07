@@ -17,3 +17,8 @@ export {
   notImplementedTelemetryGateway,
   type TelemetryGateway,
 } from './gateway';
+
+export {
+  readTelemetryReadingFields,
+  type TelemetryReadingField,
+} from './read-payload';

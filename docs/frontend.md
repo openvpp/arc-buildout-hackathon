@@ -8,14 +8,15 @@ checks shown in the UI are evidence, not authorization.
 
 ## App routes (pages)
 
-| Route              | File                                           | Kind   | Purpose                                                       |
-| ------------------ | ---------------------------------------------- | ------ | ------------------------------------------------------------- |
-| `/`                | `src/app/page.tsx`                             | Server | Landing (boilerplate); links to dashboard                     |
-| `/dashboard`       | `src/app/(dashboard)/dashboard/page.tsx`       | Server | Overview: wallets → devices → latest telemetry + verification |
-| `/wallets`         | `src/app/(dashboard)/wallets/page.tsx`         | Server | Bound wallets list                                            |
-| `/devices`         | `src/app/(dashboard)/devices/page.tsx`         | Server | Devices list + link to onboard                                |
-| `/devices/onboard` | `src/app/(dashboard)/devices/onboard/page.tsx` | Client | Web3Auth connect → start Enode Link                           |
-| `/enode/complete`  | `src/app/enode/complete/page.tsx`              | Client | Enode OAuth return → nickname → finalize device               |
+| Route                 | File                                              | Kind   | Purpose                                                           |
+| --------------------- | ------------------------------------------------- | ------ | ----------------------------------------------------------------- |
+| `/`                   | `src/app/page.tsx`                                | Server | Landing (boilerplate); links to dashboard                         |
+| `/dashboard`          | `src/app/(dashboard)/dashboard/page.tsx`          | Server | Overview: wallets → devices → request/unlock + verification       |
+| `/wallets`            | `src/app/(dashboard)/wallets/page.tsx`            | Server | Bound wallets list                                                |
+| `/devices`            | `src/app/(dashboard)/devices/page.tsx`            | Server | Devices list with vendor/status/latest metadata + link to onboard |
+| `/devices/[deviceId]` | `src/app/(dashboard)/devices/[deviceId]/page.tsx` | Server | Vehicle detail + metadata-only telemetry history card list        |
+| `/devices/onboard`    | `src/app/(dashboard)/devices/onboard/page.tsx`    | Client | Web3Auth connect → start Enode Link                               |
+| `/enode/complete`     | `src/app/enode/complete/page.tsx`                 | Client | Enode OAuth return → nickname → finalize device                   |
 
 Shell: `(dashboard)` routes use `src/app/(dashboard)/layout.tsx` +
 `src/components/layout/dashboard-shell.tsx` (sidebar nav). `/enode/complete`
@@ -23,13 +24,25 @@ is outside that shell (OAuth return URL).
 
 ## Page data & auth
 
-| Surface                               | How data loads                                                   | Auth                                       |
-| ------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------ |
-| `/dashboard`, `/wallets`, `/devices`  | RSC → `loadDashboardSnapshot()` → Postgres (`principal_wallets`) | None yet (lists all bound wallets)         |
-| `/devices/onboard`, `/enode/complete` | Client → `createOnboardingApi()`                                 | Web3Auth `Authorization: Bearer <idToken>` |
+| Surface                               | How data loads                                                              | Auth                                       |
+| ------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------ |
+| `/dashboard`, `/wallets`, `/devices`  | RSC → `loadDashboardSnapshot()` → Postgres (`principal_wallets`)            | None yet (lists all bound wallets)         |
+| `/devices/[deviceId]`                 | RSC → `loadDeviceDetail()` → bounded history (metadata only, no EV payload) | None yet (bound-wallet devices only)       |
+| `/devices/onboard`, `/enode/complete` | Client → `createOnboardingApi()`                                            | Web3Auth `Authorization: Bearer <idToken>` |
 
 Requires `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (Sapphire Devnet) for onboarding UI.
 Without it, onboarding shows an unconfigured state.
+
+## Vehicle detail & telemetry history
+
+`/devices/[deviceId]` shows:
+
+- Vehicle fields (vendor, model, status, mint, external id, NFT refs, wallet)
+- Latest telemetry **metadata** (recordedAt, content hash, anchor status)
+- Card list of recent telemetry records (bounded to 20) — **metadata only**
+
+EV reading fields (`stateOfChargePercent`, charging, range, etc.) appear only
+after **Pay & unlock** on `/dashboard`. History never exposes unpaid payloads.
 
 ## Add-vehicle FE flow
 
@@ -62,6 +75,10 @@ Pay (mock)
 Requires `ALLOW_MOCK_ADAPTERS=true` and `AGENT_API_KEY` in `.env.local` (server).
 Not live payment evidence. Production-style buyer remains the agent process.
 
+After unlock, the panel renders the full normalized EV payload (SoC, charging,
+range, odometer, power, coordinates) plus provenance and Arcscan settlement
+link.
+
 ## What the FE does **not** do
 
 - Call agent purchase `POST /api/v1/agent/telemetry/latest` directly (uses demo BFF)
@@ -70,14 +87,15 @@ Not live payment evidence. Production-style buyer remains the agent process.
 
 ## Feature modules
 
-| Feature                     | Public surface                           | Notes                                            |
-| --------------------------- | ---------------------------------------- | ------------------------------------------------ |
-| `src/features/auth`         | Web3Auth connect / session / id token    | FE wallet identity                               |
-| `src/features/onboarding`   | `createOnboardingApi`                    | Typed client for Link / OAuth / finalize         |
-| `src/features/dashboard`    | Snapshot loader + mock Request/Pay panel | Demo buy BFF client                              |
-| `src/features/telemetry`    | Gateway + schemas                        | Typed client exists; dashboard uses RSC/DB today |
-| `src/features/verification` | Status helpers                           | Badge tone on dashboard                          |
-| `src/features/wallets`      | Address formatting                       | Display helpers                                  |
+| Feature                     | Public surface                            | Notes                                    |
+| --------------------------- | ----------------------------------------- | ---------------------------------------- |
+| `src/features/auth`         | Web3Auth connect / session / id token     | FE wallet identity                       |
+| `src/features/onboarding`   | `createOnboardingApi`                     | Typed client for Link / OAuth / finalize |
+| `src/features/dashboard`    | Snapshot loaders + mock Request/Pay panel | Demo buy BFF + device detail loader      |
+| `src/features/devices`      | Device/vehicle format helpers             | Shared display formatting                |
+| `src/features/telemetry`    | Gateway + schemas + payload field readers | Unlocked reading grid                    |
+| `src/features/verification` | Status helpers                            | Badge tone on dashboard                  |
+| `src/features/wallets`      | Address formatting                        | Display helpers                          |
 
 Import features only via each package’s `index.ts`.
 

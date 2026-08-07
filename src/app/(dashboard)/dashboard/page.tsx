@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
@@ -8,6 +9,12 @@ import {
   loadDashboardSnapshot,
   RequestTelemetryPanel,
 } from '@/features/dashboard';
+import {
+  deviceDisplayName,
+  deviceStatusTone,
+  formatTimestamp,
+  mintStatusTone,
+} from '@/features/devices';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
@@ -131,34 +138,55 @@ export default async function DashboardPage() {
               <h3 className="text-sm font-medium text-slate-800 dark:text-slate-200">
                 {wallet.label ?? wallet.address}
               </h3>
-              {devices.map(({ device, verification }) => {
+              {devices.map(({ device, latest, verification }) => {
                 const agentBadge = agentVerificationBadge(verification?.status);
+                const label = deviceDisplayName(device);
                 return (
                   <Card key={device.id}>
-                    <CardTitle>
-                      {device.displayName ?? device.externalDeviceId}
-                    </CardTitle>
+                    <CardTitle>{label}</CardTitle>
                     <CardDescription>
                       <span className="flex flex-col gap-2">
                         <span className="flex flex-wrap items-center gap-2">
                           <StatusBadge tone="warning">Locked</StatusBadge>
+                          <StatusBadge tone={deviceStatusTone(device.status)}>
+                            {device.status}
+                          </StatusBadge>
+                          <StatusBadge tone={mintStatusTone(device.mintStatus)}>
+                            mint {device.mintStatus}
+                          </StatusBadge>
                           <StatusBadge tone={agentBadge.tone}>
                             {agentBadge.label}
                           </StatusBadge>
                         </span>
                         <span>
-                          Payload hidden until you Request latest, then Pay &
+                          {device.vendor ?? 'Unknown vendor'}
+                          {device.model ? ` · ${device.model}` : ''}
+                          {' · '}
+                          <span className="font-mono text-xs">
+                            {device.externalDeviceId}
+                          </span>
+                        </span>
+                        <span>
+                          Latest record:{' '}
+                          {latest === null
+                            ? 'none yet'
+                            : `${formatTimestamp(latest.recordedAt)} · anchor ${latest.anchorStatus}`}
+                          . Payload hidden until you Request latest, then Pay &
                           unlock. After unlock, use Verify on Arc to update the
                           Verified count.
                         </span>
+                        <Link
+                          href={`/devices/${device.id}`}
+                          className="w-fit font-medium text-slate-800 underline decoration-2 underline-offset-4 dark:text-slate-200"
+                        >
+                          View vehicle & telemetry history
+                        </Link>
                       </span>
                     </CardDescription>
                     <RequestTelemetryPanel
                       walletAddress={wallet.address}
                       deviceId={device.id}
-                      deviceLabel={
-                        device.displayName ?? device.externalDeviceId
-                      }
+                      deviceLabel={label}
                     />
                   </Card>
                 );

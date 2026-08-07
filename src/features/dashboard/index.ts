@@ -1,4 +1,5 @@
 export { loadDashboardSnapshot } from './load-snapshot';
+export { loadDeviceDetail } from './load-device-detail';
 export {
   createDemoTelemetryApi,
   type DemoTelemetryResponse,

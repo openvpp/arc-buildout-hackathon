@@ -51,6 +51,10 @@ describe('DashboardPage', () => {
                 id: 'device-1',
                 displayName: 'Demo Device',
                 externalDeviceId: 'ext-1',
+                vendor: 'DemoOEM',
+                model: 'Sedan',
+                status: 'active',
+                mintStatus: 'unminted',
               },
               latest: {
                 telemetryPayload: { stateOfChargePercent: 88 },
