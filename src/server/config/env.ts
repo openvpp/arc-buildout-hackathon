@@ -150,6 +150,10 @@ export const serverEnvSchema = z
       .default('false')
       .transform((value) => value === 'true'),
 
+    /** Super-admin Basic Auth. Both empty = admin disabled (fail closed). */
+    ADMIN_USERNAME: z.string().optional(),
+    ADMIN_PASSWORD: z.string().optional(),
+
     WORKER_ID: z.string().min(1).default('worker-1'),
     WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
     WORKER_CONCURRENCY: z.coerce.number().int().positive().default(4),
@@ -273,6 +277,26 @@ export const serverEnvSchema = z
         });
       }
     }
+
+    const adminUser = env.ADMIN_USERNAME?.trim() ?? '';
+    const adminPass = env.ADMIN_PASSWORD ?? '';
+    const adminUserSet = adminUser.length > 0;
+    const adminPassSet = adminPass.length > 0;
+    if (adminUserSet !== adminPassSet) {
+      ctx.addIssue({
+        code: 'custom',
+        path: adminUserSet ? ['ADMIN_PASSWORD'] : ['ADMIN_USERNAME'],
+        message:
+          'ADMIN_USERNAME and ADMIN_PASSWORD must both be set or both omitted',
+      });
+    }
+    if (adminPassSet && adminPass.length < 8) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['ADMIN_PASSWORD'],
+        message: 'ADMIN_PASSWORD must be at least 8 characters when set',
+      });
+    }
   });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -342,6 +366,8 @@ export function readRawServerEnv(
     ENODE_WEBHOOK_ALLOWED_IPS: source.ENODE_WEBHOOK_ALLOWED_IPS,
     PENDING_DEVICE_OAUTH_TTL_HOURS: source.PENDING_DEVICE_OAUTH_TTL_HOURS,
     ALLOW_MOCK_ADAPTERS: source.ALLOW_MOCK_ADAPTERS,
+    ADMIN_USERNAME: source.ADMIN_USERNAME,
+    ADMIN_PASSWORD: source.ADMIN_PASSWORD,
     WORKER_ID: source.WORKER_ID,
     WORKER_POLL_INTERVAL_MS: source.WORKER_POLL_INTERVAL_MS,
     WORKER_CONCURRENCY: source.WORKER_CONCURRENCY,
@@ -393,4 +419,19 @@ export function isServerProduction(env: ServerEnv = getServerEnv()): boolean {
 
 export function isServerDemo(env: ServerEnv = getServerEnv()): boolean {
   return env.APP_ENV === 'demo';
+}
+
+/**
+ * Super-admin Basic Auth credentials, or null when admin is not configured
+ * (both username and password unset/empty).
+ */
+export function getAdminBasicCredentials(
+  env: ServerEnv = getServerEnv(),
+): { readonly username: string; readonly password: string } | null {
+  const username = env.ADMIN_USERNAME?.trim() ?? '';
+  const password = env.ADMIN_PASSWORD ?? '';
+  if (username.length === 0 || password.length === 0) {
+    return null;
+  }
+  return { username, password };
 }

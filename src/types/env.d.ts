@@ -72,6 +72,8 @@ declare global {
       readonly ENODE_WEBHOOK_ALLOWED_IPS?: string;
       readonly PENDING_DEVICE_OAUTH_TTL_HOURS?: string;
       readonly ALLOW_MOCK_ADAPTERS?: string;
+      readonly ADMIN_USERNAME?: string;
+      readonly ADMIN_PASSWORD?: string;
       readonly WORKER_ID?: string;
       readonly WORKER_POLL_INTERVAL_MS?: string;
       readonly WORKER_CONCURRENCY?: string;

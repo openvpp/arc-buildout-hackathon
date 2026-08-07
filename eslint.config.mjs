@@ -105,6 +105,7 @@ const config = [
       'public/**',
       '**/*.d.ts',
       'pnpm-lock.yaml',
+      '.claude/**',
     ],
   },
 

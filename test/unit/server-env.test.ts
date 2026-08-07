@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  getAdminBasicCredentials,
   parseServerEnv,
   type RawServerEnv,
   resetServerEnvCache,
@@ -110,6 +111,42 @@ describe('parseServerEnv', () => {
     expect(env.SELLER_WALLET_ADDRESS).toBe(
       '0x2222222222222222222222222222222222222222',
     );
+  });
+
+  it('accepts both admin credentials when password is long enough', () => {
+    const env = parseServerEnv({
+      ...validEnv,
+      ADMIN_USERNAME: 'admin',
+      ADMIN_PASSWORD: 'long-enough-password',
+    });
+    expect(getAdminBasicCredentials(env)).toEqual({
+      username: 'admin',
+      password: 'long-enough-password',
+    });
+  });
+
+  it('rejects admin username without password', () => {
+    expect(() =>
+      parseServerEnv({
+        ...validEnv,
+        ADMIN_USERNAME: 'admin',
+      }),
+    ).toThrow(/ADMIN_USERNAME and ADMIN_PASSWORD/);
+  });
+
+  it('rejects short admin passwords', () => {
+    expect(() =>
+      parseServerEnv({
+        ...validEnv,
+        ADMIN_USERNAME: 'admin',
+        ADMIN_PASSWORD: 'short',
+      }),
+    ).toThrow(/ADMIN_PASSWORD must be at least 8/);
+  });
+
+  it('returns null admin credentials when unset', () => {
+    const env = parseServerEnv(validEnv);
+    expect(getAdminBasicCredentials(env)).toBeNull();
   });
 });
 

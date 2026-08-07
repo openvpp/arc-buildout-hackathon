@@ -21,3 +21,6 @@ pnpm-lock.yaml
 
 # Drizzle kit journal/snapshots (SQL migrations remain formatted/committed)
 drizzle/migrations/meta/
+
+# Local Claude Code worktrees (not part of the repo packaging)
+.claude/
