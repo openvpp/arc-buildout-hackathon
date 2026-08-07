@@ -37,6 +37,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ['@web3auth/modal'],
+  // pino (and workers it loads) must stay external; Turbopack otherwise emits
+  // hashed require IDs like `pino-2e796...` that fail at runtime under `next start`.
+  serverExternalPackages: ['pino', 'pino-pretty', 'thread-stream'],
   // Typed routes are disabled so `pnpm typecheck` can run BEFORE `pnpm build`:
   // when enabled, Next writes an import of the generated `.next/types/routes.d.ts`
   // into `next-env.d.ts`, which does not exist on a fresh checkout. Re-enable in
