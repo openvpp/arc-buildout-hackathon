@@ -66,15 +66,20 @@ export const POST = createRouteHandler(async (request, context) => {
   });
 
   // Acknowledge quickly; processing is asynchronous via outbox.
+  const status = result.dropped
+    ? 'dropped'
+    : result.duplicate
+      ? 'duplicate'
+      : 'accepted';
   return jsonOk(
     {
-      status: result.duplicate ? 'duplicate' : 'accepted',
+      status,
       deliveryId: createHash('sha256')
         .update(result.deliveryId)
         .digest('hex')
         .slice(0, 16),
     },
     context.requestId,
-    { status: result.duplicate ? 200 : 202 },
+    { status: status === 'accepted' ? 202 : 200 },
   );
 });

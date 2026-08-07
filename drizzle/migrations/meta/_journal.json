@@ -29,6 +29,13 @@
       "when": 1785976260000,
       "tag": "20260806000000_device_nft_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786060800000,
+      "tag": "20260807000000_device_mint_status",
+      "breakpoints": true
     }
   ]
 }

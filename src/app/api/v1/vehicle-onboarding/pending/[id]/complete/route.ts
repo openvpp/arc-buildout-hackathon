@@ -63,7 +63,9 @@ export const POST = createRouteHandler(async (request, requestContext) => {
       {
         success: true,
         wasExistingDevice: result.wasExistingDevice,
-        mintWarning: result.mintWarning,
+        // Minting is asynchronous: 'pending' means a MINT_DEVICE_NFT worker job
+        // was enqueued — poll the device read API until nftTokenId is populated.
+        nftMintStatus: result.mintStatus,
         device: {
           id: result.device.id,
           walletId: result.device.walletId,
@@ -72,6 +74,7 @@ export const POST = createRouteHandler(async (request, requestContext) => {
           vendor: result.device.vendor,
           model: result.device.model,
           status: result.device.status,
+          mintStatus: result.device.mintStatus,
           nftTokenId: result.device.nftTokenId,
           nftContractAddress: result.device.nftContractAddress,
           nftTransactionHash: result.device.nftTransactionHash,

@@ -21,8 +21,14 @@ import {
 } from '@/server/infrastructure/db/repositories/telemetry-payment-repository';
 import { withTransaction } from '@/server/infrastructure/db/transaction';
 import {
+  decodeEnodeUserId,
+  wireEnvironmentForAppEnv,
+} from '@/server/infrastructure/enode/user-id';
+import {
   coerceEnodeVehicleEvent,
+  extractEnodeEventUserId,
   extractEnodeWebhookEvents,
+  isEmptyTelemetryData,
   mapUnifiedEnodeVehicleEvent,
   summarizeEnodeWebhookEventTypes,
 } from '@/server/infrastructure/enode/webhook-mapper';
@@ -38,7 +44,7 @@ export async function receiveEnodeWebhook(input: {
   headers: Record<string, string>;
   signatureHeader: string | null;
   deliveryHeader?: string | null;
-}): Promise<{ deliveryId: string; duplicate: boolean }> {
+}): Promise<{ deliveryId: string; duplicate: boolean; dropped?: boolean }> {
   const verified = verifyEnodeWebhook({
     rawBody: input.rawBody,
     signatureHeader: input.signatureHeader,
@@ -65,6 +71,26 @@ export async function receiveEnodeWebhook(input: {
   const payloadHash = createHash('sha256').update(input.rawBody).digest('hex');
   const events = extractEnodeWebhookEvents(parsed);
   const eventType = summarizeEnodeWebhookEventTypes(events);
+
+  // Tenancy guard: Enode delivers every event on the account to every registered
+  // webhook, so a shared Enode account fans other environments' events (and their
+  // mint/telemetry side effects) into this backend. Drop deliveries whose events
+  // all belong to another environment. Events with no attributable user id
+  // (e.g. schedule/test pings) fail open and are kept.
+  const appWireEnv = wireEnvironmentForAppEnv(getServerEnv().APP_ENV);
+  const belongsToThisEnv = (rawEvent: unknown): boolean => {
+    const userId = extractEnodeEventUserId(rawEvent);
+    if (userId === null) return true;
+    return decodeEnodeUserId(userId).environment === appWireEnv;
+  };
+  if (events.length > 0 && !events.some(belongsToThisEnv)) {
+    log.info('enode.webhook_foreign_env_dropped', {
+      events: events.length,
+      appWireEnv,
+      eventType,
+    });
+    return { deliveryId: payloadHash, duplicate: false, dropped: true };
+  }
 
   const deliveryIdHeader =
     input.deliveryHeader !== undefined &&
@@ -154,6 +180,7 @@ export async function processEnodeWebhookDelivery(input: {
   let ingested = 0;
   let skippedUnsupported = 0;
   let skippedDuplicate = 0;
+  let skippedEmpty = 0;
   let missingDevices = 0;
   const missingDeviceIds: string[] = [];
 
@@ -166,6 +193,15 @@ export async function processEnodeWebhookDelivery(input: {
     }
 
     const mapped = mapUnifiedEnodeVehicleEvent(coerced);
+
+    // A bare `user:vehicle:discovered` (or any event with no readings) would
+    // otherwise anchor an all-null telemetry record. Skip it — and do so before
+    // the device lookup so an empty event never forces a missing-device retry.
+    if (isEmptyTelemetryData(mapped.data)) {
+      skippedEmpty += 1;
+      continue;
+    }
+
     const sourceEventId =
       mapped.sourceEventId ??
       `${delivery.providerEventId ?? delivery.id}:${mapped.externalDeviceId}:${coerced.createdAt ?? index}`;
@@ -244,14 +280,18 @@ export async function processEnodeWebhookDelivery(input: {
     return;
   }
 
-  // Retry when every vehicle event failed device lookup (onboarding race).
-  if (ingested === 0 && skippedDuplicate === 0 && missingDevices > 0) {
+  // Retry whenever any event referenced a device that is not onboarded yet
+  // (onboarding race). Already-ingested events in this delivery dedupe on the
+  // (source, source_event_id) unique index when the delivery is retried, so no
+  // duplicate telemetry is created — but the missing device's telemetry is no
+  // longer silently dropped. The worker's maxAttempts/dead-letter bound this.
+  if (missingDevices > 0) {
     await input.db
       .update(webhookDeliveries)
       .set({
         processingStatus: 'failed',
         lastErrorCode: 'DEVICE_NOT_FOUND',
-        lastErrorMessage: `No device for external id(s): ${missingDeviceIds.slice(0, 5).join(', ')}`,
+        lastErrorMessage: `ingested=${ingested} duplicate=${skippedDuplicate} missing=${missingDevices} empty=${skippedEmpty} unsupported=${skippedUnsupported}; ids=${missingDeviceIds.slice(0, 5).join(', ')}`,
         attemptCount: delivery.attemptCount + 1,
       })
       .where(eq(webhookDeliveries.id, delivery.id));
@@ -265,13 +305,10 @@ export async function processEnodeWebhookDelivery(input: {
     .set({
       processingStatus: 'processed',
       processedAt: new Date(),
-      lastErrorCode:
-        missingDevices > 0 && ingested === 0 && skippedDuplicate > 0
-          ? 'DEVICE_NOT_FOUND'
-          : null,
+      lastErrorCode: null,
       lastErrorMessage:
-        missingDevices > 0
-          ? `ingested=${ingested} duplicate=${skippedDuplicate} missing=${missingDevices} unsupported=${skippedUnsupported}`
+        skippedEmpty > 0
+          ? `ingested=${ingested} duplicate=${skippedDuplicate} empty=${skippedEmpty} unsupported=${skippedUnsupported}`
           : null,
     })
     .where(eq(webhookDeliveries.id, delivery.id));
@@ -280,6 +317,7 @@ export async function processEnodeWebhookDelivery(input: {
     webhookDeliveryId: delivery.id,
     ingested,
     skippedDuplicate,
+    skippedEmpty,
     missingDevices,
     skippedUnsupported,
   });
