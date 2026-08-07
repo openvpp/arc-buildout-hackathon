@@ -36,6 +36,13 @@
       "when": 1786060800000,
       "tag": "20260807000000_device_mint_status",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786147200000,
+      "tag": "20260808000000_agent_verification_pending_onchain",
+      "breakpoints": true
     }
   ]
 }

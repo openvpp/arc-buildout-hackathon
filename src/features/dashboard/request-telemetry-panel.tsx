@@ -172,8 +172,8 @@ function RequestTelemetryPanelConnected(props: {
           <span className="font-medium text-slate-800 dark:text-slate-200">
             Verify
           </span>{' '}
-          — independently check Arc settlement + content hash (increments
-          Verified count).
+          — re-check Arc settlement receipt (resolves Circle transfer UUID → tx
+          when ready) and content hash. Evidence only — not unlock.
         </li>
       </ol>
 
@@ -352,12 +352,13 @@ function UnlockedTelemetry({
 
       <div className="flex flex-col gap-2 border-t border-emerald-200 pt-3 dark:border-emerald-800">
         <p className="font-medium text-emerald-950 dark:text-emerald-50">
-          Independent verification
+          Re-check settlement on Arc
         </p>
         <p className="text-emerald-900/90 dark:text-emerald-100/90">
-          Checks the settlement on Arc and that the content hash matches. This
-          is evidence for the dashboard Verified count — not unlock
-          authorization.
+          Looks up a Circle transfer UUID for a settlement tx when needed, then
+          checks that receipt on Arc and that the content hash matches.
+          <span className="font-medium"> VERIFIED</span> only after a successful
+          Arc receipt — not unlock authorization.
         </p>
         <Button
           type="button"
@@ -368,7 +369,7 @@ function UnlockedTelemetry({
           {pending && !verified
             ? 'Verifying…'
             : verified
-              ? 'Verified'
+              ? 'Verified on Arc'
               : 'Verify on Arc'}
         </Button>
 
@@ -383,19 +384,37 @@ function UnlockedTelemetry({
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge
                 tone={
-                  verifyState.data.status === 'VERIFIED' ? 'success' : 'danger'
+                  verifyState.data.status === 'VERIFIED'
+                    ? 'success'
+                    : verifyState.data.status === 'PENDING_ONCHAIN'
+                      ? 'warning'
+                      : 'danger'
                 }
               >
-                {verifyState.data.status}
+                {verifyState.data.status === 'PENDING_ONCHAIN'
+                  ? 'Pending on Arc'
+                  : verifyState.data.status}
               </StatusBadge>
               <span>
                 receiptFound={String(verifyState.data.receiptFound)} ·
                 hashMatched={String(verifyState.data.contentHashMatched)}
               </span>
             </div>
+            {verifyState.data.resolvedTransactionHash !== undefined &&
+            verifyState.data.resolvedTransactionHash !== null ? (
+              <p className="font-mono text-[11px] break-all opacity-80">
+                resolved {verifyState.data.resolvedTransactionHash}
+              </p>
+            ) : null}
             <p className="font-mono text-[11px] break-all opacity-80">
               expected {verifyState.data.contentHashExpected}
             </p>
+            {verifyState.data.status === 'PENDING_ONCHAIN' ? (
+              <p className="text-amber-900/90 dark:text-amber-100/90">
+                Circle has not published an on-chain settlement hash yet. Retry
+                Verify after the batch lands on Arc.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>

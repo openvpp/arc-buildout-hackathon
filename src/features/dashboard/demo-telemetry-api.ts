@@ -60,6 +60,7 @@ const verifyResultSchema = z.object({
     'TX_FAILED',
     'HASH_MISMATCH',
     'ERROR',
+    'PENDING_ONCHAIN',
   ]),
   verificationId: z.string().uuid(),
   receiptFound: z.boolean(),
@@ -67,6 +68,7 @@ const verifyResultSchema = z.object({
   contentHashMatched: z.boolean(),
   contentHashExpected: z.string(),
   contentHashComputed: z.string(),
+  resolvedTransactionHash: z.string().nullable().optional(),
 });
 
 export type DemoTelemetryResponse = z.infer<typeof responseSchema>;

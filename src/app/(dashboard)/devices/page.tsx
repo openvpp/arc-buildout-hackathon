@@ -112,6 +112,11 @@ export default async function DevicesPage() {
                           {verification?.status === 'VERIFIED' ? (
                             <StatusBadge tone="success">VERIFIED</StatusBadge>
                           ) : null}
+                          {verification?.status === 'PENDING_ONCHAIN' ? (
+                            <StatusBadge tone="warning">
+                              Pending on Arc
+                            </StatusBadge>
+                          ) : null}
                           <DeviceMintTransactionLink
                             nftTransactionHash={device.nftTransactionHash}
                             nftTokenId={device.nftTokenId}

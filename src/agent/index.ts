@@ -18,6 +18,11 @@ import {
   findGatewayBatchingOption,
   parsePaymentRequiredHeader,
 } from '@/server/infrastructure/payments/circle-gateway-seller';
+import {
+  isCircleTransferUuid,
+  isOnchainTxHash,
+  resolveCircleX402TransferTxHash,
+} from '@/server/infrastructure/payments/circle-x402-transfer';
 
 const log = createServerLogger({ component: 'demo-agent' });
 
@@ -217,12 +222,18 @@ async function verifyAndReport(input: {
   let receiptFound = false;
   let receiptSuccess = false;
   const settlementRef = input.delivered.payment.transactionHash;
-  const isOnchainTx = /^0x[a-fA-F0-9]{64}$/.test(settlementRef);
+  let onchainTx: string | null = isOnchainTxHash(settlementRef)
+    ? settlementRef.toLowerCase()
+    : null;
 
-  if (isOnchainTx) {
+  if (onchainTx === null && isCircleTransferUuid(settlementRef)) {
+    onchainTx = await resolveCircleX402TransferTxHash(settlementRef);
+  }
+
+  if (onchainTx !== null) {
     try {
       const receipt = await client.getTransactionReceipt({
-        hash: settlementRef as `0x${string}`,
+        hash: onchainTx as `0x${string}`,
       });
       receiptFound = true;
       receiptSuccess = receipt.status === 'success';
@@ -238,21 +249,18 @@ async function verifyAndReport(input: {
   const contentHashMatched =
     contentHashComputed === input.delivered.provenance.contentHash;
 
-  let status: 'VERIFIED' | 'TX_MISSING' | 'TX_FAILED' | 'HASH_MISMATCH' =
-    'VERIFIED';
-  if (!isOnchainTx) {
-    // Circle Gateway settle returns a transfer UUID until the batch lands
-    // on-chain; treat facilitator success + content hash as verified.
-    status = contentHashMatched ? 'VERIFIED' : 'HASH_MISMATCH';
+  let status:
+    | 'VERIFIED'
+    | 'TX_MISSING'
+    | 'TX_FAILED'
+    | 'HASH_MISMATCH'
+    | 'PENDING_ONCHAIN' = 'VERIFIED';
+  if (onchainTx === null) {
+    status = contentHashMatched ? 'PENDING_ONCHAIN' : 'HASH_MISMATCH';
   } else if (!receiptFound) status = 'TX_MISSING';
   else if (!receiptSuccess) status = 'TX_FAILED';
   else if (!contentHashMatched) status = 'HASH_MISMATCH';
-
-  // Mock settlements are not on Arc. Do not invent TX_MISSING as failure; also
-  // do not treat a partial local re-hash as live hash evidence.
-  if (getServerEnv().ALLOW_MOCK_ADAPTERS && !receiptFound) {
-    status = 'VERIFIED';
-  }
+  else status = 'VERIFIED';
 
   await fetch(`${input.apiBaseUrl}/api/v1/verification/results`, {
     method: 'POST',
@@ -269,10 +277,18 @@ async function verifyAndReport(input: {
       contentHashExpected: input.delivered.provenance.contentHash,
       contentHashComputed,
       contentHashMatched,
+      details:
+        onchainTx !== null && onchainTx !== settlementRef.toLowerCase()
+          ? { resolvedTransactionHash: onchainTx }
+          : undefined,
     }),
   });
 
-  log.info('agent.verification_reported', { status, receiptFound });
+  log.info('agent.verification_reported', {
+    status,
+    receiptFound,
+    resolved: onchainTx !== null,
+  });
 }
 
 async function main(): Promise<void> {

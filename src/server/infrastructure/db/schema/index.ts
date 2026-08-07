@@ -722,7 +722,7 @@ export const agentVerificationResults = pgTable(
   (table) => [
     check(
       'agent_verification_results_status_check',
-      sql`${table.status} in ('VERIFIED', 'TX_MISSING', 'TX_FAILED', 'HASH_MISMATCH', 'ERROR')`,
+      sql`${table.status} in ('VERIFIED', 'TX_MISSING', 'TX_FAILED', 'HASH_MISMATCH', 'ERROR', 'PENDING_ONCHAIN')`,
     ),
     uniqueIndex('agent_verification_results_unique_uidx').on(
       table.principalId,

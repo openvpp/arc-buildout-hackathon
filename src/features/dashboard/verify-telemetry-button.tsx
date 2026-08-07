@@ -22,8 +22,8 @@ type VerifyState =
   | { kind: 'error'; message: string };
 
 /**
- * Independent Arc settlement + content-hash verify for a past telemetry row.
- * Does not authorize unlock — evidence only.
+ * Arc settlement + content-hash re-check for a past telemetry row.
+ * Evidence only — does not authorize unlock.
  */
 export function VerifyTelemetryButton(props: {
   readonly walletAddress: string;
@@ -102,7 +102,7 @@ function VerifyTelemetryButtonConnected(props: {
         {pending && !alreadyVerified
           ? 'Verifying…'
           : alreadyVerified
-            ? 'Verified'
+            ? 'Verified on Arc'
             : 'Verify on Arc'}
       </Button>
 
@@ -122,15 +122,34 @@ function VerifyTelemetryButtonConnected(props: {
         <div className="flex flex-col gap-1 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge
-              tone={state.data.status === 'VERIFIED' ? 'success' : 'danger'}
+              tone={
+                state.data.status === 'VERIFIED'
+                  ? 'success'
+                  : state.data.status === 'PENDING_ONCHAIN'
+                    ? 'warning'
+                    : 'danger'
+              }
             >
-              {state.data.status}
+              {state.data.status === 'PENDING_ONCHAIN'
+                ? 'Pending on Arc'
+                : state.data.status}
             </StatusBadge>
             <span>
               receiptFound={String(state.data.receiptFound)} · hashMatched=
               {String(state.data.contentHashMatched)}
             </span>
           </div>
+          {state.data.resolvedTransactionHash !== undefined &&
+          state.data.resolvedTransactionHash !== null ? (
+            <p className="font-mono text-[11px] break-all opacity-80">
+              resolved {state.data.resolvedTransactionHash}
+            </p>
+          ) : null}
+          {state.data.status === 'PENDING_ONCHAIN' ? (
+            <p className="text-amber-800 dark:text-amber-200">
+              Circle has not published an on-chain hash yet — retry shortly.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

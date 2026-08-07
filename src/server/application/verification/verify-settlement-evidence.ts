@@ -15,17 +15,28 @@ import {
   wallets,
 } from '@/server/infrastructure/db/schema';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
+import {
+  isCircleTransferUuid,
+  isOnchainTxHash,
+  resolveCircleX402TransferTxHash,
+} from '@/server/infrastructure/payments/circle-x402-transfer';
 import { ApiError } from '@/server/transport/http/api-error';
 
 const log = createServerLogger({ component: 'verify-settlement' });
 
 export type SettlementVerificationStatus =
-  'VERIFIED' | 'TX_MISSING' | 'TX_FAILED' | 'HASH_MISMATCH' | 'ERROR';
+  | 'VERIFIED'
+  | 'TX_MISSING'
+  | 'TX_FAILED'
+  | 'HASH_MISMATCH'
+  | 'ERROR'
+  | 'PENDING_ONCHAIN';
 
 /**
- * Independent Step-6 style check: Arc settlement receipt (when on-chain) +
- * content-hash integrity. Dashboard "Verify" and the demo agent both report
- * into `agent_verification_results` — this never authorizes release.
+ * Independent (of unlock) evidence check: resolve Circle transfer → Arc
+ * settlement receipt when possible, plus content-hash integrity.
+ * VERIFIED requires a successful on-chain Arc receipt + matching hash.
+ * Does not authorize telemetry release.
  */
 export async function verifyAndStoreSettlementEvidence(input: {
   db: Database;
@@ -42,6 +53,7 @@ export async function verifyAndStoreSettlementEvidence(input: {
   contentHashComputed: string;
   contentHashMatched: boolean;
   verificationId: string;
+  resolvedTransactionHash: string | null;
 }> {
   const [owned] = await input.db
     .select({
@@ -90,21 +102,32 @@ export async function verifyAndStoreSettlementEvidence(input: {
   const contentHashMatched = contentHashComputed === contentHashExpected;
 
   const settlementRef = input.paymentTransactionHash.trim();
-  const isOnchainTx = /^0x[a-fA-F0-9]{64}$/.test(settlementRef);
+  let onchainTx: string | null = isOnchainTxHash(settlementRef)
+    ? settlementRef.toLowerCase()
+    : null;
+  let resolvedTransactionHash: string | null = null;
+
+  if (onchainTx === null && isCircleTransferUuid(settlementRef)) {
+    resolvedTransactionHash =
+      await resolveCircleX402TransferTxHash(settlementRef);
+    onchainTx = resolvedTransactionHash;
+  }
 
   let receiptFound = false;
   let receiptSuccess = false;
-  let status: SettlementVerificationStatus = 'VERIFIED';
+  let status: SettlementVerificationStatus;
 
-  const env = getServerEnv();
-
-  if (isOnchainTx) {
+  if (onchainTx === null) {
+    // Transfer UUID not yet mapped to a batch settlement hash — do not claim VERIFIED.
+    status = contentHashMatched ? 'PENDING_ONCHAIN' : 'HASH_MISMATCH';
+  } else {
+    const env = getServerEnv();
     try {
       const client = createPublicClient({
         transport: http(env.ARC_RPC_URL ?? 'https://rpc.testnet.arc.network'),
       });
       const receipt = await client.getTransactionReceipt({
-        hash: settlementRef as `0x${string}`,
+        hash: onchainTx as `0x${string}`,
       });
       receiptFound = true;
       receiptSuccess = receipt.status === 'success';
@@ -120,17 +143,11 @@ export async function verifyAndStoreSettlementEvidence(input: {
     else if (!receiptSuccess) status = 'TX_FAILED';
     else if (!contentHashMatched) status = 'HASH_MISMATCH';
     else status = 'VERIFIED';
-  } else {
-    // Circle Gateway may return a transfer UUID until the batch lands on-chain.
-    status = contentHashMatched ? 'VERIFIED' : 'HASH_MISMATCH';
   }
 
-  // Mock settlements are not on Arc — do not invent TX_MISSING as failure.
-  if (env.ALLOW_MOCK_ADAPTERS && !receiptFound && contentHashMatched) {
-    status = 'VERIFIED';
-  }
-
-  const paymentTransactionHash = isOnchainTx
+  // Persist the client-provided ref (UUID or 0x) as the unique key; put resolved
+  // Arc hash in details when Circle mapped the transfer.
+  const paymentTransactionHash = isOnchainTxHash(settlementRef)
     ? settlementRef.toLowerCase()
     : settlementRef;
 
@@ -149,6 +166,12 @@ export async function verifyAndStoreSettlementEvidence(input: {
       details: {
         source: 'dashboard_verify',
         deviceId: input.deviceId,
+        ...(resolvedTransactionHash !== null
+          ? { resolvedTransactionHash }
+          : {}),
+        ...(onchainTx !== null && isCircleTransferUuid(settlementRef)
+          ? { arcSettlementHash: onchainTx }
+          : {}),
       },
       verifiedAt: new Date(),
     })
@@ -167,6 +190,12 @@ export async function verifyAndStoreSettlementEvidence(input: {
         details: {
           source: 'dashboard_verify',
           deviceId: input.deviceId,
+          ...(resolvedTransactionHash !== null
+            ? { resolvedTransactionHash }
+            : {}),
+          ...(onchainTx !== null && isCircleTransferUuid(settlementRef)
+            ? { arcSettlementHash: onchainTx }
+            : {}),
         },
         verifiedAt: new Date(),
       },
@@ -187,6 +216,7 @@ export async function verifyAndStoreSettlementEvidence(input: {
     receiptFound,
     contentHashMatched,
     telemetryRecordId: record.id,
+    resolved: resolvedTransactionHash !== null,
   });
 
   return {
@@ -197,6 +227,7 @@ export async function verifyAndStoreSettlementEvidence(input: {
     contentHashComputed,
     contentHashMatched,
     verificationId: row.id,
+    resolvedTransactionHash,
   };
 }
 
@@ -221,6 +252,5 @@ function recomputeContentHash(record: {
     ).contentHash;
   }
 
-  // Fallback: trust stored hash only when canonical payload is missing.
   return record.contentHash;
 }

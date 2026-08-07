@@ -14,13 +14,14 @@ export const dynamic = 'force-dynamic';
 const bodySchema = z
   .object({
     telemetryRecordId: z.string().uuid(),
-    paymentTransactionHash: z.string().regex(/^0x[a-fA-F0-9]{64}$/),
+    paymentTransactionHash: z.string().min(1),
     status: z.enum([
       'VERIFIED',
       'TX_MISSING',
       'TX_FAILED',
       'HASH_MISMATCH',
       'ERROR',
+      'PENDING_ONCHAIN',
     ]),
     receiptFound: z.boolean(),
     receiptSuccess: z.boolean(),

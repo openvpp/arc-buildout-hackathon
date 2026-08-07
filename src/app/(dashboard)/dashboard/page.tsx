@@ -34,6 +34,9 @@ function agentVerificationBadge(status: string | undefined): {
   if (status === 'VERIFIED') {
     return { tone: 'success', label: 'VERIFIED' };
   }
+  if (status === 'PENDING_ONCHAIN') {
+    return { tone: 'warning', label: 'Pending on Arc' };
+  }
   return { tone: 'danger', label: status };
 }
 

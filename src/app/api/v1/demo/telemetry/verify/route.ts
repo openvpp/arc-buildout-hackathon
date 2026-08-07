@@ -61,6 +61,7 @@ export const POST = createRouteHandler(async (request, context) => {
       contentHashMatched: result.contentHashMatched,
       contentHashExpected: result.contentHashExpected,
       contentHashComputed: result.contentHashComputed,
+      resolvedTransactionHash: result.resolvedTransactionHash,
     },
     context.requestId,
     { status: 201 },
