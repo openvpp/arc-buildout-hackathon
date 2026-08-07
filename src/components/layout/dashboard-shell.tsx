@@ -31,9 +31,6 @@ export function DashboardShell({
             <span className="text-sm font-semibold tracking-tight">
               {siteConfig.name}
             </span>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-slate-600 uppercase dark:bg-slate-800 dark:text-slate-400">
-              Demo
-            </span>
           </Link>
           {headerActions !== undefined ? (
             <div className="shrink-0">{headerActions}</div>
