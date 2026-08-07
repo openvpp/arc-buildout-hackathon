@@ -88,7 +88,7 @@ describe('DeviceDetailPage', () => {
               isCharging: false,
             },
             verificationStatus: 'VERIFIED',
-            paymentTransactionHash: '0xpayolder',
+            paymentTransactionHash: 'b887267c-04ff-4bc9-8c1e-6d0c053119b2',
           },
         ],
       },
@@ -113,6 +113,12 @@ describe('DeviceDetailPage', () => {
     expect(screen.getByText('40%')).toBeInTheDocument();
     expect(screen.getByText('220 km')).toBeInTheDocument();
     expect(screen.getByText('Not anchored')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Pending on-chain settlement/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /View settlement transaction/i }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('request-telemetry-panel')).toBeInTheDocument();
     expect(screen.getByTestId('verify-rec-1')).toBeInTheDocument();
     expect(screen.queryByTestId('verify-rec-0')).not.toBeInTheDocument();

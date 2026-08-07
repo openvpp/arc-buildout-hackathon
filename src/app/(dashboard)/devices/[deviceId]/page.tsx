@@ -13,6 +13,7 @@ import {
 } from '@/features/dashboard';
 import {
   DeviceMintTransactionLink,
+  SettlementPaymentRef,
   deviceDisplayName,
   deviceStatusTone,
   formatTimestamp,
@@ -232,11 +233,12 @@ export default async function DeviceDetailPage({ params }: PageProps) {
                         <DetailField label="Anchor tx" value="Not anchored" />
                       )}
                       {paymentTx !== null ? (
-                        <DetailField
-                          label="Payment tx"
-                          value={paymentTx}
-                          mono
-                        />
+                        <div className="sm:col-span-2">
+                          <SettlementPaymentRef
+                            settlementRef={paymentTx}
+                            compact
+                          />
+                        </div>
                       ) : (
                         <DetailField
                           label="Payment tx"

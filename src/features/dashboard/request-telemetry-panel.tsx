@@ -3,15 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
-import { ExternalLink } from '@/components/common/external-link';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { env } from '@/config/env';
 import {
   isWeb3AuthConfigured,
   RequireWagmi,
   useConfiguredWalletSession,
 } from '@/features/auth';
+import { SettlementPaymentRef } from '@/features/devices';
 import { readTelemetryReadingFields } from '@/features/telemetry';
 
 import {
@@ -299,10 +298,6 @@ function UnlockedTelemetry({
   readonly onVerify: () => void;
 }) {
   const settlementRef = result.payment.transactionHash;
-  const isOnchainTx = /^0x[a-fA-F0-9]{64}$/.test(settlementRef);
-  const explorerHref = isOnchainTx
-    ? `${env.NEXT_PUBLIC_ARC_EXPLORER_BASE_URL.replace(/\/$/, '')}/tx/${settlementRef}`
-    : null;
   const readings = readTelemetryReadingFields(result.telemetry.data);
   const verified = verifyState.kind === 'result';
 
@@ -351,36 +346,8 @@ function UnlockedTelemetry({
         </div>
       </dl>
 
-      <div className="flex flex-col gap-1 border-t border-emerald-200 pt-2 dark:border-emerald-800">
-        {explorerHref !== null ? (
-          <>
-            <span className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
-              Payment on Arcscan
-            </span>
-            <ExternalLink
-              href={explorerHref}
-              className="inline-flex w-fit items-center font-semibold text-emerald-700 underline decoration-2 underline-offset-4 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-100"
-            >
-              View settlement transaction
-            </ExternalLink>
-            <p className="font-mono text-[11px] break-all text-emerald-900/80 dark:text-emerald-100/80">
-              {settlementRef}
-            </p>
-          </>
-        ) : (
-          <>
-            <span className="text-[11px] font-medium tracking-wide text-emerald-800/80 uppercase dark:text-emerald-200/80">
-              Circle transfer id
-            </span>
-            <p className="font-mono text-[11px] break-all text-emerald-900/80 dark:text-emerald-100/80">
-              {settlementRef}
-            </p>
-            <p className="text-emerald-900/80 dark:text-emerald-100/80">
-              Gateway settle returned a transfer id. An Arcscan link appears
-              when the on-chain transaction hash is available.
-            </p>
-          </>
-        )}
+      <div className="border-t border-emerald-200 pt-2 dark:border-emerald-800">
+        <SettlementPaymentRef settlementRef={settlementRef} />
       </div>
 
       <div className="flex flex-col gap-2 border-t border-emerald-200 pt-3 dark:border-emerald-800">
