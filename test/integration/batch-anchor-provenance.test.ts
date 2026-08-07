@@ -89,6 +89,10 @@ describe('batch anchor provenance', () => {
       externalDeviceId: `anchor-device-${principal.id}`,
       displayName: 'Anchor Test EV',
     });
+    await db
+      .update(schema.devices)
+      .set({ nftTokenId: '101', mintStatus: 'minted' })
+      .where(eq(schema.devices.id, device.id));
 
     const recordedAt = new Date('2026-06-02T12:00:00.000Z');
     const contentHash =
@@ -153,6 +157,77 @@ describe('batch anchor provenance', () => {
       .where(eq(telemetryRecords.id, record.id));
     expect(anchored?.anchorStatus).toBe('anchored');
     expect(anchored?.anchoredAt).toBeInstanceOf(Date);
+  });
+
+  it('does not mark failed when DeviceNFT is not minted yet', async () => {
+    const principals = createPrincipalRepository(db);
+    const wallets = createWalletRepository(db);
+    const devices = createDeviceRepository(db);
+    const outbox = createOutboxRepository(db);
+    const provenanceAnchor = createMockProvenanceAnchor();
+
+    const principal = await principals.create({
+      type: 'autonomous_agent',
+      displayName: 'Await NFT Agent',
+    });
+    const address = '0x7777777777777777777777777777777777777777';
+    const wallet = await wallets.create({
+      chainId: 5042002n,
+      address,
+      normalizedAddress: normalizeEvmAddress(address),
+    });
+    await db.insert(principalWallets).values({
+      principalId: principal.id,
+      walletId: wallet.id,
+      role: 'agent',
+    });
+    const device = await devices.create({
+      walletId: wallet.id,
+      externalDeviceId: `await-nft-${principal.id}`,
+      displayName: 'Unminted EV',
+    });
+
+    const recordedAt = new Date('2026-06-04T12:00:00.000Z');
+    const contentHash =
+      'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+    const [record] = await db
+      .insert(telemetryRecords)
+      .values({
+        deviceId: device.id,
+        source: 'enode',
+        receivedAt: recordedAt,
+        recordedAt,
+        schemaVersion: '1.0.0',
+        telemetryPayload: { stateOfChargePercent: 11 },
+        canonicalPayload: { v: 1 },
+        canonicalizationVersion: 'v1',
+        contentHashAlgorithm: 'SHA-256',
+        contentHash,
+        dataOrigin: 'ENODE_SANDBOX',
+        anchorStatus: 'unanchored',
+      })
+      .returning();
+    expect(record).toBeDefined();
+    if (record === undefined) {
+      throw new Error('expected telemetry record');
+    }
+
+    await expect(
+      submitTelemetryAnchor({
+        db,
+        outbox,
+        provenanceAnchor,
+        telemetryRecordId: record.id,
+        contentHash,
+      }),
+    ).rejects.toThrow(/DeviceNFT token not minted/);
+
+    const [unchanged] = await db
+      .select()
+      .from(telemetryRecords)
+      .where(eq(telemetryRecords.id, record.id));
+    expect(unchanged?.anchorStatus).toBe('unanchored');
+    expect(unchanged?.anchorTransactionHash).toBeNull();
   });
 
   it('strict mode blocks sale until record is anchored', async () => {

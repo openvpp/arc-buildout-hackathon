@@ -1,17 +1,22 @@
 # Provenance
 
-**Status:** mock + provisional live BatchAnchor adapters wired. Worker jobs
-`ANCHOR_TELEMETRY` / `CHECK_ANCHOR_CONFIRMATIONS` update
-`telemetry_records.anchor_status`. Delivery policy is enforced via
-`PROVENANCE_DELIVERY_MODE`.
+**Status:** mock + live DeviceNFT `recordDeviceEvent` (preferred) and
+provisional BatchAnchor fallback. Worker jobs `ANCHOR_TELEMETRY` /
+`CHECK_ANCHOR_CONFIRMATIONS` update `telemetry_records.anchor_status`. Delivery
+policy is enforced via `PROVENANCE_DELIVERY_MODE`.
 
 ## Concepts
 
 - Canonical telemetry JSON (deterministic key order, UTC timestamps)
 - `contentHash` via configured algorithm (default SHA-256)
-- On-chain commitment of the hash/batch root only — never raw telemetry
+- On-chain commitment of the hash only — never raw telemetry
+- Preferred live path: DeviceNFT `recordDeviceEvent(tokenId, eventType, data)`
+  with `data` = content hash bytes32 (requires a minted `nft_token_id`)
+- Fallback: BatchAnchor `anchorContentHash(bytes32)` when DeviceNFT is not
+  configured
 - `anchorTransactionHash` / block metadata stored separately from payments
-- Never treat payment settlement tx as an anchor tx
+  (DB field name kept for compatibility; UI says “Device event”)
+- Never treat payment settlement tx as a device-event / BatchAnchor tx
 
 ## Delivery policy
 
@@ -32,37 +37,37 @@ adapter/receipt evidence. Mock adapters may invent confirmation only when
 
 1. Enode webhook / `pnpm demo:inject-telemetry` inserts a record and enqueues
    `ANCHOR_TELEMETRY`
-2. Worker submits via `ProvenanceAnchor.anchorTelemetry` → status `submitted`
-3. Enqueues `CHECK_ANCHOR_CONFIRMATIONS`
-4. Mock path: verify adapter + set `anchored` immediately
-5. Live path: wait for receipt + `ARC_REQUIRED_CONFIRMATIONS`, then verify
+2. Worker loads the device’s `nftTokenId`. If missing, the job **retries**
+   (does not mark `failed`) until mint completes
+3. Worker submits via `ProvenanceAnchor.anchorTelemetry` → status `submitted`
+4. Enqueues `CHECK_ANCHOR_CONFIRMATIONS`
+5. Mock path: verify adapter + set `anchored` immediately
+6. Live path: wait for receipt + `ARC_REQUIRED_CONFIRMATIONS`, then verify
 
-Run `pnpm worker:dev` alongside `pnpm dev` for anchors to progress.
+Run `pnpm worker:dev` alongside `pnpm dev` for device events to progress.
 
 ## Live vs mock
 
-| Mode            | Requirements                                                                                  |
-| --------------- | --------------------------------------------------------------------------------------------- |
-| Mock            | `ALLOW_MOCK_ADAPTERS=true`                                                                    |
-| Live (dev/demo) | `BATCH_ANCHOR_CONTRACT_ADDRESS` + `ARC_RPC_URL` + `BATCH_ANCHOR_SIGNER_PRIVATE_KEY`           |
-| Production      | Raw signer key forbidden — use `BATCH_ANCHOR_SIGNER_KEY_REFERENCE` (KMS; not implemented yet) |
+| Mode                        | Requirements                                                                                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Mock                        | `ALLOW_MOCK_ADAPTERS=true`                                                                                                                                      |
+| Live DeviceNFT (preferred)  | `DEVICE_NFT_CONTRACT_ADDRESS` + `USE_ARC_NETWORK` + `ARC_RPC_URL` + `ARC_AUTH_TOKEN` + `DEVICE_NFT_MINTER_PRIVATE_KEY` / `PRIVATE_KEY` (needs **UPDATER_ROLE**) |
+| Live BatchAnchor (fallback) | `BATCH_ANCHOR_CONTRACT_ADDRESS` + `ARC_RPC_URL` + `BATCH_ANCHOR_SIGNER_PRIVATE_KEY`                                                                             |
+| Production                  | Raw signer keys forbidden — KMS via key references (not implemented yet)                                                                                        |
 
 ## Batching
 
 Tables `anchor_batches` and `anchor_batch_records` support batch roots so the
-API does not claim per-record transactions when a batch was used. The current
-provisional ABI commits **one content hash per call**
-(`anchorContentHash(bytes32)`).
+API does not claim per-record transactions when a batch was used. DeviceNFT
+path commits **one content hash per `recordDeviceEvent` call**. BatchAnchor
+fallback still uses `anchorContentHash(bytes32)`.
 
 ## ABI
 
-Provisional artifact:
-`src/server/infrastructure/blockchain/batch-anchor-abi.ts`
-(`BATCH_ANCHOR_ABI_VERSION = provisional-anchorContentHash-v1`).
-
-Replace with the contract project's versioned ABI when available. Do not treat
-the provisional ABI as production OpenVPP BatchAnchor.
+- DeviceNFT: `src/server/infrastructure/blockchain/device-nft-abi.ts`
+  (`recordDeviceEvent`, `DEVICE_EVENT_TYPE_TELEMETRY_HASH = 1`)
+- BatchAnchor (fallback): `src/server/infrastructure/blockchain/batch-anchor-abi.ts`
 
 Agent Step-6 verifies the **settlement** `paymentTransactionHash` and that the
-returned content hash matches — independent of BatchAnchor until product policy
-requires otherwise.
+returned content hash matches — independent of device-event / BatchAnchor until
+product policy requires otherwise.

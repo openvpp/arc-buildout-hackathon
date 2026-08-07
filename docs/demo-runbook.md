@@ -13,7 +13,8 @@ Stakeholder click-through for the EV telemetry nanopayment vertical slice.
 
 - Mock settlement (`ALLOW_MOCK_ADAPTERS=true`) is **not** live payment evidence.
 - `pnpm demo:inject-telemetry` inserts **demo-marked** sandbox data (`ENODE_SANDBOX`, `source=demo-inject`) — never claim it is a live Enode vehicle.
-- Provenance anchors via worker (`ANCHOR_TELEMETRY` → `CHECK_ANCHOR_CONFIRMATIONS`).
+- Provenance device events via worker (`ANCHOR_TELEMETRY` → DeviceNFT
+  `recordDeviceEvent` when live / mock when `ALLOW_MOCK_ADAPTERS`).
   Demo `.env.example` uses `PROVENANCE_DELIVERY_MODE=pending` so clicks work before
   the worker confirms; use `strict` only with the worker running.
 
@@ -57,7 +58,7 @@ Repeat this whenever you need a **new** unpaid record (agent otherwise gets
 
 ```bash
 pnpm dev                 # http://localhost:3000
-pnpm worker:dev          # mock BatchAnchor submit/confirm (needed for ANCHORED / strict)
+pnpm worker:dev          # DeviceNFT recordDeviceEvent / mock provenance (needed for ANCHORED / strict)
 pnpm agent:dev           # polls latest telemetry
 ```
 
@@ -134,7 +135,7 @@ live hardware).
 
 - Settlement `paymentTransactionHash` visible on Arc explorer
 - Agent verification `receiptFound=true` and status `VERIFIED`
-- Dashboard shows delivery; do **not** treat payment tx as BatchAnchor tx
+- Dashboard shows delivery; do **not** treat payment tx as DeviceNFT / BatchAnchor tx
 
 ### B4. Failure modes (fail closed)
 

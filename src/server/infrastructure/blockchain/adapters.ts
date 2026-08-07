@@ -39,7 +39,7 @@ export function createFailClosedProvenanceAnchor(): ProvenanceAnchor {
   return {
     async anchorTelemetry() {
       throw new Error(
-        'ProvenanceAnchor adapter is not implemented. Anchoring is deferred.',
+        'ProvenanceAnchor adapter is not implemented. Configure DeviceNFT or BatchAnchor.',
       );
     },
     async getAnchorStatus() {

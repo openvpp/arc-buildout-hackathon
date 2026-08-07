@@ -3,8 +3,10 @@ import { createHash } from 'node:crypto';
 import {
   createPublicClient,
   createWalletClient,
+  decodeEventLog,
   http,
   type Hex,
+  type Log,
   type PublicClient,
   type WalletClient,
 } from 'viem';
@@ -17,11 +19,21 @@ import {
   BATCH_ANCHOR_ABI,
   BATCH_ANCHOR_ABI_VERSION,
 } from '@/server/infrastructure/blockchain/batch-anchor-abi';
+import {
+  DEVICE_EVENT_TYPE_TELEMETRY_HASH,
+  DEVICE_NFT_ABI,
+} from '@/server/infrastructure/blockchain/device-nft-abi';
+import {
+  createArcMintChain,
+  isDeviceNftMintConfigured,
+  resolveDeviceNftMinterPrivateKey,
+} from '@/server/infrastructure/blockchain/network-provider';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
 const log = createServerLogger({ component: 'provenance-anchor' });
 
-function toBytes32ContentHash(contentHash: string): Hex {
+/** Normalize a SHA-256 hex digest to `0x`-prefixed bytes32. */
+export function toBytes32ContentHash(contentHash: string): Hex {
   const normalized = contentHash.trim().toLowerCase().replace(/^0x/, '');
   if (!/^[a-f0-9]{64}$/.test(normalized)) {
     throw new Error('contentHash must be a 32-byte hex digest');
@@ -51,6 +63,7 @@ export function createMockProvenanceAnchor(): ProvenanceAnchor {
       const transactionHash = mockTxHashFor(input.contentHash);
       log.info('provenance.mock_submitted', {
         telemetryRecordId: input.telemetryRecordId,
+        tokenId: input.tokenId,
         transactionHash,
         abiVersion: BATCH_ANCHOR_ABI_VERSION,
       });
@@ -68,6 +81,143 @@ export function createMockProvenanceAnchor(): ProvenanceAnchor {
   };
 }
 
+/**
+ * Live provenance via DeviceNFT.recordDeviceEvent (content hash in `data`).
+ * Signer must hold UPDATER_ROLE on the DeviceNFT contract.
+ */
+export function createLiveDeviceNftProvenanceAnchor(input?: {
+  publicClient?: PublicClient;
+  walletClient?: WalletClient;
+}): ProvenanceAnchor {
+  const env = getServerEnv();
+  const contractAddress = env.DEVICE_NFT_CONTRACT_ADDRESS;
+  if (contractAddress === undefined || contractAddress.length === 0) {
+    throw new Error(
+      'DEVICE_NFT_CONTRACT_ADDRESS is required for DeviceNFT provenance',
+    );
+  }
+
+  const rpcUrl = env.ARC_RPC_URL;
+  if (rpcUrl === undefined || rpcUrl.length === 0) {
+    throw new Error('ARC_RPC_URL is required for DeviceNFT provenance');
+  }
+
+  if (env.APP_ENV === 'production' || env.APP_ENV === 'staging') {
+    throw new Error(
+      'Live DeviceNFT provenance signer via env private key is not supported in production/staging. Use KMS.',
+    );
+  }
+
+  const privateKey = resolveDeviceNftMinterPrivateKey(env);
+  if (privateKey === null) {
+    throw new Error(
+      'DEVICE_NFT_MINTER_PRIVATE_KEY or PRIVATE_KEY is required for DeviceNFT provenance',
+    );
+  }
+
+  const account = privateKeyToAccount(privateKey);
+  const chain = createArcMintChain(env);
+
+  const publicClient =
+    input?.publicClient ??
+    createPublicClient({
+      chain,
+      transport: http(rpcUrl),
+    });
+
+  const walletClient =
+    input?.walletClient ??
+    createWalletClient({
+      account,
+      chain,
+      transport: http(rpcUrl),
+    });
+
+  return {
+    async anchorTelemetry(anchorInput) {
+      const tokenId = BigInt(anchorInput.tokenId);
+      const hashBytes = toBytes32ContentHash(anchorInput.contentHash);
+      const hash = await walletClient.writeContract({
+        address: contractAddress as Hex,
+        abi: DEVICE_NFT_ABI,
+        functionName: 'recordDeviceEvent',
+        args: [tokenId, DEVICE_EVENT_TYPE_TELEMETRY_HASH, hashBytes],
+        account,
+        chain,
+      });
+      log.info('provenance.device_event_submitted', {
+        telemetryRecordId: anchorInput.telemetryRecordId,
+        tokenId: anchorInput.tokenId,
+        transactionHash: hash,
+        eventType: DEVICE_EVENT_TYPE_TELEMETRY_HASH,
+      });
+      return { status: 'submitted', transactionHash: hash.toLowerCase() };
+    },
+
+    async getAnchorStatus(statusInput) {
+      void statusInput;
+      return { status: 'pending' };
+    },
+
+    async verifyAnchor(verifyInput) {
+      try {
+        const receipt = await publicClient.getTransactionReceipt({
+          hash: verifyInput.anchorTransactionHash as Hex,
+        });
+        if (receipt.status !== 'success') {
+          return {
+            valid: false,
+            reason: 'Device event transaction failed on-chain',
+          };
+        }
+        // Best-effort log check; confirmation still succeeds on receipt alone
+        // so ABI/topic drift does not strand provenance as failed.
+        const expected = toBytes32ContentHash(verifyInput.contentHash);
+        if (!receiptHasTelemetryContentHash(receipt.logs, expected)) {
+          log.warn('provenance.device_event_log_missing', {
+            transactionHash: verifyInput.anchorTransactionHash,
+          });
+        }
+        return { valid: true };
+      } catch {
+        return {
+          valid: false,
+          reason: 'Device event transaction receipt not found',
+        };
+      }
+    },
+  };
+}
+
+export function receiptHasTelemetryContentHash(
+  logs: readonly Pick<Log, 'data' | 'topics'>[],
+  expectedContentHash: Hex,
+): boolean {
+  const expected = expectedContentHash.toLowerCase();
+  for (const logItem of logs) {
+    try {
+      const decoded = decodeEventLog({
+        abi: DEVICE_NFT_ABI,
+        data: logItem.data,
+        topics: logItem.topics,
+      });
+      if (decoded.eventName !== 'DeviceEvent') {
+        continue;
+      }
+      if (decoded.args.eventType !== DEVICE_EVENT_TYPE_TELEMETRY_HASH) {
+        continue;
+      }
+      if (decoded.args.data.toLowerCase() === expected) {
+        return true;
+      }
+    } catch {
+      // Not a DeviceEvent log.
+    }
+  }
+  return false;
+}
+
+/** Legacy BatchAnchor live path (fallback when DeviceNFT is not configured). */
 export function createLiveProvenanceAnchor(input?: {
   publicClient?: PublicClient;
   walletClient?: WalletClient;
@@ -143,6 +293,7 @@ export function createLiveProvenanceAnchor(input?: {
       });
       log.info('provenance.submitted', {
         telemetryRecordId: anchorInput.telemetryRecordId,
+        tokenId: anchorInput.tokenId,
         transactionHash: hash,
         abiVersion: BATCH_ANCHOR_ABI_VERSION,
       });
@@ -150,8 +301,6 @@ export function createLiveProvenanceAnchor(input?: {
     },
 
     async getAnchorStatus(statusInput) {
-      // Live status is confirmation-driven via CHECK_ANCHOR_CONFIRMATIONS + DB.
-      // This method remains for optional callers; without a known tx it stays pending.
       void statusInput;
       return { status: 'pending' };
     },
@@ -173,12 +322,15 @@ export function createLiveProvenanceAnchor(input?: {
 }
 
 /**
- * Select mock / live / fail-closed ProvenanceAnchor for the current env.
+ * Select mock / DeviceNFT / BatchAnchor / fail-closed ProvenanceAnchor.
  */
 export function createProvenanceAnchorForEnv(): ProvenanceAnchor {
   const env = getServerEnv();
   if (env.ALLOW_MOCK_ADAPTERS) {
     return createMockProvenanceAnchor();
+  }
+  if (isDeviceNftMintConfigured(env)) {
+    return createLiveDeviceNftProvenanceAnchor();
   }
   if (
     env.BATCH_ANCHOR_CONTRACT_ADDRESS !== undefined &&
@@ -193,7 +345,7 @@ function createFailClosedProvenanceAnchorDeferred(): ProvenanceAnchor {
   return {
     async anchorTelemetry() {
       throw new Error(
-        'BatchAnchor is not configured (set BATCH_ANCHOR_CONTRACT_ADDRESS or ALLOW_MOCK_ADAPTERS).',
+        'On-chain provenance is not configured (set DEVICE_NFT_CONTRACT_ADDRESS + USE_ARC_NETWORK/ARC_RPC_URL/ARC_AUTH_TOKEN + DEVICE_NFT_MINTER_PRIVATE_KEY, or BATCH_ANCHOR_CONTRACT_ADDRESS, or ALLOW_MOCK_ADAPTERS).',
       );
     },
     async getAnchorStatus() {
@@ -202,7 +354,7 @@ function createFailClosedProvenanceAnchorDeferred(): ProvenanceAnchor {
     async verifyAnchor() {
       return {
         valid: false,
-        reason: 'BatchAnchor is not configured.',
+        reason: 'On-chain provenance is not configured.',
       };
     },
   };

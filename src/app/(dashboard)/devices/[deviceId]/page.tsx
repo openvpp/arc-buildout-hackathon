@@ -12,6 +12,7 @@ import {
   VerifyTelemetryButton,
 } from '@/features/dashboard';
 import {
+  DeviceEventTransactionLink,
   DeviceMintTransactionLink,
   SettlementPaymentRef,
   deviceDisplayName,
@@ -223,15 +224,11 @@ export default async function DeviceDetailPage({ params }: PageProps) {
                     </dl>
 
                     <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 text-sm sm:grid-cols-2 dark:border-slate-700">
-                      {row.anchorTransactionHash !== null ? (
-                        <DetailField
-                          label="Anchor tx"
-                          value={row.anchorTransactionHash}
-                          mono
+                      <div className="sm:col-span-2">
+                        <DeviceEventTransactionLink
+                          transactionHash={row.anchorTransactionHash}
                         />
-                      ) : (
-                        <DetailField label="Anchor tx" value="Not anchored" />
-                      )}
+                      </div>
                       {paymentTx !== null ? (
                         <div className="sm:col-span-2">
                           <SettlementPaymentRef

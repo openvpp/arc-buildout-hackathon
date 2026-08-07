@@ -82,7 +82,8 @@ describe('DeviceDetailPage', () => {
             recordedAt: new Date('2026-03-01T00:00:00.000Z'),
             contentHash: 'hash-older-0123456789abcdef00',
             anchorStatus: 'anchored',
-            anchorTransactionHash: '0xanchorhashABCDEF',
+            anchorTransactionHash:
+              '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
             telemetryPayload: {
               stateOfChargePercent: 40,
               isCharging: false,
@@ -112,7 +113,7 @@ describe('DeviceDetailPage', () => {
     expect(screen.getByText('99%')).toBeInTheDocument();
     expect(screen.getByText('40%')).toBeInTheDocument();
     expect(screen.getByText('220 km')).toBeInTheDocument();
-    expect(screen.getByText('Not anchored')).toBeInTheDocument();
+    expect(screen.getByText('No on-chain event yet')).toBeInTheDocument();
     expect(
       screen.getByText(/Pending on-chain settlement/i),
     ).toBeInTheDocument();
@@ -122,6 +123,7 @@ describe('DeviceDetailPage', () => {
     expect(screen.getByTestId('request-telemetry-panel')).toBeInTheDocument();
     expect(screen.getByTestId('verify-rec-1')).toBeInTheDocument();
     expect(screen.queryByTestId('verify-rec-0')).not.toBeInTheDocument();
+    expect(screen.getByText(/Device event tx/i)).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /View mint transaction/i }),
     ).toHaveAttribute(

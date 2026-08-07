@@ -154,12 +154,15 @@ export type PaymentVerifier = {
 };
 
 /**
- * Provenance anchoring port — BatchAnchor submit/confirm via worker jobs.
+ * Provenance anchoring port — DeviceNFT `recordDeviceEvent` (preferred) or
+ * BatchAnchor submit/confirm via worker jobs.
  */
 export type ProvenanceAnchor = {
   anchorTelemetry(input: {
     contentHash: string;
     telemetryRecordId: string;
+    /** DeviceNFT token id required for live DeviceNFT provenance. */
+    tokenId: string;
   }): Promise<{ status: 'submitted'; transactionHash: string }>;
   getAnchorStatus(input: { contentHash: string }): Promise<{
     status: 'pending' | 'anchored' | 'failed';

@@ -219,7 +219,7 @@ export default async function AdminPage() {
                             <span className="font-mono break-all">
                               hash {truncateHash(latest.contentHash, 14, 8)}
                             </span>
-                            <span>anchor {latest.anchorStatus}</span>
+                            <span>device event {latest.anchorStatus}</span>
                             {verification?.paymentTransactionHash !==
                             undefined ? (
                               <span className="font-mono break-all">
@@ -251,7 +251,7 @@ export default async function AdminPage() {
                                   <span className="font-mono break-all">
                                     {truncateHash(row.contentHash, 14, 8)}
                                   </span>
-                                  <span>anchor {row.anchorStatus}</span>
+                                  <span>device event {row.anchorStatus}</span>
                                 </li>
                               ))}
                             </ul>

@@ -104,7 +104,9 @@ describe('AdminPage', () => {
     expect(screen.getByText('Demo EV')).toBeInTheDocument();
     expect(screen.getByText('VERIFIED')).toBeInTheDocument();
     expect(screen.getByText('Recent history (2)')).toBeInTheDocument();
-    expect(screen.getAllByText('anchor pending').length).toBeGreaterThan(0);
-    expect(screen.getByText('anchor anchored')).toBeInTheDocument();
+    expect(screen.getAllByText('device event pending').length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText('device event anchored')).toBeInTheDocument();
   });
 });
