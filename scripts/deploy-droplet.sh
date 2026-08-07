@@ -22,8 +22,8 @@ echo "==> Migrate database"
 pnpm db:migrate
 
 echo "==> Build"
-export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1536}"
-pnpm build
+# Droplet has limited RAM; always cap the Node heap for Next build.
+NODE_OPTIONS=--max-old-space-size=1536 pnpm build
 
 echo "==> Restart processes"
 if command -v pm2 >/dev/null 2>&1; then
