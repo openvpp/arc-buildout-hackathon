@@ -17,7 +17,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Deploy over SSH
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          # printenv preserves multiline OpenSSH private keys safely
+          printenv DEPLOY_SSH_KEY > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Sync repository to droplet
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          rsync -az --delete \
+            -e "ssh -i $HOME/.ssh/deploy_key -o IdentitiesOnly=yes" \
+            --exclude '.env' \
+            --exclude '.env.local' \
+            --exclude '.env.*.local' \
+            --exclude 'node_modules/' \
+            --exclude '.next/' \
+            --exclude 'coverage/' \
+            --exclude 'playwright-report/' \
+            --exclude 'test-results/' \
+            ./ "${DEPLOY_USER}@${DEPLOY_HOST}:/opt/ev-telemetry/"
+
+      - name: Run deploy script
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -28,12 +61,5 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/ev-telemetry
-
-            # Droplet must authenticate to GitHub on its own (deploy key / HTTPS).
-            git remote set-url origin git@github.com:openvpp/arc-buildout-hackathon.git
-            git fetch --prune origin main
-            git checkout main
-            git reset --hard origin/main
-
             chmod +x scripts/deploy-droplet.sh
             bash scripts/deploy-droplet.sh

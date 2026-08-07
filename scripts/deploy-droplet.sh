@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Run on the DigitalOcean droplet after git fetch/reset (or after pull).
+# Run on the DigitalOcean droplet after the tree is updated (CI rsync or git pull).
 # Usage (from /opt/ev-telemetry): bash scripts/deploy-droplet.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-echo "==> Deploying $(git rev-parse --short HEAD) in ${ROOT}"
+REV="$(git rev-parse --short HEAD 2>/dev/null || echo synced-tree)"
+echo "==> Deploying ${REV} in ${ROOT}"
 
 if [[ ! -f .env.local ]]; then
   echo "ERROR: .env.local missing in ${ROOT}" >&2
