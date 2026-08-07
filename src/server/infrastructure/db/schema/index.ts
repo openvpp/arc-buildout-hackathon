@@ -186,6 +186,11 @@ export const devices = pgTable(
     nftTransactionHash: text('nft_transaction_hash'),
     nftMetadataUri: text('nft_metadata_uri'),
     network: text('network'),
+    // DeviceNFT mint lifecycle: 'unminted' -> 'pending' (claimed) -> 'minted'
+    // (or 'failed'). `mintClaimedAt` bounds a stale claim so a crashed worker's
+    // reservation can be reclaimed. See mint-device-nft.ts.
+    mintStatus: text('mint_status').notNull().default('unminted'),
+    mintClaimedAt: timestamp('mint_claimed_at', { withTimezone: true }),
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     ...timestamps,
   },
@@ -193,6 +198,10 @@ export const devices = pgTable(
     check(
       'devices_status_check',
       sql`${table.status} in ('active', 'inactive', 'disconnected')`,
+    ),
+    check(
+      'devices_mint_status_check',
+      sql`${table.mintStatus} in ('unminted', 'pending', 'minted', 'failed')`,
     ),
     uniqueIndex('devices_external_device_uidx').on(table.externalDeviceId),
     index('devices_wallet_idx').on(table.walletId),

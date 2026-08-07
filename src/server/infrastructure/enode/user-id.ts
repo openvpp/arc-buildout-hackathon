@@ -44,3 +44,14 @@ export function decodeEnodeUserId(rawUserId: string): DecodedEnodeUserId {
 export function linkEnvironmentFromAppEnv(appEnv: string): string {
   return normalizeEnvironment(appEnv);
 }
+
+/**
+ * The environment as it appears on the wire in an Enode user id. `production`
+ * and `demo` both encode to a bare wallet (which decodes back to `production`),
+ * so they share one wire bucket; other environments carry an explicit prefix.
+ * Use this to compare a decoded webhook environment against `APP_ENV`.
+ */
+export function wireEnvironmentForAppEnv(appEnv: string): string {
+  const env = normalizeEnvironment(appEnv);
+  return env === 'demo' ? 'production' : env;
+}

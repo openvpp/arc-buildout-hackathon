@@ -100,6 +100,35 @@ const VEHICLE_TELEMETRY_EVENTS = new Set([
   'user:vehicle:discovered',
 ]);
 
+/**
+ * The Enode user id carried by a raw webhook event, from either the production
+ * shape (`user.id`) or the legacy flat shape (`userId`). Used to attribute a
+ * delivery to an environment for the tenancy guard.
+ */
+export function extractEnodeEventUserId(raw: unknown): string | null {
+  if (raw === null || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  const user = record['user'];
+  if (user !== null && typeof user === 'object') {
+    const id = (user as Record<string, unknown>)['id'];
+    if (typeof id === 'string' && id.trim().length > 0) {
+      return id.trim();
+    }
+  }
+  const userId = record['userId'];
+  if (typeof userId === 'string' && userId.trim().length > 0) {
+    return userId.trim();
+  }
+  return null;
+}
+
+/** True when every normalized telemetry field is null (e.g. a bare discovered event). */
+export function isEmptyTelemetryData(data: NormalizedTelemetryData): boolean {
+  return Object.values(data).every((value) => value === null);
+}
+
 export function extractEnodeWebhookEvents(payload: unknown): unknown[] {
   if (Array.isArray(payload)) {
     return payload;

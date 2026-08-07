@@ -1,3 +1,4 @@
+import { mintDeviceNftIfNeeded } from '@/server/application/onboarding/mint-device-nft';
 import { checkTelemetryAnchorConfirmations } from '@/server/application/provenance/check-anchor-confirmations';
 import { submitTelemetryAnchor } from '@/server/application/provenance/submit-telemetry-anchor';
 import { processEnodeWebhookDelivery } from '@/server/application/webhooks/enode-webhook';
@@ -19,6 +20,14 @@ export const foundationJobHandlers: Readonly<Record<string, JobHandler>> = {
       outbox: container.outbox,
       webhookDeliveryId,
     });
+  },
+  MINT_DEVICE_NFT: async (event) => {
+    const deviceId = event.payload['deviceId'];
+    if (typeof deviceId !== 'string') {
+      throw new Error('MINT_DEVICE_NFT missing deviceId');
+    }
+    const container = getContainer();
+    await mintDeviceNftIfNeeded({ db: container.db, deviceId });
   },
   VERIFY_ARC_PAYMENT: async (event) => {
     log.info('job.deferred', {

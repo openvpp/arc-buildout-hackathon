@@ -173,13 +173,23 @@ export type ProvenanceAnchor = {
 
 /**
  * DeviceNFT mint port — Arc registry of linked EVs (distinct from BatchAnchor).
+ *
+ * `onBroadcast` is invoked with the transaction hash the instant it is broadcast
+ * (before confirmation) so the caller can persist it for crash-safe idempotency;
+ * `reconcileMint` adopts an already-broadcast tx instead of minting again.
  */
 export type DeviceNftMinter = {
   mintDevice(input: {
     to: string;
     typeId: bigint;
     deviceURI: string;
+    onBroadcast?: (transactionHash: string) => void | Promise<void>;
   }): Promise<{ tokenId: string; transactionHash: string }>;
+  reconcileMint(input: {
+    transactionHash: string;
+    to: string;
+    typeId: bigint;
+  }): Promise<{ tokenId: string } | null>;
 };
 
 /**

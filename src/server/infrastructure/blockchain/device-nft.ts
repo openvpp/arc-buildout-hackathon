@@ -37,12 +37,24 @@ function mockTxHashFor(deviceURI: string): string {
 
 type ReceiptLog = Pick<Log, 'data' | 'topics'>;
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+function addressEquals(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
 /**
  * Extract minted token id from DeviceNFT receipt logs.
  * Prefers DeviceMinted, then ERC-1155 TransferSingle, then ERC-721 Transfer.
+ *
+ * When `expected` is provided, only accept events whose recipient (and, for
+ * DeviceMinted, `typeId`) match the mint arguments — so a receipt that also
+ * carries unrelated transfers can't yield the wrong token id. TransferSingle /
+ * ERC-721 Transfer additionally require a mint (`from == 0x0`).
  */
 export function extractDeviceNftTokenIdFromLogs(
   logs: readonly ReceiptLog[],
+  expected?: { to: string; typeId: bigint },
 ): string | undefined {
   let transferSingleId: string | undefined;
   let erc721TokenId: string | undefined;
@@ -55,15 +67,36 @@ export function extractDeviceNftTokenIdFromLogs(
         topics: logItem.topics,
       });
       if (decoded.eventName === 'DeviceMinted') {
+        if (
+          expected !== undefined &&
+          (!addressEquals(decoded.args.to, expected.to) ||
+            decoded.args.typeId !== expected.typeId)
+        ) {
+          continue;
+        }
         return decoded.args.tokenId.toString(10);
       }
       if (
         decoded.eventName === 'TransferSingle' &&
         transferSingleId === undefined
       ) {
+        if (
+          expected !== undefined &&
+          (!addressEquals(decoded.args.from, ZERO_ADDRESS) ||
+            !addressEquals(decoded.args.to, expected.to))
+        ) {
+          continue;
+        }
         transferSingleId = decoded.args.id.toString(10);
       }
       if (decoded.eventName === 'Transfer' && erc721TokenId === undefined) {
+        if (
+          expected !== undefined &&
+          (!addressEquals(decoded.args.from, ZERO_ADDRESS) ||
+            !addressEquals(decoded.args.to, expected.to))
+        ) {
+          continue;
+        }
         erc721TokenId = decoded.args.tokenId.toString(10);
       }
     } catch {
@@ -84,8 +117,16 @@ export function createMockDeviceNftMinter(): DeviceNftMinter {
     async mintDevice(input) {
       const tokenId = mockTokenIdFor(input.deviceURI);
       const transactionHash = mockTxHashFor(input.deviceURI);
+      if (input.onBroadcast !== undefined) {
+        await input.onBroadcast(transactionHash);
+      }
       log.info('device_nft.mock_minted', { tokenId, transactionHash });
       return { tokenId, transactionHash };
+    },
+    // A mock tx never lands on-chain, so there is nothing to reconcile against;
+    // returning null lets the caller (re)mint deterministically in demo/test.
+    async reconcileMint() {
+      return null;
     },
   };
 }
@@ -149,12 +190,22 @@ export function createLiveDeviceNftMinter(input?: {
         chain,
       });
 
+      // Surface the hash the instant it is broadcast so the caller can persist
+      // it before we block on confirmation — a crash after this point must
+      // reconcile against the in-flight tx, never re-mint.
+      if (mintInput.onBroadcast !== undefined) {
+        await mintInput.onBroadcast(hash);
+      }
+
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== 'success') {
         throw new Error(`DeviceNFT mint transaction failed: ${hash}`);
       }
 
-      const tokenId = extractDeviceNftTokenIdFromLogs(receipt.logs);
+      const tokenId = extractDeviceNftTokenIdFromLogs(receipt.logs, {
+        to: mintInput.to,
+        typeId: mintInput.typeId,
+      });
       if (tokenId === undefined) {
         throw new Error(
           `DeviceNFT mint succeeded but mint events missing: ${hash}`,
@@ -167,6 +218,23 @@ export function createLiveDeviceNftMinter(input?: {
         to: mintInput.to,
       });
       return { tokenId, transactionHash: hash };
+    },
+
+    async reconcileMint(reconcileInput) {
+      const receipt = await publicClient
+        .getTransactionReceipt({
+          hash: reconcileInput.transactionHash as `0x${string}`,
+        })
+        .catch(() => null);
+      // Pending, dropped, or reverted — caller may safely (re)mint.
+      if (receipt === null || receipt.status !== 'success') {
+        return null;
+      }
+      const tokenId = extractDeviceNftTokenIdFromLogs(receipt.logs, {
+        to: reconcileInput.to,
+        typeId: reconcileInput.typeId,
+      });
+      return tokenId === undefined ? null : { tokenId };
     },
   };
 }
