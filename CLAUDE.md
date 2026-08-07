@@ -19,14 +19,14 @@ Intended flow (vertical slice implemented):
 - The agent signs a Gateway payment payload and retries with `payment-signature`.
   The backend **settles via the Circle facilitator**, credits the ledger, then
   returns the telemetry record, the **settlement** `paymentTransactionHash`, and
-  the telemetry **content hash** (provenance stays `PENDING` until BatchAnchor).
+  the telemetry **content hash** (provenance stays `PENDING` until DeviceNFT `recordDeviceEvent` confirms).
 - The agent **independently verifies** on **Arc testnet** that the settlement
   tx exists/succeeds and that the recomputed content hash matches.
 - This **dashboard** displays the telemetry record and the verification result,
   per **wallet** and per **device** (multi-wallet, multi-device).
 
 The backend owns Enode webhook ingestion, PostgreSQL, Circle Gateway settle,
-ledger/delivery, and content hashing. Full BatchAnchor provenance and live Enode
+ledger/delivery, and content hashing. Live Enode
 API client sync remain deferred behind ports.
 
 ### The frontend is never the source of truth
@@ -45,9 +45,9 @@ to release telemetry. Definitive authorization lives in the backend.
 - **Circle Gateway vertical slice:** agent latest-telemetry 402 → settle →
   ledger/delivery, Enode webhook → hash/persist, demo agent Step-6 verification,
   dashboard read APIs + UI wiring.
-- **Still deferred:** BatchAnchor on-chain provenance (`ANCHORED`), production
-  KMS buyer signing, live Circle funds in CI (use facilitator doubles /
-  `ALLOW_MOCK_ADAPTERS` in test/demo only).
+- **Still deferred:** production KMS buyer / DeviceNFT signing, live Circle
+  funds in CI (use facilitator doubles / `ALLOW_MOCK_ADAPTERS` in test/demo
+  only).
 
 ## Commands
 
@@ -138,7 +138,7 @@ Route Handler → transport → application → domain ports → infrastructure
 - Never return paid telemetry before settle + ledger/delivery commit.
 - Production must fail closed when the facilitator is unavailable.
 - Never conflate `paymentTransactionHash` (settlement) with
-  `anchorTransactionHash` (BatchAnchor — deferred).
+  `anchorTransactionHash` (DeviceNFT `recordDeviceEvent` tx).
 
 ### Webhooks
 

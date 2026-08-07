@@ -53,10 +53,6 @@ declare global {
       readonly AGENT_API_KEY?: string;
       readonly AGENT_WALLET_ADDRESS?: string;
       readonly AGENT_DEVICE_ID?: string;
-      readonly BATCH_ANCHOR_CONTRACT_ADDRESS?: string;
-      readonly BATCH_ANCHOR_CONTRACT_VERSION?: string;
-      readonly BATCH_ANCHOR_SIGNER_PRIVATE_KEY?: string;
-      readonly BATCH_ANCHOR_SIGNER_KEY_REFERENCE?: string;
       readonly DEVICE_NFT_CONTRACT_ADDRESS?: string;
       readonly DEVICE_NFT_MINTER_PRIVATE_KEY?: string;
       readonly PRIVATE_KEY?: string;

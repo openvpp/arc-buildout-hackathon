@@ -27,7 +27,6 @@ describe('provenance anchor adapters', () => {
     APP_ENV: process.env.APP_ENV,
     DATABASE_URL: process.env.DATABASE_URL,
     API_KEY_HASH_SECRET: process.env.API_KEY_HASH_SECRET,
-    BATCH_ANCHOR_CONTRACT_ADDRESS: process.env.BATCH_ANCHOR_CONTRACT_ADDRESS,
     DEVICE_NFT_CONTRACT_ADDRESS: process.env.DEVICE_NFT_CONTRACT_ADDRESS,
     USE_ARC_NETWORK: process.env.USE_ARC_NETWORK,
     ARC_RPC_URL: process.env.ARC_RPC_URL,
@@ -45,7 +44,6 @@ describe('provenance anchor adapters', () => {
     );
     setEnv('API_KEY_HASH_SECRET', 'test-api-key-hash-secret-32chars!!');
     setEnv('ALLOW_MOCK_ADAPTERS', 'true');
-    setEnv('BATCH_ANCHOR_CONTRACT_ADDRESS', undefined);
     setEnv('DEVICE_NFT_CONTRACT_ADDRESS', undefined);
     setEnv('USE_ARC_NETWORK', undefined);
     setEnv('ARC_RPC_URL', undefined);
@@ -102,13 +100,12 @@ describe('provenance anchor adapters', () => {
     expect(result.status).toBe('submitted');
   });
 
-  it('fail-closes when mocks off and neither DeviceNFT nor BatchAnchor configured', async () => {
+  it('fail-closes when mocks off and DeviceNFT is not configured', async () => {
     setEnv('ALLOW_MOCK_ADAPTERS', 'false');
     setEnv(
       'SELLER_WALLET_ADDRESS',
       '0x2222222222222222222222222222222222222222',
     );
-    setEnv('BATCH_ANCHOR_CONTRACT_ADDRESS', undefined);
     setEnv('DEVICE_NFT_CONTRACT_ADDRESS', undefined);
     resetServerEnvCache();
     const anchor = createProvenanceAnchorForEnv();

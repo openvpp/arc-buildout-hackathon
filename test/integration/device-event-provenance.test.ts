@@ -1,5 +1,5 @@
 /**
- * BatchAnchor submit → confirm mock path + strict delivery gate.
+ * DeviceNFT recordDeviceEvent mock path + strict delivery gate.
  * Requires Postgres (pnpm services:up).
  */
 import { eq } from 'drizzle-orm';
@@ -42,7 +42,7 @@ function setEnv(key: string, value: string): void {
   (process.env as Record<string, string | undefined>)[key] = value;
 }
 
-describe('batch anchor provenance', () => {
+describe('device event provenance', () => {
   const sql = postgres(databaseUrl, { max: 5 });
   const db = drizzle(sql, { schema });
 

@@ -206,7 +206,7 @@ export async function requestLatestTelemetry(input: {
     throw new ApiError({
       code: 'PROVENANCE_PENDING',
       message:
-        'Telemetry is not yet provenance-anchored. Retry after the worker confirms the BatchAnchor.',
+        'Telemetry is not yet provenance-confirmed. Retry after the worker confirms the DeviceNFT recordDeviceEvent.',
       status: 409,
       details: {
         telemetryRecordId: latest.id,

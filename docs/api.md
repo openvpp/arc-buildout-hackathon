@@ -69,7 +69,7 @@ credential is returned once at creation (`pnpm db:seed` prints a demo key).
 Never conflate:
 
 - `paymentTransactionHash` — Circle Gateway **settlement** tx
-- `anchorTransactionHash` — provenance BatchAnchor commitment (deferred)
+- `anchorTransactionHash` — DeviceNFT `recordDeviceEvent` tx (content-hash commitment)
 
 ## Generating / checking OpenAPI
 

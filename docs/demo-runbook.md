@@ -135,7 +135,7 @@ live hardware).
 
 - Settlement `paymentTransactionHash` visible on Arc explorer
 - Agent verification `receiptFound=true` and status `VERIFIED`
-- Dashboard shows delivery; do **not** treat payment tx as DeviceNFT / BatchAnchor tx
+- Dashboard shows delivery; do **not** treat payment tx as a DeviceNFT event tx
 
 ### B4. Failure modes (fail closed)
 

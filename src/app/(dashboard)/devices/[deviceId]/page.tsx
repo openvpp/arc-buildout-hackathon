@@ -96,7 +96,7 @@ export default async function DeviceDetailPage({ params }: PageProps) {
         </Link>
         <PageHeader
           title={label}
-          description="Owner view: past telemetry readings as stored, plus independent Verify for settled records."
+          description="Owner view: full readings for paid records; unpaid rows show time and status only. Verify settled payments on this page."
         />
       </div>
 
@@ -192,8 +192,8 @@ export default async function DeviceDetailPage({ params }: PageProps) {
           <ul className="flex flex-col gap-3">
             {history.map((row) => {
               const rowBadge = agentVerificationBadge(row.verificationStatus);
-              const readings = readTelemetryReadingFields(row.telemetryPayload);
               const paymentTx = row.paymentTransactionHash;
+              const isPaid = paymentTx !== null;
 
               return (
                 <li key={row.id}>
@@ -208,58 +208,65 @@ export default async function DeviceDetailPage({ params }: PageProps) {
                       <StatusBadge tone="neutral">
                         {row.anchorStatus}
                       </StatusBadge>
+                      {!isPaid ? (
+                        <StatusBadge tone="warning">Locked</StatusBadge>
+                      ) : null}
                     </div>
                     <CardDescription className="mt-1 font-mono text-xs break-all">
-                      {truncateHash(row.contentHash, 14, 8)} · id {row.id}
+                      {truncateHash(row.contentHash, 14, 8)}
+                      {isPaid ? ` · id ${row.id}` : null}
                     </CardDescription>
 
-                    <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-                      {readings.map((field) => (
-                        <DetailField
-                          key={field.label}
-                          label={field.label}
-                          value={field.value}
-                        />
-                      ))}
-                    </dl>
+                    {isPaid ? (
+                      <>
+                        <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                          {readTelemetryReadingFields(row.telemetryPayload).map(
+                            (field) => (
+                              <DetailField
+                                key={field.label}
+                                label={field.label}
+                                value={field.value}
+                              />
+                            ),
+                          )}
+                        </dl>
 
-                    <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 text-sm sm:grid-cols-2 dark:border-slate-700">
-                      <div className="sm:col-span-2">
-                        <DeviceEventTransactionLink
-                          transactionHash={row.anchorTransactionHash}
-                        />
-                      </div>
-                      {paymentTx !== null ? (
-                        <div className="sm:col-span-2">
-                          <SettlementPaymentRef
-                            settlementRef={paymentTx}
-                            compact
-                          />
-                        </div>
-                      ) : (
-                        <DetailField
-                          label="Payment tx"
-                          value="No settlement yet"
-                        />
-                      )}
-                    </dl>
+                        <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 text-sm sm:col-span-2 sm:grid-cols-2 dark:border-slate-700">
+                          <div className="sm:col-span-2">
+                            <DeviceEventTransactionLink
+                              transactionHash={row.anchorTransactionHash}
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <SettlementPaymentRef
+                              settlementRef={paymentTx}
+                              compact
+                            />
+                          </div>
+                        </dl>
 
-                    {paymentTx !== null &&
-                    row.verificationStatus !== 'VERIFIED' ? (
-                      <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
-                        <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">
-                          Independent verification checks Arc settlement and
-                          content hash. Not unlock authorization.
-                        </p>
-                        <VerifyTelemetryButton
-                          walletAddress={wallet.address}
-                          deviceId={device.id}
-                          telemetryRecordId={row.id}
-                          paymentTransactionHash={paymentTx}
-                          initialStatus={row.verificationStatus}
-                        />
-                      </div>
-                    ) : null}
+                        {row.verificationStatus !== 'VERIFIED' ? (
+                          <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+                            <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">
+                              Independent verification checks Arc settlement and
+                              content hash. Not unlock authorization.
+                            </p>
+                            <VerifyTelemetryButton
+                              walletAddress={wallet.address}
+                              deviceId={device.id}
+                              telemetryRecordId={row.id}
+                              paymentTransactionHash={paymentTx}
+                              initialStatus={row.verificationStatus}
+                            />
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">
+                        Readings stay locked until this record is paid. Request
+                        and unlock above to reveal EV data.
+                      </p>
+                    )}
                   </Card>
                 </li>
               );

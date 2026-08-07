@@ -154,8 +154,7 @@ export type PaymentVerifier = {
 };
 
 /**
- * Provenance anchoring port — DeviceNFT `recordDeviceEvent` (preferred) or
- * BatchAnchor submit/confirm via worker jobs.
+ * Provenance port — DeviceNFT `recordDeviceEvent` submit/confirm via worker.
  */
 export type ProvenanceAnchor = {
   anchorTelemetry(input: {
@@ -175,7 +174,7 @@ export type ProvenanceAnchor = {
 };
 
 /**
- * DeviceNFT mint port — Arc registry of linked EVs (distinct from BatchAnchor).
+ * DeviceNFT mint port — Arc registry of linked EVs.
  *
  * `onBroadcast` is invoked with the transaction hash the instant it is broadcast
  * (before confirmation) so the caller can persist it for crash-safe idempotency;

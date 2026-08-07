@@ -40,9 +40,9 @@ is a separate process and never runs in the browser.
 
 **Still deferred / not production-complete:**
 
-- Production KMS BatchAnchor / buyer signing (raw private keys forbidden in prod/staging)
+- Production KMS DeviceNFT / buyer signing (raw private keys forbidden in prod/staging)
 - Live Enode HTTP API client sync (`EnodeClient` remains fail-closed)
-- Replace provisional BatchAnchor ABI with the contract project artifact
+- DeviceNFT live provenance via `recordDeviceEvent` (mint path shares signer; needs UPDATER_ROLE)
 - Cookie/session-scoped dashboard principal (RSC lists all bound wallets for now)
 - Separate BE/FE repositories (monorepo process/module split documented in architecture.md)
 

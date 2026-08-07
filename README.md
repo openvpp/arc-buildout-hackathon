@@ -8,7 +8,7 @@ Production-grade **Next.js App Router** monorepo containing:
 
 > **Status:** Circle Gateway vertical slice + Enode Link onboarding + Enode
 > webhook ingest (HMAC-SHA1 / array envelope / optional IP allowlist) +
-> BatchAnchor provenance jobs (mock / provisional live ABI) + Web3Auth JWT
+> DeviceNFT `recordDeviceEvent` provenance jobs (mock / live) + Web3Auth JWT
 > onboarding auth with `principal_wallets` binding + agent rate limits. Live
 > Circle settle is fail-closed when mocks are off; CI uses facilitator doubles /
 > mocks, not real funds. See
@@ -50,14 +50,13 @@ Additional product rules already implemented:
 - **Enode vehicle onboarding** — Link → OAuth → finalize (`/devices/onboard`) with **Web3Auth** connect + **JWT** on onboarding APIs
 - **Dashboard wallet binding** — verified Web3Auth identities upsert `dashboard_user` + `principal_wallets` (`owner`)
 - **Enode webhooks** — HMAC-SHA1, array deliveries, nested `vehicle` mapping; optional `ENODE_WEBHOOK_ALLOWED_IPS`
-- **BatchAnchor provenance** — worker `ANCHOR_TELEMETRY` / `CHECK_ANCHOR_CONFIRMATIONS`; `PROVENANCE_DELIVERY_MODE`
+- **DeviceNFT provenance** — worker `ANCHOR_TELEMETRY` / `CHECK_ANCHOR_CONFIRMATIONS` via `recordDeviceEvent`; `PROVENANCE_DELIVERY_MODE`
 - **Agent rate limits** — DB-backed limiter on `POST /api/v1/agent/telemetry/latest` (default 60 / 60s)
 
 Still deferred:
 
 - Cookie/session-scoped dashboard principal (RSC lists bound wallets today)
-- Production KMS for BatchAnchor / buyer signing (raw private keys forbidden in prod/staging)
-- Real BatchAnchor contract ABI (provisional `anchorContentHash` ships for demos)
+- Production KMS for DeviceNFT / buyer signing (raw private keys forbidden in prod/staging)
 
 ## Mock vs live Circle
 
@@ -140,16 +139,16 @@ Exact pinned versions are in [`package.json`](./package.json).
 **Not production-ready yet.** Demo / hackathon vertical slice with fail-closed
 guards — not a production deployment checklist.
 
-| Area                          | Ready? | Notes                                                                             |
-| ----------------------------- | ------ | --------------------------------------------------------------------------------- |
-| Circle 402 → settle → deliver | Code   | Live needs facilitator + Arc RPC + funded wallets; seller required when mocks off |
-| Settlement tx-hash reuse      | Done   | Cross-requirement reuse → `PAYMENT_TRANSACTION_REUSED`                            |
-| Enode webhook ingest          | Code   | HMAC-SHA1 + array/`vehicle` mapping; optional IP allowlist; needs secret + worker |
-| Enode vehicle Link onboarding | Code   | Sandbox credentials + redirect URI + Web3Auth Bearer JWT                          |
-| Web3Auth JWT + wallet binding | Demo   | JWKS verify + `principal_wallets`; mock `Bearer mock:0x…` only when mocks on      |
-| BatchAnchor provenance        | Demo   | Mock/live adapters + worker; `pending` sells early, `strict` waits for `ANCHORED` |
-| Rate limiting on agent APIs   | Done   | `AGENT_RATE_LIMIT_*` (default 60/60s per principal); `Retry-After` from window    |
-| Buyer signing in prod         | No     | Env private key forbidden in prod; KMS/reference still deferred                   |
+| Area                          | Ready? | Notes                                                                                        |
+| ----------------------------- | ------ | -------------------------------------------------------------------------------------------- |
+| Circle 402 → settle → deliver | Code   | Live needs facilitator + Arc RPC + funded wallets; seller required when mocks off            |
+| Settlement tx-hash reuse      | Done   | Cross-requirement reuse → `PAYMENT_TRANSACTION_REUSED`                                       |
+| Enode webhook ingest          | Code   | HMAC-SHA1 + array/`vehicle` mapping; optional IP allowlist; needs secret + worker            |
+| Enode vehicle Link onboarding | Code   | Sandbox credentials + redirect URI + Web3Auth Bearer JWT                                     |
+| Web3Auth JWT + wallet binding | Demo   | JWKS verify + `principal_wallets`; mock `Bearer mock:0x…` only when mocks on                 |
+| DeviceNFT provenance          | Demo   | Mock/live `recordDeviceEvent` + worker; `pending` sells early, `strict` waits for `ANCHORED` |
+| Rate limiting on agent APIs   | Done   | `AGENT_RATE_LIMIT_*` (default 60/60s per principal); `Retry-After` from window               |
+| Buyer signing in prod         | No     | Env private key forbidden in prod; KMS/reference still deferred                              |
 
 `pnpm validate` covers format/lint/typecheck/unit/build. Integration tests need
 Postgres (`pnpm services:up && pnpm test:integration`).

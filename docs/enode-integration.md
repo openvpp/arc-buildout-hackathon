@@ -54,7 +54,7 @@ worker
        map vehicle.chargeState|odometer|location
        → find device by external_device_id
        → insert telemetry_records + content hash
-       → enqueue ANCHOR_TELEMETRY (worker → BatchAnchor mock/live)
+       → enqueue ANCHOR_TELEMETRY (worker → DeviceNFT recordDeviceEvent mock/live)
 ```
 
 Never claim `ANCHORED` from webhook processing.

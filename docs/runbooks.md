@@ -82,13 +82,13 @@ do not treat it as the live money flow.
 - **Remediate:** issue new key; rotate `API_KEY_HASH_SECRET` only with a re-hash plan
 - **Audit:** revocation event + principal ID
 
-## Anchor transaction stuck (BatchAnchor — deferred)
+## Device event transaction stuck
 
-- **Detect:** telemetry `anchor_status` stuck in `submitted` (when BatchAnchor is live)
+- **Detect:** telemetry `anchor_status` stuck in `submitted` (live DeviceNFT `recordDeviceEvent`)
 - **Contain:** do not invent `ANCHORED` status
 - **Diagnose:** RPC, contract, confirmations
 - **Remediate:** confirmation jobs (not implemented yet)
 - **Audit:** batch IDs affected
 
-Today deliveries may show provenance `PENDING`; that is expected until BatchAnchor
+Today deliveries may show provenance `PENDING`; that is expected until DeviceNFT events
 is implemented.

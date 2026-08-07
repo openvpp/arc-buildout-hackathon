@@ -5,7 +5,7 @@
 - No secrets in git, `NEXT_PUBLIC_*`, frontend bundles, or logs
 - API keys stored as HMAC-SHA256 hashes with `API_KEY_HASH_SECRET`
 - Wallet private keys / seed phrases never stored in the frontend
-- `ARC_PAYMENT_SIGNER_PRIVATE_KEY` / `BATCH_ANCHOR_SIGNER_PRIVATE_KEY` allowed
+- `ARC_PAYMENT_SIGNER_PRIVATE_KEY` / `DEVICE_NFT_MINTER_PRIVATE_KEY` / `PRIVATE_KEY` allowed
   only in development/demo/test; forbidden in production/staging
 - Production rejects `ALLOW_MOCK_ADAPTERS=true`
 

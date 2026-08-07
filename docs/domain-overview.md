@@ -25,4 +25,4 @@ Dashboard
 - Frontend is a viewer; backend owns Enode, Postgres, Circle settle, and hashes.
 - Payment settlement tx ≠ provenance/anchor tx.
 - Demo wallets/devices come from `pnpm db:seed`.
-- Full BatchAnchor on-chain provenance remains deferred; delivered provenance stays `PENDING` until that phase.
+- On-chain provenance uses DeviceNFT `recordDeviceEvent`; delivered provenance stays `PENDING` until the worker confirms.

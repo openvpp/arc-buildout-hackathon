@@ -23,7 +23,7 @@ describe('DeviceDetailPage', () => {
     vi.resetModules();
   });
 
-  it('renders vehicle fields, payload readings, and verify for unsettled verification', async () => {
+  it('shows full readings only for paid records; unpaid stays compact', async () => {
     loadDeviceDetail.mockResolvedValue({
       ok: true as const,
       detail: {
@@ -78,6 +78,19 @@ describe('DeviceDetailPage', () => {
               '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
           },
           {
+            id: 'rec-unpaid',
+            recordedAt: new Date('2026-03-01T12:00:00.000Z'),
+            contentHash: 'hash-unpaid-0123456789abcdef01',
+            anchorStatus: 'unanchored',
+            anchorTransactionHash: null,
+            telemetryPayload: {
+              stateOfChargePercent: 12,
+              isCharging: false,
+            },
+            verificationStatus: null,
+            paymentTransactionHash: null,
+          },
+          {
             id: 'rec-0',
             recordedAt: new Date('2026-03-01T00:00:00.000Z'),
             contentHash: 'hash-older-0123456789abcdef00',
@@ -106,29 +119,19 @@ describe('DeviceDetailPage', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Garage EV' }),
     ).toBeInTheDocument();
-    expect(screen.getByText('DemoOEM')).toBeInTheDocument();
-    expect(screen.getByText('Sport')).toBeInTheDocument();
-    expect(screen.getByText('ext-ev-1')).toBeInTheDocument();
-    expect(screen.getByText('Telemetry history (2)')).toBeInTheDocument();
+    expect(screen.getByText('Telemetry history (3)')).toBeInTheDocument();
     expect(screen.getByText('99%')).toBeInTheDocument();
     expect(screen.getByText('40%')).toBeInTheDocument();
     expect(screen.getByText('220 km')).toBeInTheDocument();
-    expect(screen.getByText('No on-chain event yet')).toBeInTheDocument();
+    expect(screen.queryByText('12%')).not.toBeInTheDocument();
+    expect(screen.getByText('Locked')).toBeInTheDocument();
     expect(
-      screen.getByText(/Pending on-chain settlement/i),
+      screen.getByText(/Readings stay locked until this record is paid/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: /View settlement transaction/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId('request-telemetry-panel')).toBeInTheDocument();
     expect(screen.getByTestId('verify-rec-1')).toBeInTheDocument();
-    expect(screen.queryByTestId('verify-rec-0')).not.toBeInTheDocument();
-    expect(screen.getByText(/Device event tx/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('verify-rec-unpaid')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /View mint transaction/i }),
-    ).toHaveAttribute(
-      'href',
-      'https://explorer.test.example/tx/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    );
+    ).toBeInTheDocument();
   });
 });

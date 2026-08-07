@@ -125,15 +125,15 @@ schema validation, conservative security headers in `next.config.ts`.
 - Ledger credit + delivery + cursor after successful settle
 - Demo agent Arc settlement receipt + content-hash verification
 - Dashboard read APIs + multi-wallet/device UI wiring
-- BatchAnchor provenance jobs + `PROVENANCE_DELIVERY_MODE` enforcement
+- DeviceNFT `recordDeviceEvent` provenance jobs + `PROVENANCE_DELIVERY_MODE` enforcement
 - Web3Auth JWT onboarding auth + `principal_wallets` owner binding
 - Enode webhook IP allowlist + agent telemetry rate limits
 
 **Still deferred:**
 
-- Production KMS for BatchAnchor / buyer signing
+- Production KMS for DeviceNFT / buyer signing
 - Live Enode HTTP API client sync
 - Separate BE/FE **repositories** (monorepo boundaries documented above)
-- Final BatchAnchor contract ABI (provisional ABI ships)
+- DeviceNFT UPDATER_ROLE / production KMS for event signing
 - Cookie/session-scoped dashboard auth (bound wallets listed until then)
 - A concrete `Content-Security-Policy` once origins are finalized

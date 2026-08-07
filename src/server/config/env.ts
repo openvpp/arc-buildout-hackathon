@@ -120,10 +120,6 @@ export const serverEnvSchema = z
     AGENT_POLL_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
     AGENT_API_BASE_URL: optionalUrl,
     AGENT_API_KEY: z.string().optional(),
-    BATCH_ANCHOR_CONTRACT_ADDRESS: ethereumAddress.optional(),
-    BATCH_ANCHOR_CONTRACT_VERSION: z.string().optional(),
-    BATCH_ANCHOR_SIGNER_PRIVATE_KEY: z.string().optional(),
-    BATCH_ANCHOR_SIGNER_KEY_REFERENCE: z.string().optional(),
     DEVICE_NFT_CONTRACT_ADDRESS: ethereumAddress.optional(),
     DEVICE_NFT_MINTER_PRIVATE_KEY: z.string().optional(),
     /** ovpp-backend alias for DeviceNFTOwnerWallet / minter. */
@@ -194,18 +190,6 @@ export const serverEnvSchema = z
           path: ['ARC_PAYMENT_SIGNER_PRIVATE_KEY'],
           message:
             'Raw buyer private keys are forbidden in production/staging environment variables',
-        });
-      }
-
-      if (
-        env.BATCH_ANCHOR_SIGNER_PRIVATE_KEY !== undefined &&
-        env.BATCH_ANCHOR_SIGNER_PRIVATE_KEY.length > 0
-      ) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['BATCH_ANCHOR_SIGNER_PRIVATE_KEY'],
-          message:
-            'Raw BatchAnchor signer private keys are forbidden in production/staging environment variables',
         });
       }
 
@@ -347,10 +331,6 @@ export function readRawServerEnv(
     AGENT_POLL_INTERVAL_SECONDS: source.AGENT_POLL_INTERVAL_SECONDS,
     AGENT_API_BASE_URL: source.AGENT_API_BASE_URL,
     AGENT_API_KEY: source.AGENT_API_KEY,
-    BATCH_ANCHOR_CONTRACT_ADDRESS: source.BATCH_ANCHOR_CONTRACT_ADDRESS,
-    BATCH_ANCHOR_CONTRACT_VERSION: source.BATCH_ANCHOR_CONTRACT_VERSION,
-    BATCH_ANCHOR_SIGNER_PRIVATE_KEY: source.BATCH_ANCHOR_SIGNER_PRIVATE_KEY,
-    BATCH_ANCHOR_SIGNER_KEY_REFERENCE: source.BATCH_ANCHOR_SIGNER_KEY_REFERENCE,
     DEVICE_NFT_CONTRACT_ADDRESS: source.DEVICE_NFT_CONTRACT_ADDRESS,
     DEVICE_NFT_MINTER_PRIVATE_KEY: source.DEVICE_NFT_MINTER_PRIVATE_KEY,
     PRIVATE_KEY: source.PRIVATE_KEY,
