@@ -89,7 +89,7 @@ describe('AdminPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Demo EV')).toBeInTheDocument();
     expect(screen.getByText('VERIFIED')).toBeInTheDocument();
-    expect(screen.getByText('Unlocked view')).toBeInTheDocument();
+    expect(screen.getByText('Unlocked')).toBeInTheDocument();
     expect(screen.getByText(/DemoOEM · Sedan/)).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'View vehicle & full telemetry' }),

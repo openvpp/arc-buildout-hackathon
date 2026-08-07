@@ -111,7 +111,7 @@ export default async function AdminDeviceDetailPage({ params }: PageProps) {
         </h2>
         <Card>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone="info">Unlocked view</StatusBadge>
+            <StatusBadge tone="info">Unlocked</StatusBadge>
             <StatusBadge tone={deviceStatusTone(device.status)}>
               {device.status}
             </StatusBadge>
