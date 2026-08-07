@@ -129,3 +129,25 @@ export function adminAuthFailureResponse(
     headers,
   });
 }
+
+/**
+ * Logout endpoint response. Intentionally omits WWW-Authenticate so the
+ * browser is not immediately re-prompted; the HTML body redirects away from
+ * /admin. The next visit to /admin challenges again.
+ */
+export function adminLogoutResponse(): Response {
+  const html =
+    '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>' +
+    '<meta http-equiv="refresh" content="0;url=/dashboard"/>' +
+    '<title>Logged out</title>' +
+    '<script>location.replace("/dashboard")</script></head>' +
+    '<body><p>Logged out. <a href="/dashboard">Continue to dashboard</a>.</p>' +
+    '</body></html>';
+  return new Response(html, {
+    status: 401,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}

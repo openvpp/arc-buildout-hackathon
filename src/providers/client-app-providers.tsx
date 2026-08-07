@@ -8,6 +8,7 @@ import {
   createWeb3AuthContextConfig,
   WagmiReadyProvider,
 } from '@/features/auth';
+import { ThemeProvider } from '@/features/theme';
 import { QueryProvider } from '@/providers/query-provider';
 
 /**
@@ -34,21 +35,27 @@ function WagmiWhenReady({ children }: { children: ReactNode }) {
 }
 
 /**
- * Client composition: Web3Auth (when configured) → React Query → Wagmi.
+ * Client composition: Theme → Web3Auth (when configured) → React Query → Wagmi.
  * When Client ID is unset, skip Web3Auth so CI/builds still run.
  */
 export function ClientAppProviders({ children }: { children: ReactNode }) {
   const config = createWeb3AuthContextConfig();
 
   if (config === null) {
-    return <QueryProvider>{children}</QueryProvider>;
+    return (
+      <ThemeProvider>
+        <QueryProvider>{children}</QueryProvider>
+      </ThemeProvider>
+    );
   }
 
   return (
-    <Web3AuthProvider config={config}>
-      <QueryProvider>
-        <WagmiWhenReady>{children}</WagmiWhenReady>
-      </QueryProvider>
-    </Web3AuthProvider>
+    <ThemeProvider>
+      <Web3AuthProvider config={config}>
+        <QueryProvider>
+          <WagmiWhenReady>{children}</WagmiWhenReady>
+        </QueryProvider>
+      </Web3AuthProvider>
+    </ThemeProvider>
   );
 }

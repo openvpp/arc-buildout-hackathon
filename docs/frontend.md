@@ -10,12 +10,13 @@ checks shown in the UI are evidence, not authorization.
 
 | Route                 | File                                              | Kind   | Purpose                                                           |
 | --------------------- | ------------------------------------------------- | ------ | ----------------------------------------------------------------- |
-| `/`                   | `src/app/page.tsx`                                | Server | Landing (boilerplate); links to dashboard                         |
+| `/`                   | `src/app/page.tsx`                                | Server | Redirects to `/dashboard`                                         |
 | `/dashboard`          | `src/app/(dashboard)/dashboard/page.tsx`          | Server | Overview: wallets → devices → request/unlock + verification       |
 | `/wallets`            | `src/app/(dashboard)/wallets/page.tsx`            | Server | Bound wallets list                                                |
 | `/devices`            | `src/app/(dashboard)/devices/page.tsx`            | Server | Devices list with vendor/status/latest metadata + link to onboard |
 | `/devices/[deviceId]` | `src/app/(dashboard)/devices/[deviceId]/page.tsx` | Server | Vehicle detail + metadata-only telemetry history card list        |
 | `/devices/onboard`    | `src/app/(dashboard)/devices/onboard/page.tsx`    | Client | Web3Auth connect → start Enode Link                               |
+| `/settings`           | `src/app/(dashboard)/settings/page.tsx`           | Server | Local appearance: light / dark / system (browser localStorage)    |
 | `/enode/complete`     | `src/app/enode/complete/page.tsx`                 | Client | Enode OAuth return → nickname → finalize device                   |
 
 Shell: `(dashboard)` routes use `src/app/(dashboard)/layout.tsx` +
@@ -90,6 +91,7 @@ link.
 | Feature                     | Public surface                            | Notes                                    |
 | --------------------------- | ----------------------------------------- | ---------------------------------------- |
 | `src/features/auth`         | Web3Auth connect / session / id token     | FE wallet identity                       |
+| `src/features/theme`        | Light/dark/system preference              | `/settings` appearance control           |
 | `src/features/onboarding`   | `createOnboardingApi`                     | Typed client for Link / OAuth / finalize |
 | `src/features/dashboard`    | Snapshot loaders + mock Request/Pay panel | Demo buy BFF + device detail loader      |
 | `src/features/devices`      | Device/vehicle format helpers             | Shared display formatting                |

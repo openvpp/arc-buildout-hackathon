@@ -2,12 +2,18 @@
 
 /*
  * Tailwind CSS v4 (CSS-first). Utilities are generated from class usage; there
- * is no tailwind.config.js. `dark:` variants respond to the OS color scheme by
- * default. Add design tokens here via `@theme` when a real design system lands.
+ * is no tailwind.config.js. `dark:` follows the `.dark` class (set by the theme
+ * provider / boot script). Add design tokens via `@theme` when a real design
+ * system lands.
  */
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 html {

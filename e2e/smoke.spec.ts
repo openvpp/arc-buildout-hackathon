@@ -1,11 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('smoke', () => {
-  test('home page links through to the dashboard', async ({ page }) => {
+  test('home page redirects to the dashboard', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-
-    await page.getByRole('link', { name: 'Open dashboard' }).click();
     await expect(page).toHaveURL(/\/dashboard$/);
     await expect(
       page.getByRole('heading', { level: 1, name: 'Dashboard' }),

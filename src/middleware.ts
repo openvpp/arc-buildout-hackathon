@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getAdminBasicCredentials } from '@/server/config/env';
 import {
   adminAuthFailureResponse,
+  adminLogoutResponse,
   evaluateAdminBasicAuth,
 } from '@/server/infrastructure/auth/admin-basic-auth';
 
@@ -16,6 +17,10 @@ export const config = {
  * challenge (required for the browser credential prompt).
  */
 export function middleware(request: NextRequest): Response {
+  if (request.nextUrl.pathname === '/admin/logout') {
+    return adminLogoutResponse();
+  }
+
   const decision = evaluateAdminBasicAuth(
     request.headers.get('authorization'),
     getAdminBasicCredentials(),

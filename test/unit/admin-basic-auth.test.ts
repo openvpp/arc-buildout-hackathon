@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ADMIN_BASIC_REALM,
   adminAuthFailureResponse,
+  adminLogoutResponse,
   evaluateAdminBasicAuth,
   timingSafeEqualString,
 } from '@/server/infrastructure/auth/admin-basic-auth';
@@ -103,5 +104,15 @@ describe('adminAuthFailureResponse', () => {
     });
     expect(response.status).toBe(503);
     expect(response.headers.get('WWW-Authenticate')).toBeNull();
+  });
+});
+
+describe('adminLogoutResponse', () => {
+  it('returns 401 HTML without WWW-Authenticate so browsers are not re-prompted', () => {
+    const response = adminLogoutResponse();
+    expect(response.status).toBe(401);
+    expect(response.headers.get('WWW-Authenticate')).toBeNull();
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(response.headers.get('Content-Type')).toContain('text/html');
   });
 });

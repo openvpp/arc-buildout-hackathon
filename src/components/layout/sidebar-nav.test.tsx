@@ -28,6 +28,7 @@ describe('SidebarNav', () => {
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Wallets' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Devices' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
   });
 
   it('marks the current route with aria-current="page"', () => {

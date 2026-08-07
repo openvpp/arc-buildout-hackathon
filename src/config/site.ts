@@ -14,7 +14,7 @@ export type NavItem = {
 };
 
 /** App-internal routes known at build time. */
-export type Route = '/' | '/dashboard' | '/wallets' | '/devices';
+export type Route = '/' | '/dashboard' | '/wallets' | '/devices' | '/settings';
 
 export type SiteConfig = {
   readonly name: string;
@@ -43,6 +43,11 @@ export const siteConfig = {
       title: 'Devices',
       href: '/devices',
       description: 'EV devices grouped by wallet.',
+    },
+    {
+      title: 'Settings',
+      href: '/settings',
+      description: 'Appearance and local dashboard preferences.',
     },
   ],
 } satisfies SiteConfig;
