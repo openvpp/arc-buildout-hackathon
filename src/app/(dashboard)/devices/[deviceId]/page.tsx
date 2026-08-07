@@ -6,7 +6,11 @@ import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { loadDeviceDetail } from '@/features/dashboard';
+import {
+  loadDeviceDetail,
+  RequestTelemetryPanel,
+  VerifyTelemetryButton,
+} from '@/features/dashboard';
 import {
   DeviceMintTransactionLink,
   deviceDisplayName,
@@ -15,6 +19,7 @@ import {
   readDeviceMetadata,
   truncateHash,
 } from '@/features/devices';
+import { readTelemetryReadingFields } from '@/features/telemetry';
 import { shortenAddress } from '@/features/wallets';
 
 export const dynamic = 'force-dynamic';
@@ -38,11 +43,11 @@ export async function generateMetadata({
   };
 }
 
-function agentVerificationBadge(status: string | undefined): {
+function agentVerificationBadge(status: string | null | undefined): {
   tone: 'neutral' | 'success' | 'danger' | 'warning';
   label: string;
 } {
-  if (status === undefined) {
+  if (status === null || status === undefined) {
     return { tone: 'neutral', label: 'Not verified' };
   }
   if (status === 'VERIFIED') {
@@ -73,7 +78,7 @@ export default async function DeviceDetailPage({ params }: PageProps) {
     );
   }
 
-  const { wallet, device, latest, verification, history } = loaded.detail;
+  const { wallet, device, verification, history } = loaded.detail;
   const meta = readDeviceMetadata(device.metadata);
   const agentBadge = agentVerificationBadge(verification?.status);
   const label = deviceDisplayName(device);
@@ -89,7 +94,7 @@ export default async function DeviceDetailPage({ params }: PageProps) {
         </Link>
         <PageHeader
           title={label}
-          description="Vehicle details and metadata-only telemetry history. Payloads stay locked until you unlock on the dashboard."
+          description="Owner view: past telemetry readings as stored, plus independent Verify for settled records."
         />
       </div>
 
@@ -158,66 +163,12 @@ export default async function DeviceDetailPage({ params }: PageProps) {
             ) : null}
           </dl>
 
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link
-              href="/dashboard"
-              className="inline-flex rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white"
-            >
-              Request & unlock on dashboard
-            </Link>
-          </div>
-        </Card>
-      </section>
-
-      <section aria-labelledby="latest-heading" className="flex flex-col gap-3">
-        <h2
-          id="latest-heading"
-          className="text-sm font-semibold text-slate-900 dark:text-slate-100"
-        >
-          Latest telemetry (metadata)
-        </h2>
-        {latest === null ? (
-          <EmptyState
-            title="No telemetry yet"
-            description="Ingest an Enode webhook or inject demo telemetry for this vehicle."
+          <RequestTelemetryPanel
+            walletAddress={wallet.address}
+            deviceId={device.id}
+            deviceLabel={label}
           />
-        ) : (
-          <Card>
-            <CardTitle>Latest record</CardTitle>
-            <CardDescription>
-              Payload values are hidden here. Unlock on the dashboard to view EV
-              readings after payment.
-            </CardDescription>
-            <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-              <DetailField
-                label="Recorded at"
-                value={formatTimestamp(latest.recordedAt)}
-                mono
-              />
-              <DetailField label="Anchor status" value={latest.anchorStatus} />
-              <DetailField
-                label="Content hash"
-                value={latest.contentHash}
-                mono
-              />
-              <DetailField label="Record ID" value={latest.id} mono />
-              {latest.anchorTransactionHash !== null ? (
-                <DetailField
-                  label="Anchor tx"
-                  value={latest.anchorTransactionHash}
-                  mono
-                />
-              ) : null}
-              {verification?.paymentTransactionHash !== undefined ? (
-                <DetailField
-                  label="Payment tx"
-                  value={verification.paymentTransactionHash}
-                  mono
-                />
-              ) : null}
-            </dl>
-          </Card>
-        )}
+        </Card>
       </section>
 
       <section
@@ -236,41 +187,84 @@ export default async function DeviceDetailPage({ params }: PageProps) {
             description="Telemetry history for this vehicle will appear here."
           />
         ) : (
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {history.map((row) => (
-              <li key={row.id}>
-                <Card>
-                  <CardTitle className="font-mono text-xs break-all">
-                    {truncateHash(row.contentHash, 14, 8)}
-                  </CardTitle>
-                  <CardDescription>
-                    <span className="flex flex-col gap-2">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <StatusBadge tone="neutral">
-                          {row.anchorStatus}
-                        </StatusBadge>
-                      </span>
-                      <span className="font-mono text-xs break-all">
+          <ul className="flex flex-col gap-3">
+            {history.map((row) => {
+              const rowBadge = agentVerificationBadge(row.verificationStatus);
+              const readings = readTelemetryReadingFields(row.telemetryPayload);
+              const paymentTx = row.paymentTransactionHash;
+
+              return (
+                <li key={row.id}>
+                  <Card>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-sm">
                         {formatTimestamp(row.recordedAt)}
-                      </span>
-                      <span className="font-mono text-xs break-all text-slate-500">
-                        id {row.id}
-                      </span>
+                      </CardTitle>
+                      <StatusBadge tone={rowBadge.tone}>
+                        {rowBadge.label}
+                      </StatusBadge>
+                      <StatusBadge tone="neutral">
+                        {row.anchorStatus}
+                      </StatusBadge>
+                    </div>
+                    <CardDescription className="mt-1 font-mono text-xs break-all">
+                      {truncateHash(row.contentHash, 14, 8)} · id {row.id}
+                    </CardDescription>
+
+                    <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                      {readings.map((field) => (
+                        <DetailField
+                          key={field.label}
+                          label={field.label}
+                          value={field.value}
+                        />
+                      ))}
+                    </dl>
+
+                    <dl className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 text-sm sm:grid-cols-2 dark:border-slate-700">
                       {row.anchorTransactionHash !== null ? (
-                        <span className="font-mono text-xs break-all">
-                          anchor{' '}
-                          {truncateHash(row.anchorTransactionHash, 12, 6)}
-                        </span>
+                        <DetailField
+                          label="Anchor tx"
+                          value={row.anchorTransactionHash}
+                          mono
+                        />
                       ) : (
-                        <span className="text-xs text-slate-500">
-                          Not anchored
-                        </span>
+                        <DetailField label="Anchor tx" value="Not anchored" />
                       )}
-                    </span>
-                  </CardDescription>
-                </Card>
-              </li>
-            ))}
+                      {paymentTx !== null ? (
+                        <DetailField
+                          label="Payment tx"
+                          value={paymentTx}
+                          mono
+                        />
+                      ) : (
+                        <DetailField
+                          label="Payment tx"
+                          value="No settlement yet"
+                        />
+                      )}
+                    </dl>
+
+                    {paymentTx !== null &&
+                    row.verificationStatus !== 'VERIFIED' ? (
+                      <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700">
+                        <p className="mb-2 text-xs text-slate-600 dark:text-slate-400">
+                          Independent verification checks Arc settlement and
+                          content hash. Not unlock authorization.
+                        </p>
+                        <VerifyTelemetryButton
+                          walletAddress={wallet.address}
+                          deviceId={device.id}
+                          telemetryRecordId={row.id}
+                          paymentTransactionHash={paymentTx}
+                          initialStatus={row.verificationStatus}
+                        />
+                      </div>
+                    ) : null}
+                  </Card>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>

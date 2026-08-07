@@ -171,7 +171,7 @@ export default async function DashboardPage() {
                           Latest record:{' '}
                           {latest === null
                             ? 'none yet'
-                            : `${formatTimestamp(latest.recordedAt)} · anchor ${latest.anchorStatus}`}
+                            : formatTimestamp(latest.recordedAt)}
                         </span>
                         <Link
                           href={`/devices/${device.id}`}

@@ -7,6 +7,14 @@ const loadDeviceDetail = vi.hoisted(() =>
 
 vi.mock('@/features/dashboard', () => ({
   loadDeviceDetail: (deviceId: string) => loadDeviceDetail(deviceId),
+  RequestTelemetryPanel: () => (
+    <div data-testid="request-telemetry-panel">Request panel</div>
+  ),
+  VerifyTelemetryButton: (props: { readonly telemetryRecordId: string }) => (
+    <button type="button" data-testid={`verify-${props.telemetryRecordId}`}>
+      Verify on Arc
+    </button>
+  ),
 }));
 
 describe('DeviceDetailPage', () => {
@@ -15,7 +23,7 @@ describe('DeviceDetailPage', () => {
     vi.resetModules();
   });
 
-  it('renders vehicle fields and metadata-only telemetry history cards', async () => {
+  it('renders vehicle fields, payload readings, and verify for unsettled verification', async () => {
     loadDeviceDetail.mockResolvedValue({
       ok: true as const,
       detail: {
@@ -48,7 +56,7 @@ describe('DeviceDetailPage', () => {
           id: 'rec-latest',
           recordedAt: new Date('2026-03-02T00:00:00.000Z'),
           contentHash: 'hash-latest-0123456789abcdef',
-          anchorStatus: 'PENDING',
+          anchorStatus: 'pending',
           anchorTransactionHash: null,
           telemetryPayload: { stateOfChargePercent: 99 },
         },
@@ -58,15 +66,29 @@ describe('DeviceDetailPage', () => {
             id: 'rec-1',
             recordedAt: new Date('2026-03-02T00:00:00.000Z'),
             contentHash: 'hash-latest-0123456789abcdef',
-            anchorStatus: 'PENDING',
+            anchorStatus: 'pending',
             anchorTransactionHash: null,
+            telemetryPayload: {
+              stateOfChargePercent: 99,
+              isCharging: true,
+              rangeKilometers: 220,
+            },
+            verificationStatus: null,
+            paymentTransactionHash:
+              '0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
           },
           {
             id: 'rec-0',
             recordedAt: new Date('2026-03-01T00:00:00.000Z'),
             contentHash: 'hash-older-0123456789abcdef00',
-            anchorStatus: 'ANCHORED',
+            anchorStatus: 'anchored',
             anchorTransactionHash: '0xanchorhashABCDEF',
+            telemetryPayload: {
+              stateOfChargePercent: 40,
+              isCharging: false,
+            },
+            verificationStatus: 'VERIFIED',
+            paymentTransactionHash: '0xpayolder',
           },
         ],
       },
@@ -87,14 +109,18 @@ describe('DeviceDetailPage', () => {
     expect(screen.getByText('Sport')).toBeInTheDocument();
     expect(screen.getByText('ext-ev-1')).toBeInTheDocument();
     expect(screen.getByText('Telemetry history (2)')).toBeInTheDocument();
+    expect(screen.getByText('99%')).toBeInTheDocument();
+    expect(screen.getByText('40%')).toBeInTheDocument();
+    expect(screen.getByText('220 km')).toBeInTheDocument();
     expect(screen.getByText('Not anchored')).toBeInTheDocument();
+    expect(screen.getByTestId('request-telemetry-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('verify-rec-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('verify-rec-0')).not.toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: /View mint transaction/i }),
     ).toHaveAttribute(
       'href',
       'https://explorer.test.example/tx/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     );
-    expect(screen.queryByText('99')).not.toBeInTheDocument();
-    expect(screen.queryByText(/stateOfCharge/i)).not.toBeInTheDocument();
   });
 });

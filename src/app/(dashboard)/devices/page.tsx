@@ -158,7 +158,7 @@ export default async function DevicesPage() {
                             <dd>
                               {latest === null
                                 ? 'No telemetry yet'
-                                : `${formatTimestamp(latest.recordedAt)} · anchor ${latest.anchorStatus} · ${truncateHash(latest.contentHash, 10, 6)}`}
+                                : `${formatTimestamp(latest.recordedAt)} · ${truncateHash(latest.contentHash, 10, 6)}`}
                             </dd>
                           </div>
                         </dl>

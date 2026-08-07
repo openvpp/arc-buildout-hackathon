@@ -8,7 +8,7 @@ const log = createServerLogger({ component: 'device-detail-loader' });
 
 /**
  * Server Component loader for a single bound vehicle/device and its
- * metadata-only telemetry history.
+ * owner-visible telemetry history (full payloads + verification fields).
  */
 export async function loadDeviceDetail(deviceId: string) {
   try {

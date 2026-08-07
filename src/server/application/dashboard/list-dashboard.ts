@@ -1,10 +1,12 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 
 import type { Database } from '@/server/infrastructure/db/client';
 import {
   agentVerificationResults,
   devices,
+  paymentTransactions,
   principalWallets,
+  telemetryDeliveries,
   telemetryRecords,
   wallets,
 } from '@/server/infrastructure/db/schema';
@@ -18,6 +20,13 @@ export type TelemetryHistoryItem = {
   readonly contentHash: string;
   readonly anchorStatus: string;
   readonly anchorTransactionHash: string | null;
+};
+
+/** Owner device-detail history: payload as stored plus verification/settlement. */
+export type OwnerTelemetryHistoryItem = TelemetryHistoryItem & {
+  readonly telemetryPayload: Record<string, unknown>;
+  readonly verificationStatus: string | null;
+  readonly paymentTransactionHash: string | null;
 };
 
 export async function listWalletsForPrincipal(
@@ -141,8 +150,95 @@ export async function listRecentTelemetryForDevice(
 }
 
 /**
- * Device detail for dashboard viewers: only devices whose wallet appears in
- * principal_wallets. History is metadata-only (no telemetry payload).
+ * Owner/seller history for device detail: full stored payload plus latest
+ * agent verification and settlement payment hash (when a delivery exists).
+ */
+export async function listOwnerTelemetryHistoryForDevice(
+  db: Database,
+  deviceId: string,
+  limit: number = TELEMETRY_HISTORY_LIMIT,
+): Promise<OwnerTelemetryHistoryItem[]> {
+  const capped = Math.min(Math.max(limit, 1), TELEMETRY_HISTORY_LIMIT);
+  const rows = await db
+    .select({
+      id: telemetryRecords.id,
+      recordedAt: telemetryRecords.recordedAt,
+      contentHash: telemetryRecords.contentHash,
+      anchorStatus: telemetryRecords.anchorStatus,
+      anchorTransactionHash: telemetryRecords.anchorTransactionHash,
+      telemetryPayload: telemetryRecords.telemetryPayload,
+    })
+    .from(telemetryRecords)
+    .where(eq(telemetryRecords.deviceId, deviceId))
+    .orderBy(desc(telemetryRecords.recordedAt), desc(telemetryRecords.id))
+    .limit(capped);
+
+  if (rows.length === 0) {
+    return [];
+  }
+
+  const recordIds = rows.map((row) => row.id);
+
+  const verificationRows = await db
+    .selectDistinctOn([agentVerificationResults.telemetryRecordId], {
+      telemetryRecordId: agentVerificationResults.telemetryRecordId,
+      status: agentVerificationResults.status,
+      paymentTransactionHash: agentVerificationResults.paymentTransactionHash,
+    })
+    .from(agentVerificationResults)
+    .where(inArray(agentVerificationResults.telemetryRecordId, recordIds))
+    .orderBy(
+      agentVerificationResults.telemetryRecordId,
+      desc(agentVerificationResults.verifiedAt),
+    );
+
+  const deliveryRows = await db
+    .selectDistinctOn([telemetryDeliveries.telemetryRecordId], {
+      telemetryRecordId: telemetryDeliveries.telemetryRecordId,
+      transactionHash: paymentTransactions.transactionHash,
+    })
+    .from(telemetryDeliveries)
+    .leftJoin(
+      paymentTransactions,
+      eq(paymentTransactions.id, telemetryDeliveries.paymentTransactionId),
+    )
+    .where(inArray(telemetryDeliveries.telemetryRecordId, recordIds))
+    .orderBy(
+      telemetryDeliveries.telemetryRecordId,
+      desc(telemetryDeliveries.deliveredAt),
+    );
+
+  const verificationByRecordId = new Map(
+    verificationRows.map((row) => [row.telemetryRecordId, row] as const),
+  );
+  const paymentByRecordId = new Map<string, string>();
+  for (const row of deliveryRows) {
+    if (row.transactionHash !== null) {
+      paymentByRecordId.set(row.telemetryRecordId, row.transactionHash);
+    }
+  }
+
+  return rows.map((row) => {
+    const verification = verificationByRecordId.get(row.id);
+    return {
+      id: row.id,
+      recordedAt: row.recordedAt,
+      contentHash: row.contentHash,
+      anchorStatus: row.anchorStatus,
+      anchorTransactionHash: row.anchorTransactionHash,
+      telemetryPayload: row.telemetryPayload,
+      verificationStatus: verification?.status ?? null,
+      paymentTransactionHash:
+        verification?.paymentTransactionHash ??
+        paymentByRecordId.get(row.id) ??
+        null,
+    };
+  });
+}
+
+/**
+ * Device detail for bound wallet owners: full historical telemetry payloads
+ * plus settlement/verification fields for independent Verify actions.
  */
 export async function getBoundDeviceDetail(db: Database, deviceId: string) {
   const [device] = await db
@@ -164,7 +260,7 @@ export async function getBoundDeviceDetail(db: Database, deviceId: string) {
     db,
     device.id,
   );
-  const history = await listRecentTelemetryForDevice(db, device.id);
+  const history = await listOwnerTelemetryHistoryForDevice(db, device.id);
 
   return {
     wallet,
