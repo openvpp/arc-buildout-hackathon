@@ -19,12 +19,12 @@ test.describe('smoke', () => {
     ).toBeVisible();
 
     // Dashboard is wired to Postgres. Without bound wallets / DB (typical CI),
-    // it shows "No data"; with seed it shows empty wallets or telemetry rows.
+    // it shows "No data"; with wallets it shows locked device cards.
     await expect(
       page
         .getByText('No data')
         .or(page.getByText('No wallets yet'))
-        .or(page.getByText('Latest telemetry by wallet and device')),
+        .or(page.getByText('Devices — request & unlock')),
     ).toBeVisible();
   });
 

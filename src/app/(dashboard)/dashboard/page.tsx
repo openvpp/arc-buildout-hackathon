@@ -1,49 +1,33 @@
 import type { Metadata } from 'next';
 
 import { EmptyState } from '@/components/common/empty-state';
-import { ExternalLink } from '@/components/common/external-link';
 import { PageHeader } from '@/components/common/page-header';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { env } from '@/config/env';
 import {
   loadDashboardSnapshot,
   RequestTelemetryPanel,
 } from '@/features/dashboard';
-import { verificationTone } from '@/features/verification';
 
 export const metadata: Metadata = {
   title: 'Dashboard',
-  description: 'Overview of telemetry and verification status.',
+  description:
+    'Request, unlock, and verify EV telemetry per wallet and device.',
 };
 
 export const dynamic = 'force-dynamic';
 
-function mapVerificationStatus(
-  status: string | undefined,
-): 'not_started' | 'verifying' | 'verified' | 'failed' {
+function agentVerificationBadge(status: string | undefined): {
+  tone: 'neutral' | 'success' | 'danger' | 'warning';
+  label: string;
+} {
   if (status === undefined) {
-    return 'not_started';
+    return { tone: 'neutral', label: 'Not verified' };
   }
-  switch (status) {
-    case 'VERIFIED':
-      return 'verified';
-    case 'TX_MISSING':
-    case 'TX_FAILED':
-    case 'HASH_MISMATCH':
-    case 'ERROR':
-      return 'failed';
-    default:
-      return 'not_started';
+  if (status === 'VERIFIED') {
+    return { tone: 'success', label: 'VERIFIED' };
   }
-}
-
-function readStateOfCharge(payload: unknown): string {
-  if (typeof payload !== 'object' || payload === null) {
-    return '—';
-  }
-  const value = (payload as Record<string, unknown>)['stateOfChargePercent'];
-  return value === undefined || value === null ? '—' : String(value);
+  return { tone: 'danger', label: status };
 }
 
 export default async function DashboardPage() {
@@ -54,7 +38,7 @@ export default async function DashboardPage() {
       <div className="flex flex-col gap-6">
         <PageHeader
           title="Dashboard"
-          description="Verified EV telemetry and independent on-chain verification, per wallet and device."
+          description="Request, unlock, and verify EV telemetry per wallet and device."
         />
         <EmptyState
           title="No data"
@@ -84,7 +68,7 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Dashboard"
-        description="Verified EV telemetry and independent on-chain verification, per wallet and device."
+        description="Telemetry stays locked until you request a quote and pay. After unlock, Verify on Arc to add independent evidence."
       />
 
       <section
@@ -119,7 +103,7 @@ export default async function DashboardPage() {
               <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
                 {verifiedCount}
               </span>{' '}
-              agent-verified
+              independently verified
             </CardDescription>
           </Card>
         </div>
@@ -133,7 +117,7 @@ export default async function DashboardPage() {
           id="records-heading"
           className="text-sm font-semibold text-slate-900 dark:text-slate-100"
         >
-          Latest telemetry by wallet and device
+          Devices — request & unlock
         </h2>
 
         {loaded.snapshot.length === 0 ? (
@@ -147,42 +131,27 @@ export default async function DashboardPage() {
               <h3 className="text-sm font-medium text-slate-800 dark:text-slate-200">
                 {wallet.label ?? wallet.address}
               </h3>
-              {devices.map(({ device, latest, verification }) => {
-                const tone = verificationTone(
-                  mapVerificationStatus(verification?.status),
-                );
-                const txHash = verification?.paymentTransactionHash;
+              {devices.map(({ device, verification }) => {
+                const agentBadge = agentVerificationBadge(verification?.status);
                 return (
                   <Card key={device.id}>
                     <CardTitle>
                       {device.displayName ?? device.externalDeviceId}
                     </CardTitle>
                     <CardDescription>
-                      {latest === null ? (
-                        'No telemetry yet'
-                      ) : (
-                        <span className="flex flex-col gap-2">
-                          <span>
-                            SoC: {readStateOfCharge(latest.telemetryPayload)}% ·
-                            recorded {latest.recordedAt.toISOString()}
-                          </span>
-                          <span className="flex flex-wrap items-center gap-2">
-                            <StatusBadge tone={tone}>
-                              {verification?.status ?? 'NOT_VERIFIED'}
-                            </StatusBadge>
-                            {txHash !== undefined && txHash.startsWith('0x') ? (
-                              <ExternalLink
-                                href={`${env.NEXT_PUBLIC_ARC_EXPLORER_BASE_URL}/tx/${txHash}`}
-                              >
-                                Payment tx
-                              </ExternalLink>
-                            ) : null}
-                          </span>
-                          <span className="font-mono text-xs break-all">
-                            contentHash: {latest.contentHash}
-                          </span>
+                      <span className="flex flex-col gap-2">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <StatusBadge tone="warning">Locked</StatusBadge>
+                          <StatusBadge tone={agentBadge.tone}>
+                            {agentBadge.label}
+                          </StatusBadge>
                         </span>
-                      )}
+                        <span>
+                          Payload hidden until you Request latest, then Pay &
+                          unlock. After unlock, use Verify on Arc to update the
+                          Verified count.
+                        </span>
+                      </span>
                     </CardDescription>
                     <RequestTelemetryPanel
                       walletAddress={wallet.address}

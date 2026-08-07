@@ -53,10 +53,28 @@ const responseSchema = z.union([
   idleSchema,
 ]);
 
+const verifyResultSchema = z.object({
+  status: z.enum([
+    'VERIFIED',
+    'TX_MISSING',
+    'TX_FAILED',
+    'HASH_MISMATCH',
+    'ERROR',
+  ]),
+  verificationId: z.string().uuid(),
+  receiptFound: z.boolean(),
+  receiptSuccess: z.boolean(),
+  contentHashMatched: z.boolean(),
+  contentHashExpected: z.string(),
+  contentHashComputed: z.string(),
+});
+
 export type DemoTelemetryResponse = z.infer<typeof responseSchema>;
+export type DemoVerifyResponse = z.infer<typeof verifyResultSchema>;
 
 /**
- * Dashboard purchase client. BFF settles with server Circle buyer (or mock).
+ * Dashboard purchase + verify client. BFF settles with server Circle buyer (or
+ * mock). Verify runs independent Arc + content-hash evidence.
  * Requires Web3Auth id token for device-owner auth.
  */
 export function createDemoTelemetryApi(client: ApiClient = new ApiClient()) {
@@ -74,6 +92,30 @@ export function createDemoTelemetryApi(client: ApiClient = new ApiClient()) {
       deviceId: string;
     }) {
       return request(client, { ...input, action: 'settle' });
+    },
+    async verify(input: {
+      idToken: string;
+      walletAddress: string;
+      deviceId: string;
+      telemetryRecordId: string;
+      paymentTransactionHash: string;
+    }): Promise<DemoVerifyResponse> {
+      const result = await client.request('/api/v1/demo/telemetry/verify', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${input.idToken}` },
+        body: {
+          walletAddress: input.walletAddress,
+          deviceId: input.deviceId,
+          telemetryRecordId: input.telemetryRecordId,
+          paymentTransactionHash: input.paymentTransactionHash,
+        },
+        timeoutMs: 45_000,
+        schema: verifyResultSchema,
+      });
+      if (!result.ok) {
+        throw result.error;
+      }
+      return result.data;
     },
   };
 }
