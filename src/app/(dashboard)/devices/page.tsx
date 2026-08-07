@@ -7,10 +7,10 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { loadDashboardSnapshot } from '@/features/dashboard';
 import {
+  DeviceMintTransactionLink,
   deviceDisplayName,
   deviceStatusTone,
   formatTimestamp,
-  mintStatusTone,
   readDeviceMetadata,
   truncateHash,
 } from '@/features/devices';
@@ -109,12 +109,13 @@ export default async function DevicesPage() {
                           <StatusBadge tone={deviceStatusTone(device.status)}>
                             {device.status}
                           </StatusBadge>
-                          <StatusBadge tone={mintStatusTone(device.mintStatus)}>
-                            mint {device.mintStatus}
-                          </StatusBadge>
                           {verification?.status === 'VERIFIED' ? (
                             <StatusBadge tone="success">VERIFIED</StatusBadge>
                           ) : null}
+                          <DeviceMintTransactionLink
+                            nftTransactionHash={device.nftTransactionHash}
+                            nftTokenId={device.nftTokenId}
+                          />
                         </div>
 
                         <dl className="grid grid-cols-1 gap-2 text-xs text-slate-600 dark:text-slate-400">

@@ -40,6 +40,8 @@ describe('DeviceDetailPage', () => {
           createdAt: new Date('2026-01-01T00:00:00.000Z'),
           nftTokenId: '42',
           nftContractAddress: '0xnft',
+          nftTransactionHash:
+            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
           network: 'arc-testnet',
         },
         latest: {
@@ -86,6 +88,12 @@ describe('DeviceDetailPage', () => {
     expect(screen.getByText('ext-ev-1')).toBeInTheDocument();
     expect(screen.getByText('Telemetry history (2)')).toBeInTheDocument();
     expect(screen.getByText('Not anchored')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: /View mint transaction/i }),
+    ).toHaveAttribute(
+      'href',
+      'https://explorer.test.example/tx/0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    );
     expect(screen.queryByText('99')).not.toBeInTheDocument();
     expect(screen.queryByText(/stateOfCharge/i)).not.toBeInTheDocument();
   });

@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { loadAdminSnapshot } from '@/features/admin';
+import { DeviceMintTransactionLink } from '@/features/devices';
 
 export const metadata: Metadata = {
   title: 'Super Admin',
@@ -191,9 +192,6 @@ export default async function AdminPage() {
                           <StatusBadge tone="neutral">
                             {device.status}
                           </StatusBadge>
-                          <StatusBadge tone="neutral">
-                            mint {device.mintStatus}
-                          </StatusBadge>
                           <StatusBadge tone={agentBadge.tone}>
                             {agentBadge.label}
                           </StatusBadge>
@@ -201,14 +199,10 @@ export default async function AdminPage() {
                         <span className="font-mono text-xs break-all">
                           {device.externalDeviceId}
                         </span>
-                        {device.nftTokenId !== null ? (
-                          <span className="text-xs">
-                            NFT token {device.nftTokenId}
-                            {device.nftTransactionHash !== null
-                              ? ` · tx ${truncateHash(device.nftTransactionHash)}`
-                              : ''}
-                          </span>
-                        ) : null}
+                        <DeviceMintTransactionLink
+                          nftTransactionHash={device.nftTransactionHash}
+                          nftTokenId={device.nftTokenId}
+                        />
 
                         {latest === null ? (
                           <span className="text-xs text-slate-500">

@@ -27,7 +27,9 @@ NODE_OPTIONS=--max-old-space-size=1536 pnpm build
 
 echo "==> Restart processes"
 if command -v pm2 >/dev/null 2>&1; then
-  pm2 restart all --update-env
+  pm2 restart web --update-env
+  pm2 restart worker --update-env
+  pm2 restart agent --update-env
   pm2 save
   pm2 status
 else

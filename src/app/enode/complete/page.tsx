@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState, useTransition } from 'react';
 
 import { PageHeader } from '@/components/common/page-header';
@@ -20,10 +20,11 @@ type OauthState =
   | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'needs_form'; pendingId: string }
-  | { kind: 'done'; deviceName: string }
+  | { kind: 'redirecting' }
   | { kind: 'error'; message: string };
 
 function EnodeCompleteConfigured() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const ovppPending = searchParams.get('ovppPending');
   const session = useConfiguredWalletSession();
@@ -98,16 +99,14 @@ function EnodeCompleteConfigured() {
           sessionAddress: walletAddress,
         });
         const api = createOnboardingApi();
-        const data = await api.finalize({
+        await api.finalize({
           idToken,
           pendingId: oauth.pendingId,
           walletAddress: boundWalletAddress,
           ...(nickname.trim().length > 0 ? { nickname: nickname.trim() } : {}),
         });
-        setOauth({
-          kind: 'done',
-          deviceName: data.device.displayName ?? 'Vehicle',
-        });
+        setOauth({ kind: 'redirecting' });
+        router.replace('/devices');
       } catch (e) {
         setOauth({
           kind: 'error',
@@ -200,28 +199,8 @@ function EnodeCompleteConfigured() {
           </>
         ) : null}
 
-        {view.kind === 'done' ? (
-          <>
-            <CardTitle>Connected</CardTitle>
-            <CardDescription>
-              {view.deviceName} is linked. Telemetry can arrive via Enode
-              webhooks.
-            </CardDescription>
-            <div className="mt-4 flex gap-3">
-              <Link
-                href="/devices"
-                className="inline-flex items-center justify-center rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white"
-              >
-                View devices
-              </Link>
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium"
-              >
-                Dashboard
-              </Link>
-            </div>
-          </>
+        {view.kind === 'redirecting' ? (
+          <CardDescription>Vehicle linked. Opening devices…</CardDescription>
         ) : null}
       </Card>
     </div>

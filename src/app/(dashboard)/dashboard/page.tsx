@@ -10,10 +10,10 @@ import {
   RequestTelemetryPanel,
 } from '@/features/dashboard';
 import {
+  DeviceMintTransactionLink,
   deviceDisplayName,
   deviceStatusTone,
   formatTimestamp,
-  mintStatusTone,
 } from '@/features/devices';
 
 export const metadata: Metadata = {
@@ -151,12 +151,13 @@ export default async function DashboardPage() {
                           <StatusBadge tone={deviceStatusTone(device.status)}>
                             {device.status}
                           </StatusBadge>
-                          <StatusBadge tone={mintStatusTone(device.mintStatus)}>
-                            mint {device.mintStatus}
-                          </StatusBadge>
                           <StatusBadge tone={agentBadge.tone}>
                             {agentBadge.label}
                           </StatusBadge>
+                          <DeviceMintTransactionLink
+                            nftTransactionHash={device.nftTransactionHash}
+                            nftTokenId={device.nftTokenId}
+                          />
                         </span>
                         <span>
                           {device.vendor ?? 'Unknown vendor'}
@@ -171,9 +172,6 @@ export default async function DashboardPage() {
                           {latest === null
                             ? 'none yet'
                             : `${formatTimestamp(latest.recordedAt)} · anchor ${latest.anchorStatus}`}
-                          . Payload hidden until you Request latest, then Pay &
-                          unlock. After unlock, use Verify on Arc to update the
-                          Verified count.
                         </span>
                         <Link
                           href={`/devices/${device.id}`}

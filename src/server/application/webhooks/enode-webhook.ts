@@ -280,25 +280,20 @@ export async function processEnodeWebhookDelivery(input: {
     return;
   }
 
-  // Retry whenever any event referenced a device that is not onboarded yet
-  // (onboarding race). Already-ingested events in this delivery dedupe on the
-  // (source, source_event_id) unique index when the delivery is retried, so no
-  // duplicate telemetry is created — but the missing device's telemetry is no
-  // longer silently dropped. The worker's maxAttempts/dead-letter bound this.
-  if (missingDevices > 0) {
-    await input.db
-      .update(webhookDeliveries)
-      .set({
-        processingStatus: 'failed',
-        lastErrorCode: 'DEVICE_NOT_FOUND',
-        lastErrorMessage: `ingested=${ingested} duplicate=${skippedDuplicate} missing=${missingDevices} empty=${skippedEmpty} unsupported=${skippedUnsupported}; ids=${missingDeviceIds.slice(0, 5).join(', ')}`,
-        attemptCount: delivery.attemptCount + 1,
-      })
-      .where(eq(webhookDeliveries.id, delivery.id));
-    throw new Error(
-      `Device not found for Enode vehicle(s): ${missingDeviceIds.slice(0, 5).join(', ')}`,
-    );
+  // Unknown Enode vehicle IDs are skipped (not onboarded yet / other tenants).
+  // Do not fail or retry the delivery — known devices in the batch stay ingested.
+  const summaryParts = [
+    `ingested=${ingested}`,
+    `duplicate=${skippedDuplicate}`,
+    `missing=${missingDevices}`,
+    `empty=${skippedEmpty}`,
+    `unsupported=${skippedUnsupported}`,
+  ];
+  if (missingDeviceIds.length > 0) {
+    summaryParts.push(`ids=${missingDeviceIds.slice(0, 5).join(', ')}`);
   }
+  const hasSkips =
+    skippedEmpty > 0 || missingDevices > 0 || skippedDuplicate > 0;
 
   await input.db
     .update(webhookDeliveries)
@@ -306,12 +301,17 @@ export async function processEnodeWebhookDelivery(input: {
       processingStatus: 'processed',
       processedAt: new Date(),
       lastErrorCode: null,
-      lastErrorMessage:
-        skippedEmpty > 0
-          ? `ingested=${ingested} duplicate=${skippedDuplicate} empty=${skippedEmpty} unsupported=${skippedUnsupported}`
-          : null,
+      lastErrorMessage: hasSkips ? summaryParts.join(' ') : null,
     })
     .where(eq(webhookDeliveries.id, delivery.id));
+
+  if (missingDevices > 0) {
+    log.info('enode.webhook_skipped_unknown_devices', {
+      webhookDeliveryId: delivery.id,
+      missingDevices,
+      missingDeviceIds: missingDeviceIds.slice(0, 10),
+    });
+  }
 
   log.info('enode.webhook_processed', {
     webhookDeliveryId: delivery.id,

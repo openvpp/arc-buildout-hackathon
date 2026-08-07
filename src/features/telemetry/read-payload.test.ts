@@ -24,8 +24,6 @@ describe('readTelemetryReadingFields', () => {
       { label: 'Odometer', value: '12340 km' },
       { label: 'Charge rate', value: '7.2 kW' },
       { label: 'Power', value: '-1.5 kW' },
-      { label: 'Latitude', value: '59.91' },
-      { label: 'Longitude', value: '10.75' },
     ]);
   });
 

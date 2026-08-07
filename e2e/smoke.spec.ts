@@ -25,15 +25,15 @@ test.describe('smoke', () => {
     ).toBeVisible();
   });
 
-  test('primary navigation reaches wallets and devices', async ({ page }) => {
+  test('primary navigation reaches devices', async ({ page }) => {
     await page.goto('/dashboard');
     await page
       .getByRole('navigation', { name: 'Primary' })
-      .getByRole('link', { name: 'Wallets' })
+      .getByRole('link', { name: 'Devices' })
       .click();
-    await expect(page).toHaveURL(/\/wallets$/);
+    await expect(page).toHaveURL(/\/devices$/);
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Wallets' }),
+      page.getByRole('heading', { level: 1, name: 'Devices' }),
     ).toBeVisible();
   });
 });

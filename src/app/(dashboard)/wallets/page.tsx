@@ -1,73 +1,9 @@
-import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
-import { EmptyState } from '@/components/common/empty-state';
-import { PageHeader } from '@/components/common/page-header';
-import { Card, CardDescription, CardTitle } from '@/components/ui/card';
-import { loadDashboardSnapshot } from '@/features/dashboard';
-import { shortenAddress } from '@/features/wallets';
-
-export const metadata: Metadata = {
-  title: 'Wallets',
-  description: 'Wallets and their seller balances.',
-};
-
-export const dynamic = 'force-dynamic';
-
-export default async function WalletsPage() {
-  const loaded = await loadDashboardSnapshot();
-
-  if (!loaded.ok) {
-    return (
-      <div className="flex flex-col gap-6">
-        <PageHeader
-          title="Wallets"
-          description="Each wallet may own one or more devices. Telemetry and verification are shown per wallet and device."
-        />
-        <EmptyState
-          title="No data"
-          description={
-            loaded.reason === 'no_bound_wallets'
-              ? 'Connect a wallet and onboard a device to get started.'
-              : 'Nothing to show right now.'
-          }
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Wallets"
-        description="Each wallet may own one or more devices. Telemetry and verification are shown per wallet and device."
-      />
-
-      {loaded.snapshot.length === 0 ? (
-        <EmptyState
-          title="No data"
-          description="Connect a wallet and onboard a device to get started."
-        />
-      ) : (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {loaded.snapshot.map(({ wallet, devices }) => (
-            <li key={wallet.id}>
-              <Card>
-                <CardTitle>
-                  {wallet.label ?? shortenAddress(wallet.address)}
-                </CardTitle>
-                <CardDescription>
-                  <span className="font-mono">
-                    {shortenAddress(wallet.address)}
-                  </span>
-                </CardDescription>
-                <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
-                  {devices.length} {devices.length === 1 ? 'device' : 'devices'}
-                </p>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+/**
+ * Legacy route: one Web3Auth user has a single wallet; multi-wallet browsing
+ * lives under Super Admin. Keep a redirect so old bookmarks do not 404.
+ */
+export default function WalletsPage() {
+  redirect('/devices');
 }

@@ -1,9 +1,12 @@
 /** Public surface of the devices feature. */
 export { PLACEHOLDER_DEVICES } from './placeholders';
+export { DeviceMintTransactionLink } from './device-mint-transaction-link';
 export {
+  arcTxExplorerUrl,
   deviceDisplayName,
   deviceStatusTone,
   formatTimestamp,
+  isOnchainTxHash,
   mintStatusTone,
   readDeviceMetadata,
   truncateHash,

@@ -14,7 +14,7 @@ export type NavItem = {
 };
 
 /** App-internal routes known at build time. */
-export type Route = '/' | '/dashboard' | '/wallets' | '/devices' | '/settings';
+export type Route = '/' | '/dashboard' | '/devices' | '/settings';
 
 export type SiteConfig = {
   readonly name: string;
@@ -35,14 +35,9 @@ export const siteConfig = {
       description: 'Overview of telemetry and verification status.',
     },
     {
-      title: 'Wallets',
-      href: '/wallets',
-      description: 'Wallets and their seller balances.',
-    },
-    {
       title: 'Devices',
       href: '/devices',
-      description: 'EV devices grouped by wallet.',
+      description: 'EV devices for your connected wallet.',
     },
     {
       title: 'Settings',

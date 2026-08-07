@@ -26,9 +26,11 @@ describe('SidebarNav', () => {
       screen.getByRole('navigation', { name: 'Primary' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Wallets' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Devices' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Wallets' }),
+    ).not.toBeInTheDocument();
   });
 
   it('marks the current route with aria-current="page"', () => {
@@ -38,7 +40,7 @@ describe('SidebarNav', () => {
       'aria-current',
       'page',
     );
-    expect(screen.getByRole('link', { name: 'Wallets' })).not.toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Devices' })).not.toHaveAttribute(
       'aria-current',
     );
   });

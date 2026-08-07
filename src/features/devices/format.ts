@@ -1,8 +1,20 @@
+import { env } from '@/config/env';
+
 export function deviceDisplayName(device: {
   readonly displayName: string | null;
   readonly externalDeviceId: string;
 }): string {
   return device.displayName ?? device.externalDeviceId;
+}
+
+/** True when the value is an EVM transaction hash Arcscan can open. */
+export function isOnchainTxHash(value: string): boolean {
+  return /^0x[a-fA-F0-9]{64}$/.test(value);
+}
+
+/** Arc explorer URL for a transaction hash (payment, mint, etc.). */
+export function arcTxExplorerUrl(txHash: string): string {
+  return `${env.NEXT_PUBLIC_ARC_EXPLORER_BASE_URL.replace(/\/$/, '')}/tx/${txHash}`;
 }
 
 export function truncateHash(hash: string, head = 10, tail = 6): string {

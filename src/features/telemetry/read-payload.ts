@@ -43,14 +43,6 @@ export function readTelemetryReadingFields(
       label: 'Power',
       value: formatKilowatts(record['powerKilowatts']),
     },
-    {
-      label: 'Latitude',
-      value: formatCoordinate(record['latitude']),
-    },
-    {
-      label: 'Longitude',
-      value: formatCoordinate(record['longitude']),
-    },
   ];
 }
 
@@ -62,8 +54,6 @@ const EMPTY_FIELDS: readonly TelemetryReadingField[] = [
   { label: 'Odometer', value: '—' },
   { label: 'Charge rate', value: '—' },
   { label: 'Power', value: '—' },
-  { label: 'Latitude', value: '—' },
-  { label: 'Longitude', value: '—' },
 ];
 
 function formatPercent(value: unknown): string {
@@ -92,11 +82,4 @@ function formatKilowatts(value: unknown): string {
     return '—';
   }
   return `${value} kW`;
-}
-
-function formatCoordinate(value: unknown): string {
-  if (typeof value !== 'number' || Number.isNaN(value)) {
-    return '—';
-  }
-  return String(value);
 }

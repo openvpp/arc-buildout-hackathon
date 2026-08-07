@@ -8,10 +8,10 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { loadDeviceDetail } from '@/features/dashboard';
 import {
+  DeviceMintTransactionLink,
   deviceDisplayName,
   deviceStatusTone,
   formatTimestamp,
-  mintStatusTone,
   readDeviceMetadata,
   truncateHash,
 } from '@/features/devices';
@@ -108,10 +108,11 @@ export default async function DeviceDetailPage({ params }: PageProps) {
             <StatusBadge tone={deviceStatusTone(device.status)}>
               {device.status}
             </StatusBadge>
-            <StatusBadge tone={mintStatusTone(device.mintStatus)}>
-              mint {device.mintStatus}
-            </StatusBadge>
             <StatusBadge tone={agentBadge.tone}>{agentBadge.label}</StatusBadge>
+            <DeviceMintTransactionLink
+              nftTransactionHash={device.nftTransactionHash}
+              nftTokenId={device.nftTokenId}
+            />
           </div>
 
           <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">

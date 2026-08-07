@@ -1,6 +1,6 @@
 /**
- * Enode webhook delivery processing: partial-batch retry (no silent telemetry
- * loss) and empty-event skip (no all-null anchored record).
+ * Enode webhook delivery processing: skip unknown vehicles (process known
+ * ones), and skip empty events (no all-null telemetry record).
  * Requires PostgreSQL (docker compose service `postgres_test` on :5433).
  */
 import { eq } from 'drizzle-orm';
@@ -89,7 +89,7 @@ describe('processEnodeWebhookDelivery integration', () => {
     });
   }
 
-  it('retries the delivery when a referenced device is missing, but keeps the present one', async () => {
+  it('skips missing devices and marks the delivery processed when known ones ingest', async () => {
     const present = await seedDevice('a1', 'veh-present');
     const payload = [
       {
@@ -103,15 +103,13 @@ describe('processEnodeWebhookDelivery integration', () => {
     ];
     const delivery = await insertDelivery(payload, 'batch-partial');
 
-    await expect(
-      processEnodeWebhookDelivery({
-        db,
-        outbox,
-        webhookDeliveryId: delivery.id,
-      }),
-    ).rejects.toThrow(/Device not found/);
+    await processEnodeWebhookDelivery({
+      db,
+      outbox,
+      webhookDeliveryId: delivery.id,
+    });
 
-    // Present device's telemetry was still ingested (not lost).
+    // Present device's telemetry was ingested.
     const records = await db
       .select()
       .from(telemetryRecords)
@@ -121,14 +119,16 @@ describe('processEnodeWebhookDelivery integration', () => {
       stateOfChargePercent: 55,
     });
 
-    // Delivery is marked failed for retry (not silently processed).
+    // Delivery completes; unknown vehicles are skipped (not DEVICE_NOT_FOUND).
     const [row] = await db
       .select()
       .from(webhookDeliveries)
       .where(eq(webhookDeliveries.id, delivery.id))
       .limit(1);
-    expect(row?.processingStatus).toBe('failed');
-    expect(row?.lastErrorCode).toBe('DEVICE_NOT_FOUND');
+    expect(row?.processingStatus).toBe('processed');
+    expect(row?.lastErrorCode).toBeNull();
+    expect(row?.lastErrorMessage).toMatch(/missing=1/);
+    expect(row?.lastErrorMessage).toMatch(/veh-not-onboarded/);
   });
 
   it('skips an empty discovered event without creating a telemetry record', async () => {

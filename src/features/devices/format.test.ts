@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  arcTxExplorerUrl,
   deviceDisplayName,
   deviceStatusTone,
+  isOnchainTxHash,
   mintStatusTone,
   readDeviceMetadata,
   truncateHash,
@@ -31,6 +33,21 @@ describe('device format helpers', () => {
     expect(deviceStatusTone('disconnected')).toBe('danger');
     expect(mintStatusTone('minted')).toBe('success');
     expect(mintStatusTone('failed')).toBe('danger');
+  });
+
+  it('detects on-chain transaction hashes', () => {
+    expect(
+      isOnchainTxHash(
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      ),
+    ).toBe(true);
+    expect(isOnchainTxHash('b887267c-04ff-4bc9-8c1e-6d0c053119b2')).toBe(false);
+  });
+
+  it('builds Arc explorer tx URLs', () => {
+    expect(arcTxExplorerUrl('0xabc')).toBe(
+      'https://explorer.test.example/tx/0xabc',
+    );
   });
 
   it('truncates long hashes', () => {
