@@ -18,7 +18,8 @@ describe('AdminPage', () => {
       ok: false as const,
       reason: 'database_unavailable' as const,
     });
-    const AdminPage = (await import('@/app/(admin)/admin/page')).default;
+    const AdminPage = (await import('@/app/(admin)/admin/(protected)/page'))
+      .default;
     const ui = await AdminPage();
     render(ui);
 
@@ -91,7 +92,8 @@ describe('AdminPage', () => {
       ],
     });
 
-    const AdminPage = (await import('@/app/(admin)/admin/page')).default;
+    const AdminPage = (await import('@/app/(admin)/admin/(protected)/page'))
+      .default;
     const ui = await AdminPage();
     render(ui);
 

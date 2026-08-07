@@ -8,7 +8,7 @@ const log = createServerLogger({ component: 'admin-loader' });
 
 /**
  * Server Component data loader for the super-admin screen.
- * Caller must already have passed the Basic Auth gate.
+ * Caller must already have passed the admin session gate.
  */
 export async function loadAdminSnapshot() {
   try {

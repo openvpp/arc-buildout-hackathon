@@ -5,9 +5,7 @@ import { Button } from '@/components/ui/button';
 const ADMIN_LOGOUT_PATH = '/admin/logout';
 
 /**
- * Header control to leave the Basic Auth admin session (matches dashboard
- * Disconnect placement/style). Navigates to /admin/logout, which returns 401
- * without a re-prompt and redirects to the dashboard.
+ * Header control to clear the admin session cookie and return to the login form.
  */
 export function AdminLogoutButton() {
   return (

@@ -150,7 +150,7 @@ export const serverEnvSchema = z
       .default('false')
       .transform((value) => value === 'true'),
 
-    /** Super-admin Basic Auth. Both empty = admin disabled (fail closed). */
+    /** Super-admin login (form). Both empty = admin disabled (fail closed). */
     ADMIN_USERNAME: z.string().optional(),
     ADMIN_PASSWORD: z.string().optional(),
 
@@ -422,7 +422,7 @@ export function isServerDemo(env: ServerEnv = getServerEnv()): boolean {
 }
 
 /**
- * Super-admin Basic Auth credentials, or null when admin is not configured
+ * Super-admin credentials, or null when admin is not configured
  * (both username and password unset/empty).
  */
 export function getAdminBasicCredentials(

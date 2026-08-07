@@ -17,6 +17,8 @@ checks shown in the UI are evidence, not authorization.
 | `/devices/[deviceId]` | `src/app/(dashboard)/devices/[deviceId]/page.tsx` | Server | Vehicle detail + metadata-only telemetry history card list        |
 | `/devices/onboard`    | `src/app/(dashboard)/devices/onboard/page.tsx`    | Client | Web3Auth connect → start Enode Link                               |
 | `/settings`           | `src/app/(dashboard)/settings/page.tsx`           | Server | Local appearance: light / dark / system (browser localStorage)    |
+| `/admin/login`        | `src/app/(admin)/admin/(public)/login/page.tsx`   | Server | Super-admin username/password form (httpOnly session cookie)      |
+| `/admin`              | `src/app/(admin)/admin/(protected)/page.tsx`      | Server | Cross-tenant wallets/devices/telemetry viewer                     |
 | `/enode/complete`     | `src/app/enode/complete/page.tsx`                 | Client | Enode OAuth return → nickname → finalize device                   |
 
 Shell: `(dashboard)` routes use `src/app/(dashboard)/layout.tsx` +
