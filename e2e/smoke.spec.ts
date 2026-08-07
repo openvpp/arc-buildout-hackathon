@@ -12,19 +12,17 @@ test.describe('smoke', () => {
     ).toBeVisible();
   });
 
-  test('dashboard renders backend-unavailable or live empty/data state', async ({
-    page,
-  }) => {
+  test('dashboard renders empty or live data state', async ({ page }) => {
     await page.goto('/dashboard');
     await expect(
       page.getByRole('heading', { level: 1, name: 'Dashboard' }),
     ).toBeVisible();
 
-    // Dashboard is wired to Postgres. Without seed (typical CI), it shows
-    // unavailable; with seed it shows empty wallets or real telemetry rows.
+    // Dashboard is wired to Postgres. Without bound wallets / DB (typical CI),
+    // it shows "No data"; with seed it shows empty wallets or telemetry rows.
     await expect(
       page
-        .getByText('Backend data unavailable')
+        .getByText('No data')
         .or(page.getByText('No wallets yet'))
         .or(page.getByText('Latest telemetry by wallet and device')),
     ).toBeVisible();

@@ -169,13 +169,6 @@ function RequestTelemetryPanelConnected(props: {
               (or inject telemetry) to buy again.
             </p>
           ) : null}
-          {result.status === 'NO_TELEMETRY_AVAILABLE' ? (
-            <p>
-              No telemetry yet for this device. Enode webhooks must reach{' '}
-              <code>/api/webhooks/enode</code> (public tunnel), or run{' '}
-              <code>pnpm demo:inject-telemetry</code>.
-            </p>
-          ) : null}
           {result.status === 'TELEMETRY_DELIVERED' ? (
             <p className="break-all">
               Delivered record {result.telemetry.recordId}. paymentTx{' '}
