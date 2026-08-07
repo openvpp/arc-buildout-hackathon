@@ -29,7 +29,7 @@ describe('AdminPage', () => {
     expect(screen.getByText('No data')).toBeInTheDocument();
   });
 
-  it('renders wallets, principals, latest telemetry, and history', async () => {
+  it('renders wallets, principals, and device cards with detail links', async () => {
     loadAdminSnapshot.mockResolvedValue({
       ok: true as const,
       snapshot: [
@@ -56,6 +56,8 @@ describe('AdminPage', () => {
                 id: 'device-1',
                 displayName: 'Demo EV',
                 externalDeviceId: 'ext-1',
+                vendor: 'DemoOEM',
+                model: 'Sedan',
                 status: 'active',
                 mintStatus: 'minted',
                 nftTokenId: '42',
@@ -70,22 +72,6 @@ describe('AdminPage', () => {
                 status: 'VERIFIED',
                 paymentTransactionHash: '0xpaymenthash0123456789',
               },
-              history: [
-                {
-                  id: 't1',
-                  recordedAt: new Date('2026-01-01T00:00:00.000Z'),
-                  contentHash: '0xdeadbeefcafebabe0123456789',
-                  anchorStatus: 'pending',
-                  anchorTransactionHash: null,
-                },
-                {
-                  id: 't0',
-                  recordedAt: new Date('2025-12-31T00:00:00.000Z'),
-                  contentHash: '0xolderhash000000000000000000',
-                  anchorStatus: 'anchored',
-                  anchorTransactionHash: '0xanchor',
-                },
-              ],
             },
           ],
         },
@@ -103,10 +89,10 @@ describe('AdminPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Demo EV')).toBeInTheDocument();
     expect(screen.getByText('VERIFIED')).toBeInTheDocument();
-    expect(screen.getByText('Recent history (2)')).toBeInTheDocument();
-    expect(screen.getAllByText('device event pending').length).toBeGreaterThan(
-      0,
-    );
-    expect(screen.getByText('device event anchored')).toBeInTheDocument();
+    expect(screen.getByText('Unlocked view')).toBeInTheDocument();
+    expect(screen.getByText(/DemoOEM · Sedan/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'View vehicle & full telemetry' }),
+    ).toHaveAttribute('href', '/admin/devices/device-1');
   });
 });

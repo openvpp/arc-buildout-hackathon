@@ -33,7 +33,7 @@ export type AdminTelemetryHistoryItem = {
   readonly anchorTransactionHash: string | null;
 };
 
-async function listBindingsForWallets(
+export async function listBindingsForWallets(
   db: Database,
   walletIds: readonly string[],
 ): Promise<Map<string, AdminWalletBinding[]>> {
@@ -72,9 +72,9 @@ async function listBindingsForWallets(
 export { listRecentTelemetryForDevice };
 
 /**
- * Cross-tenant admin snapshot: bound wallets, principal bindings, devices,
- * latest telemetry + verification, and recent history (N=20) per device.
- * Wallet count is capped at MAX_PAGE_SIZE for hackathon safety.
+ * Cross-tenant admin overview: bound wallets, principal bindings, devices,
+ * and latest telemetry + verification. Full history lives on the device detail
+ * route. Wallet count is capped at MAX_PAGE_SIZE for hackathon safety.
  */
 export async function listAdminSnapshotForBoundWallets(db: Database) {
   const walletRows = (await listBoundWallets(db)).slice(0, MAX_PAGE_SIZE);
@@ -94,12 +94,10 @@ export async function listAdminSnapshotForBoundWallets(db: Database) {
         db,
         device.id,
       );
-      const history = await listRecentTelemetryForDevice(db, device.id);
       devicesWithTelemetry.push({
         device,
         latest,
         verification,
-        history,
       });
     }
 
