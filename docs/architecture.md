@@ -127,6 +127,7 @@ schema validation, conservative security headers in `next.config.ts`.
 - Dashboard read APIs + multi-wallet/device UI wiring
 - DeviceNFT `recordDeviceEvent` provenance jobs + `PROVENANCE_DELIVERY_MODE` enforcement
 - Web3Auth JWT onboarding auth + `principal_wallets` owner binding
+- Cookie/session-scoped owner dashboard (`POST /api/v1/dashboard/session`)
 - Enode webhook IP allowlist + agent telemetry rate limits
 
 **Still deferred:**
@@ -135,5 +136,4 @@ schema validation, conservative security headers in `next.config.ts`.
 - Live Enode HTTP API client sync
 - Separate BE/FE **repositories** (monorepo boundaries documented above)
 - DeviceNFT UPDATER_ROLE / production KMS for event signing
-- Cookie/session-scoped dashboard auth (bound wallets listed until then)
 - A concrete `Content-Security-Policy` once origins are finalized

@@ -27,11 +27,11 @@ is outside that shell (OAuth return URL).
 
 ## Page data & auth
 
-| Surface                               | How data loads                                                              | Auth                                       |
-| ------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------ |
-| `/dashboard`, `/wallets`, `/devices`  | RSC → `loadDashboardSnapshot()` → Postgres (`principal_wallets`)            | None yet (lists all bound wallets)         |
-| `/devices/[deviceId]`                 | RSC → `loadDeviceDetail()` → bounded history (metadata only, no EV payload) | None yet (bound-wallet devices only)       |
-| `/devices/onboard`, `/enode/complete` | Client → `createOnboardingApi()`                                            | Web3Auth `Authorization: Bearer <idToken>` |
+| Surface                               | How data loads                                                              | Auth                                                                |
+| ------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `/dashboard`, `/wallets`, `/devices`  | RSC → `loadDashboardSnapshot()` → Postgres (session principal’s wallets)    | Web3Auth → `POST /api/v1/dashboard/session` httpOnly cookie         |
+| `/devices/[deviceId]`                 | RSC → `loadDeviceDetail()` → bounded history (metadata only, no EV payload) | Same session cookie; device must belong to a bound wallet           |
+| `/devices/onboard`, `/enode/complete` | Client → `createOnboardingApi()`                                            | Web3Auth `Authorization: Bearer <idToken>` (JWT wallets = identity) |
 
 Requires `NEXT_PUBLIC_WEB3AUTH_CLIENT_ID` (Sapphire Devnet) for onboarding UI.
 Without it, onboarding shows an unconfigured state.

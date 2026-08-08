@@ -7,7 +7,7 @@ import {
 } from '@/server/infrastructure/db/repositories/wallet-repository';
 
 /**
- * Temporary identity helper until Web3Auth: find-or-create Arc wallet by address.
+ * Find-or-create an Arc-chain wallet row by EVM address (Web3Auth / agent).
  */
 export async function ensureWalletForAddress(
   db: Database,

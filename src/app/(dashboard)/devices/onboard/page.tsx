@@ -10,7 +10,6 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
   isWeb3AuthConfigured,
   RequireWeb3Auth,
-  resolveWalletAddressForOnboarding,
   useConfiguredWalletSession,
   WalletConnectButton,
 } from '@/features/auth';
@@ -55,14 +54,10 @@ function OnboardForm() {
     startTransition(async () => {
       try {
         const idToken = await session.getIdToken();
-        const boundWalletAddress = resolveWalletAddressForOnboarding({
-          idToken,
-          sessionAddress: walletAddress,
-        });
         const api = createOnboardingApi();
         const data = await api.startLink({
           idToken,
-          walletAddress: boundWalletAddress,
+          walletAddress,
           ...(brand.trim().length > 0 ? { brand: brand.trim() } : {}),
           frontendUrl: window.location.origin,
         });

@@ -10,7 +10,6 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
   isWeb3AuthConfigured,
   RequireWeb3Auth,
-  resolveWalletAddressForOnboarding,
   useConfiguredWalletSession,
   WalletConnectButton,
 } from '@/features/auth';
@@ -51,22 +50,18 @@ function EnodeCompleteConfigured() {
     }
 
     const pendingId = ovppPending;
-    const wallet = sessionAddress;
+    const walletAddress = sessionAddress;
     const controller = new AbortController();
 
     void (async () => {
       setOauth({ kind: 'loading' });
       try {
         const idToken = await getIdToken();
-        const boundWalletAddress = resolveWalletAddressForOnboarding({
-          idToken,
-          sessionAddress: wallet,
-        });
         const api = createOnboardingApi();
         await api.completeOAuth({
           idToken,
           ovppPending: pendingId,
-          walletAddress: boundWalletAddress,
+          walletAddress,
         });
         if (!controller.signal.aborted) {
           setOauth({ kind: 'needs_form', pendingId });
@@ -94,15 +89,11 @@ function EnodeCompleteConfigured() {
     startTransition(async () => {
       try {
         const idToken = await session.getIdToken();
-        const boundWalletAddress = resolveWalletAddressForOnboarding({
-          idToken,
-          sessionAddress: walletAddress,
-        });
         const api = createOnboardingApi();
         await api.finalize({
           idToken,
           pendingId: oauth.pendingId,
-          walletAddress: boundWalletAddress,
+          walletAddress,
           ...(nickname.trim().length > 0 ? { nickname: nickname.trim() } : {}),
         });
         setOauth({ kind: 'redirecting' });

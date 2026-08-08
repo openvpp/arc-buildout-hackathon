@@ -757,7 +757,7 @@ export const enodeApiTokens = pgTable(
 
 /**
  * Enode Link wizard state: pending_oauth → pending_form → completed.
- * Temporary walletAddress identity until Web3Auth lands.
+ * Wallet address is the Web3Auth JWT-bound EVM identity for the linker.
  */
 export const pendingDeviceConnections = pgTable(
   'pending_device_connections',

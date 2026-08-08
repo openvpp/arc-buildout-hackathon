@@ -25,10 +25,12 @@ Ported from OpenVPP vehicle flow into Postgres / Next.js (not Mongo).
 - `/enode/complete` — OAuth return + nickname finalize
 
 **Identity:** Onboarding APIs require `Authorization: Bearer <Web3Auth
-idToken>`. The server verifies the JWT (JWKS) and that the claimed
-`walletAddress` is bound to the token, then upserts a `dashboard_user`
-principal + `principal_wallets` (`owner`). With `ALLOW_MOCK_ADAPTERS=true`,
-`Bearer mock:0x…` is accepted for local tests only.
+idToken>`. The server verifies the JWT (JWKS) and takes the EVM wallet from
+the token’s `wallets` claims (body `walletAddress` is only a hint when it
+matches). It then upserts a `dashboard_user` principal (prefer email display
+name `web3auth:<email>`) + `principal_wallets` (`owner`). With
+`ALLOW_MOCK_ADAPTERS=true`, `Bearer mock:0x…` is accepted for local tests
+only.
 
 ### Env
 
