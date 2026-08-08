@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { ensureWalletForAddress } from '@/server/application/onboarding/ensure-wallet';
 import { enqueueDeviceMint } from '@/server/application/onboarding/mint-device-nft';
+import { tryIngestEnodeVehicleSnapshot } from '@/server/application/telemetry/ingest-enode-vehicle-snapshot';
 import type { Database } from '@/server/infrastructure/db/client';
 import { enqueueOutboxEvent } from '@/server/infrastructure/db/repositories/outbox-repository';
 import { normalizeEvmAddress } from '@/server/infrastructure/db/repositories/wallet-repository';
@@ -100,10 +101,11 @@ export async function finalizePendingVehicleConnection(
     throwWithCode('Provider device not linked yet', 'PENDING_OAUTH_INCOMPLETE');
   }
 
+  let rawVehicle: Record<string, unknown> | null = null;
   let mapped = null as ReturnType<typeof mapEnodeVehicle>;
   try {
-    const raw = await client.getUserVehicleById(enodeUserId, providerDeviceId);
-    mapped = mapEnodeVehicle(raw);
+    rawVehicle = await client.getUserVehicleById(enodeUserId, providerDeviceId);
+    mapped = mapEnodeVehicle(rawVehicle);
   } catch {
     mapped = null;
   }
@@ -151,6 +153,16 @@ export async function finalizePendingVehicleConnection(
         updatedAt: new Date(),
       })
       .where(eq(pendingDeviceConnections.id, pending.id));
+
+    if (rawVehicle !== null) {
+      await tryIngestEnodeVehicleSnapshot({
+        db,
+        deviceId: device.id,
+        externalDeviceId: mapped.vehicleId,
+        rawVehicle,
+        source: 'enode-onboard-snapshot',
+      });
+    }
 
     return {
       device,
@@ -246,6 +258,16 @@ export async function finalizePendingVehicleConnection(
       updatedAt: new Date(),
     })
     .where(eq(pendingDeviceConnections.id, pending.id));
+
+  if (rawVehicle !== null) {
+    await tryIngestEnodeVehicleSnapshot({
+      db,
+      deviceId: device.id,
+      externalDeviceId: mapped.vehicleId,
+      rawVehicle,
+      source: 'enode-onboard-snapshot',
+    });
+  }
 
   return {
     device,

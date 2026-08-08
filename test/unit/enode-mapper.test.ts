@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   coerceEnodeVehicleEvent,
   extractEnodeWebhookEvents,
+  isEmptyTelemetryData,
   mapEnodeEventToNormalizedTelemetry,
+  mapEnodeVehicleApiToTelemetry,
   mapUnifiedEnodeVehicleEvent,
   enodeLegacyVehicleTelemetryEventSchema,
   summarizeEnodeWebhookEventTypes,
@@ -71,6 +73,43 @@ describe('enode webhook mapper', () => {
     expect(mapped.data.isCharging).toBe(true);
     expect(mapped.data.odometerKilometers).toBe(12_000);
     expect(mapped.data.latitude).toBe(37.77);
+  });
+
+  it('maps GET /vehicles/{id} API body SoC and capacity', () => {
+    const mapped = mapEnodeVehicleApiToTelemetry({
+      id: 'veh-api-1',
+      chargeState: {
+        batteryLevel: 41,
+        batteryCapacity: 75,
+        isCharging: false,
+        lastUpdated: '2026-08-08T12:00:00.000Z',
+      },
+      odometer: { distance: 9_001 },
+    });
+
+    expect(mapped).not.toBeNull();
+    if (mapped === null) return;
+    expect(mapped.externalDeviceId).toBe('veh-api-1');
+    expect(mapped.data.stateOfChargePercent).toBe(41);
+    expect(mapped.data.batteryCapacityKilowattHours).toBe(75);
+    expect(mapped.data.odometerKilometers).toBe(9_001);
+    expect(isEmptyTelemetryData(mapped.data)).toBe(false);
+  });
+
+  it('skips empty API vehicle payloads as empty telemetry', () => {
+    const mapped = mapEnodeVehicleApiToTelemetry({
+      id: 'veh-empty',
+      information: { brand: 'TESLA', model: 'Model Y' },
+    });
+    expect(mapped).not.toBeNull();
+    if (mapped === null) return;
+    expect(isEmptyTelemetryData(mapped.data)).toBe(true);
+  });
+
+  it('returns null when API vehicle has no id', () => {
+    expect(
+      mapEnodeVehicleApiToTelemetry({ chargeState: { batteryLevel: 10 } }),
+    ).toBeNull();
   });
 
   it('extracts array deliveries and summarizes event types', () => {

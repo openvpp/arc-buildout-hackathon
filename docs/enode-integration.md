@@ -1,8 +1,10 @@
 # Enode integration
 
 **Status:** vehicle Link onboarding + webhook ingest aligned to Enode’s public
-webhook contract (HMAC-SHA1, JSON array, nested `vehicle`). Live HTTP sync /
-reconcile beyond Link remains optional.
+webhook contract (HMAC-SHA1, JSON array, nested `vehicle`). On finalize (and via
+`pnpm enode:sync-telemetry`), a best-effort baseline telemetry snapshot is
+ingested from Enode `GET /vehicles/{id}`; webhooks remain the ongoing update
+path.
 
 ## Vehicle onboarding (Enode Link)
 
@@ -98,7 +100,7 @@ race) or succeed after Link finalize.
 ### Still deferred
 
 - IP allowlist refresh from Enode DNS TXT (static `ENODE_WEBHOOK_ALLOWED_IPS` is wired)
-- Live Enode HTTP pull / reconcile jobs
+- Continuous Enode HTTP pull / reconcile worker (onboard snapshot + CLI sync exist)
 
 ## Arc DeviceNFT mint (on finalize)
 
@@ -122,6 +124,22 @@ Mint stores `nft_token_id`, `nft_transaction_hash`, `nft_metadata_uri`, and
 Canonical id chain:
 
 `Enode vehicle.id` → `pending.provider_device_id` → `devices.external_device_id`
+
+## Onboard + API telemetry snapshot
+
+`POST .../pending/:id/complete` already fetches Enode `GET /vehicles/{id}` for
+make/model. When that body includes non-empty `chargeState` / odometer /
+location readings, finalize also inserts one `telemetry_records` row
+(`source=enode-onboard-snapshot`) and enqueues `ANCHOR_TELEMETRY`. Empty charge
+does **not** fail onboarding — the UI keeps `—` until a webhook or sync fills
+it. Capacity is never invented when Enode omits `batteryCapacity`.
+
+Backfill already-onboarded devices (missing SoC or capacity on latest row):
+
+```bash
+pnpm enode:sync-telemetry -- --missing-only
+pnpm enode:sync-telemetry -- --device-id <uuid>
+```
 
 ## Agent device discovery
 

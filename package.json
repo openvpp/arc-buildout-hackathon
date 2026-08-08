@@ -32,6 +32,7 @@
     "db:seed": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/seed-demo.ts",
     "demo:inject-telemetry": "tsx scripts/inject-demo-telemetry.ts",
     "demo:dummy-webhook": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/send-dummy-enode-webhook.ts",
+    "enode:sync-telemetry": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/sync-enode-telemetry.ts",
     "db:reset:test": "tsx scripts/reset-test-database.ts",
     "worker:dev": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs watch src/worker/index.ts",
     "worker:start": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs src/worker/index.ts",

@@ -274,3 +274,43 @@ export function mapUnifiedEnodeVehicleEvent(event: UnifiedEnodeVehicleEvent): {
     },
   };
 }
+
+/**
+ * Map a GET `/vehicles/{id}` (or list item) Enode vehicle body into normalized
+ * telemetry. Returns null when the payload has no usable vehicle id.
+ */
+export function mapEnodeVehicleApiToTelemetry(raw: unknown): {
+  externalDeviceId: string;
+  sourceEventId: string | null;
+  sourceObservedAt: Date | null;
+  data: NormalizedTelemetryData;
+} | null {
+  if (raw === null || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  const idRaw = record['id'] ?? record['vehicleId'];
+  const vehicleId =
+    typeof idRaw === 'string'
+      ? idRaw.trim()
+      : typeof idRaw === 'number'
+        ? String(idRaw)
+        : '';
+  if (vehicleId.length === 0) {
+    return null;
+  }
+
+  const chargeParsed = chargeStateSchema.safeParse(record['chargeState']);
+  const odometerParsed = odometerSchema.safeParse(record['odometer']);
+  const locationParsed = locationSchema.safeParse(record['location']);
+
+  return mapUnifiedEnodeVehicleEvent({
+    eventName: 'api:vehicle:snapshot',
+    vehicleId,
+    createdAt: null,
+    sourceEventHint: null,
+    chargeState: chargeParsed.success ? chargeParsed.data : undefined,
+    odometer: odometerParsed.success ? odometerParsed.data : undefined,
+    location: locationParsed.success ? locationParsed.data : undefined,
+  });
+}
