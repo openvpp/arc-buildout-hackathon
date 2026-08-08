@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
   isWeb3AuthConfigured,
-  RequireWagmi,
+  RequireWeb3Auth,
   resolveWalletAddressForOnboarding,
   useConfiguredWalletSession,
   WalletConnectButton,
@@ -154,9 +154,9 @@ export default function DeviceOnboardPage() {
         description="Connect an EV through Enode Link using your Web3Auth wallet."
       />
       {isWeb3AuthConfigured() ? (
-        <RequireWagmi fallback={<InitializingOnboard />}>
+        <RequireWeb3Auth fallback={<InitializingOnboard />}>
           <OnboardForm />
-        </RequireWagmi>
+        </RequireWeb3Auth>
       ) : (
         <UnconfiguredOnboard />
       )}

@@ -31,10 +31,10 @@ export type WalletSession =
     };
 
 /**
- * Active only under Web3AuthProvider + WagmiProvider.
+ * Active only under Web3AuthProvider.
  * Callers must not use this when Web3Auth is unconfigured.
  *
- * Address source of truth: Web3Auth id-token `wallets` claim (not wagmi).
+ * Address source of truth: Web3Auth id-token `wallets` claim.
  */
 export function useConfiguredWalletSession(): Exclude<
   WalletSession,

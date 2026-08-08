@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   isWeb3AuthConfigured,
-  RequireWagmi,
+  RequireWeb3Auth,
   useConfiguredWalletSession,
 } from '@/features/auth';
 
@@ -36,7 +36,7 @@ function DashboardSessionSyncInner() {
       void (async () => {
         try {
           const idToken = await getIdToken();
-          // Wallet comes from the verified JWT on the server — no wagmi claim.
+          // Wallet comes from the verified JWT on the server.
           await sessionApi.establish({ idToken });
           syncedAddressRef.current = address;
           clearedUnauthRef.current = false;
@@ -100,8 +100,8 @@ export function DashboardSessionBridge() {
     return null;
   }
   return (
-    <RequireWagmi fallback={null}>
+    <RequireWeb3Auth fallback={null}>
       <DashboardSessionSyncInner />
-    </RequireWagmi>
+    </RequireWeb3Auth>
   );
 }

@@ -26,7 +26,7 @@ describe('web3auth wallet claims', () => {
     ).toBe(session);
   });
 
-  it('uses id-token address when session/wagmi address differs', () => {
+  it('uses id-token address when a different session address is hinted', () => {
     const session = '0x84f688dc18c38690464dd42520a6cca29fdf09d5';
     const bound = '0x838ece260fd5ff3b48a05b2d3e0053fa469ddef5';
     const token = encodeJwtPayload({

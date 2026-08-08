@@ -93,7 +93,7 @@ export function extractBearerToken(
  * Verify Web3Auth identity token.
  * Wallet identity comes from the JWT (`wallets` claims). An optional claimed
  * address is used only when it is attested in the token; otherwise the primary
- * JWT-bound address is used (no wagmi coupling).
+ * JWT-bound address is used as the wallet identity source of truth.
  */
 export async function verifyWeb3AuthIdentity(input: {
   authorizationHeader: string | null;

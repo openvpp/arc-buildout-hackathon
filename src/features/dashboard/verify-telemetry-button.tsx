@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
   isWeb3AuthConfigured,
-  RequireWagmi,
+  RequireWeb3Auth,
   useConfiguredWalletSession,
 } from '@/features/auth';
 
@@ -40,11 +40,11 @@ export function VerifyTelemetryButton(props: {
     );
   }
   return (
-    <RequireWagmi
+    <RequireWeb3Auth
       fallback={<p className="text-xs text-slate-500">Initializing wallet…</p>}
     >
       <VerifyTelemetryButtonConnected {...props} />
-    </RequireWagmi>
+    </RequireWeb3Auth>
   );
 }
 

@@ -156,6 +156,8 @@ export function resolveWalletAddressForOnboarding(input: {
   }
   return resolveIdentityWalletAddress({
     payload,
-    claimedAddress: input.sessionAddress,
+    ...(input.sessionAddress !== undefined
+      ? { claimedAddress: input.sessionAddress }
+      : {}),
   }).address;
 }

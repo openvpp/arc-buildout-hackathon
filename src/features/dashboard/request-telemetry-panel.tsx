@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
   isWeb3AuthConfigured,
-  RequireWagmi,
+  RequireWeb3Auth,
   useConfiguredWalletSession,
 } from '@/features/auth';
 import { SettlementPaymentRef } from '@/features/devices';
@@ -44,7 +44,7 @@ export function RequestTelemetryPanel(props: {
     );
   }
   return (
-    <RequireWagmi
+    <RequireWeb3Auth
       fallback={
         <div className="mt-3 flex flex-col gap-2 border-t border-slate-200 pt-3 dark:border-slate-700">
           <p className="text-xs text-slate-500">Initializing wallet…</p>
@@ -52,7 +52,7 @@ export function RequestTelemetryPanel(props: {
       }
     >
       <RequestTelemetryPanelConnected {...props} />
-    </RequireWagmi>
+    </RequireWeb3Auth>
   );
 }
 

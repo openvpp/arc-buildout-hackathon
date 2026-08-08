@@ -3,7 +3,7 @@ import type { Web3AuthContextConfig } from '@web3auth/modal/react';
 
 import { env } from '@/config/env';
 
-/** Arc testnet (eip155:5042002). Required so WagmiProvider can build chains. */
+/** Arc testnet (eip155:5042002) for Web3Auth embedded EVM wallet. */
 const ARC_TESTNET_CHAIN_ID_HEX = '0x4cf352';
 
 export function isWeb3AuthConfigured(): boolean {
@@ -27,8 +27,6 @@ export function createWeb3AuthContextConfig(): Web3AuthContextConfig | null {
     web3AuthOptions: {
       clientId,
       web3AuthNetwork: resolveWeb3AuthNetwork(),
-      // WagmiProvider crashes with chains: undefined → createConfig reading [0]
-      // when Web3Auth is initialized without an EIP-155 chain list.
       chains: [
         {
           chainNamespace: CHAIN_NAMESPACES.EIP155,

@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import {
   isWeb3AuthConfigured,
-  RequireWagmi,
+  RequireWeb3Auth,
   useConfiguredWalletSession,
 } from '@/features/auth';
 
@@ -75,7 +75,7 @@ export function WalletConnectButton() {
     return null;
   }
   return (
-    <RequireWagmi
+    <RequireWeb3Auth
       fallback={
         <span className="text-xs text-slate-500 dark:text-slate-400">
           Wallet…
@@ -83,6 +83,6 @@ export function WalletConnectButton() {
       }
     >
       <ConfiguredWalletConnectButton />
-    </RequireWagmi>
+    </RequireWeb3Auth>
   );
 }
