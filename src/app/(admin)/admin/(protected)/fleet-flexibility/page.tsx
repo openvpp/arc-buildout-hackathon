@@ -16,7 +16,7 @@ import { shortenAddress } from '@/features/wallets';
 export const metadata: Metadata = {
   title: 'Fleet flexibility',
   description:
-    'Fleet charge headroom from independently verified SoC and pack capacity.',
+    'Fleet charge headroom from latest SoC and pack capacity (verified preferred).',
 };
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +41,7 @@ export default async function AdminFleetFlexibilityPage() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Fleet flexibility"
-        description="Energy the grid can still shift into the fleet, from each vehicle’s latest independently verified SoC and pack capacity: (1 − SoC) × kWh."
+        description="Energy the grid can still shift into the fleet from each vehicle’s latest SoC and pack capacity (independently verified reading preferred, otherwise latest unlocked): (1 − SoC) × kWh."
       />
 
       {flexibility.vehicles.length === 0 ? (

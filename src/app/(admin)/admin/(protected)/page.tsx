@@ -123,7 +123,7 @@ export default async function AdminHomePage() {
             tone="lime"
             title="Fleet headroom"
             value={formatKilowattHours(flexibility.totalHeadroomKilowattHours)}
-            meta={`from ${flexibility.includedVehicleCount} of ${deviceCount} vehicles with verified SoC + capacity`}
+            meta={`from ${flexibility.includedVehicleCount} of ${deviceCount} vehicles with SoC + capacity`}
             href="/admin/fleet-flexibility"
             linkLabel="View fleet flexibility →"
           />

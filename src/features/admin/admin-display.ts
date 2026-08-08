@@ -19,9 +19,6 @@ export function agentVerificationBadge(status: string | undefined): {
 export function headroomUnavailableLabel(
   vehicle: FleetFlexibilityVehicle,
 ): string {
-  if (!vehicle.hasVerifiedReading) {
-    return 'No verified reading yet';
-  }
   if (!vehicle.headroom.ok) {
     if (vehicle.headroom.reason === 'missing_soc') {
       return 'Missing SoC';
@@ -30,6 +27,9 @@ export function headroomUnavailableLabel(
       return 'Missing battery capacity';
     }
     return 'Invalid SoC';
+  }
+  if (!vehicle.hasVerifiedReading) {
+    return 'No reading yet';
   }
   return '—';
 }

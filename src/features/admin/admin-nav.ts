@@ -14,7 +14,7 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
   {
     title: 'Fleet flexibility',
     href: '/admin/fleet-flexibility',
-    description: 'Charge headroom across verified vehicles.',
+    description: 'Charge headroom from latest SoC and capacity.',
   },
   {
     title: 'Payments',

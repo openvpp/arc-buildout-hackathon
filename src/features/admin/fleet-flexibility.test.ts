@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { summarizeFleetFlexibility } from './fleet-flexibility';
 
 describe('summarizeFleetFlexibility', () => {
-  it('totals headroom from latest verified readings only', () => {
+  it('prefers verified readings and falls back to latest unlocked', () => {
     const summary = summarizeFleetFlexibility(
       [
         {
@@ -16,6 +16,12 @@ describe('summarizeFleetFlexibility', () => {
                 vendor: null,
                 model: null,
                 externalDeviceId: 'v1',
+              },
+              latest: {
+                telemetryPayload: {
+                  stateOfChargePercent: 99,
+                  batteryCapacityKilowattHours: 40,
+                },
               },
               latestVerified: {
                 telemetryPayload: {
@@ -31,6 +37,12 @@ describe('summarizeFleetFlexibility', () => {
                 vendor: null,
                 model: null,
                 externalDeviceId: 'v2',
+              },
+              latest: {
+                telemetryPayload: {
+                  stateOfChargePercent: 50,
+                  batteryCapacityKilowattHours: 60,
+                },
               },
               latestVerified: null,
             },
@@ -49,6 +61,17 @@ describe('summarizeFleetFlexibility', () => {
                 },
               },
             },
+            {
+              device: {
+                id: 'd4',
+                displayName: 'Car 4',
+                vendor: null,
+                model: null,
+                externalDeviceId: 'v4',
+              },
+              latest: null,
+              latestVerified: null,
+            },
           ],
         },
       ],
@@ -57,8 +80,12 @@ describe('summarizeFleetFlexibility', () => {
     );
 
     expect(summary.verifiedVehicleCount).toBe(2);
-    expect(summary.includedVehicleCount).toBe(2);
-    expect(summary.totalHeadroomKilowattHours).toBe(67.5);
-    expect(summary.vehicles[1]?.headroom.ok).toBe(false);
+    expect(summary.includedVehicleCount).toBe(3);
+    // Car1 uses verified 10% of 75 → 67.5; Car2 unverified 50% of 60 → 30; Car3 0
+    expect(summary.totalHeadroomKilowattHours).toBe(97.5);
+    expect(summary.vehicles[0]?.stateOfChargePercent).toBe(10);
+    expect(summary.vehicles[1]?.stateOfChargePercent).toBe(50);
+    expect(summary.vehicles[1]?.hasVerifiedReading).toBe(false);
+    expect(summary.vehicles[3]?.headroom.ok).toBe(false);
   });
 });

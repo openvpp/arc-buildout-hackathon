@@ -32,9 +32,17 @@ function readNumberField(
   return typeof value === 'number' && !Number.isNaN(value) ? value : null;
 }
 
+function asPayload(value: unknown): Record<string, unknown> | null {
+  if (value !== null && typeof value === 'object') {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
 /**
  * Builds fleet charge-flexibility summary from admin snapshot devices.
- * Uses each device's latest independently VERIFIED telemetry payload.
+ * Prefers each device's latest independently VERIFIED telemetry payload;
+ * falls back to the latest unlocked telemetry when no verified reading exists.
  */
 export function summarizeFleetFlexibility(
   snapshot: readonly {
@@ -50,6 +58,9 @@ export function summarizeFleetFlexibility(
         readonly model: string | null;
         readonly externalDeviceId: string;
       };
+      readonly latest?: {
+        readonly telemetryPayload: unknown;
+      } | null;
       readonly latestVerified: {
         readonly telemetryPayload: unknown;
       } | null;
@@ -68,11 +79,10 @@ export function summarizeFleetFlexibility(
   for (const row of snapshot) {
     const walletLabel = row.wallet.label ?? shortenAddress(row.wallet.address);
     for (const entry of row.devices) {
+      const hasVerifiedReading = entry.latestVerified !== null;
       const payload =
-        entry.latestVerified?.telemetryPayload !== null &&
-        typeof entry.latestVerified?.telemetryPayload === 'object'
-          ? (entry.latestVerified.telemetryPayload as Record<string, unknown>)
-          : null;
+        asPayload(entry.latestVerified?.telemetryPayload) ??
+        asPayload(entry.latest?.telemetryPayload);
       const stateOfChargePercent = readNumberField(
         payload,
         'stateOfChargePercent',
@@ -93,7 +103,7 @@ export function summarizeFleetFlexibility(
         stateOfChargePercent,
         batteryCapacityKilowattHours,
         headroom,
-        hasVerifiedReading: entry.latestVerified !== null,
+        hasVerifiedReading,
       });
     }
   }
