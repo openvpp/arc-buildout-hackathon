@@ -5,10 +5,9 @@ on:
     branches: [main]
 
 concurrency:
-  # Serialize deploys on main. Do not cancel mid-run — rsync/build on the
-  # droplet can leave a bad tree if interrupted. Newer pushes wait in queue.
+  # Only the latest main deploy should run; cancel superseded deploys.
   group: deploy-production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
