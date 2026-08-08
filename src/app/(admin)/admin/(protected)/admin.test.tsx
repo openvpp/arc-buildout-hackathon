@@ -38,6 +38,26 @@ describe('AdminPage', () => {
   it('renders wallets, principals, and device cards with detail links', async () => {
     loadAdminSnapshot.mockResolvedValue({
       ok: true as const,
+      payments: [
+        {
+          id: 'pay-1',
+          transactionHash:
+            '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+          verificationStatus: 'confirmed',
+          verifiedAt: new Date('2026-01-01T00:05:00.000Z'),
+          createdAt: new Date('2026-01-01T00:05:00.000Z'),
+          fromAddress: '0x1111111111111111111111111111111111111111',
+          toAddress: '0x2222222222222222222222222222222222222222',
+          amountDisplay: '0.0004',
+          asset: 'USDC',
+          requirementStatus: 'consumed',
+          deviceId: 'device-1',
+          deviceLabel: 'Demo EV',
+          walletAddress: '0xabc',
+          walletLabel: 'Owner wallet',
+          principalDisplayName: 'agent-1',
+        },
+      ],
       snapshot: [
         {
           wallet: {
@@ -112,6 +132,11 @@ describe('AdminPage', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Total fleet headroom')).toBeInTheDocument();
     expect(screen.getAllByText('67.5 kWh').length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByRole('heading', { name: 'Nanopayments' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('0.0004 USDC')).toBeInTheDocument();
+    expect(screen.getByText('confirmed')).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'View vehicle & full telemetry' }),
     ).toHaveAttribute('href', '/admin/devices/device-1');
