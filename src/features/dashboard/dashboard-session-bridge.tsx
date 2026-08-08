@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   isWeb3AuthConfigured,
@@ -23,6 +23,7 @@ function DashboardSessionSyncInner() {
   const syncedAddressRef = useRef<string | null>(null);
   const clearedUnauthRef = useRef(false);
   const inFlightRef = useRef(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const { status, address, getIdToken } = session;
 
@@ -35,12 +36,19 @@ function DashboardSessionSyncInner() {
       void (async () => {
         try {
           const idToken = await getIdToken();
+          // Always send the same address shown in the topbar (wagmi useAccount).
           await sessionApi.establish({ idToken, walletAddress: address });
           syncedAddressRef.current = address;
           clearedUnauthRef.current = false;
+          setSyncError(null);
           router.refresh();
-        } catch {
+        } catch (error: unknown) {
           syncedAddressRef.current = null;
+          setSyncError(
+            error instanceof Error
+              ? error.message
+              : 'Dashboard session sync failed.',
+          );
         } finally {
           inFlightRef.current = false;
         }
@@ -63,6 +71,7 @@ function DashboardSessionSyncInner() {
         await sessionApi.clear();
         syncedAddressRef.current = null;
         clearedUnauthRef.current = true;
+        setSyncError(null);
         router.refresh();
       } finally {
         inFlightRef.current = false;
@@ -70,7 +79,19 @@ function DashboardSessionSyncInner() {
     })();
   }, [status, address, getIdToken, router]);
 
-  return null;
+  if (syncError === null) {
+    return null;
+  }
+
+  return (
+    <p
+      role="alert"
+      className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+    >
+      Wallet connected, but dashboard session failed: {syncError}. Disconnect
+      and reconnect, or refresh after login.
+    </p>
+  );
 }
 
 /** Mount in the owner dashboard layout when Web3Auth is configured. */
