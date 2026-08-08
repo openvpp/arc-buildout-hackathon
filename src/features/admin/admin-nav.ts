@@ -26,4 +26,9 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
     href: '/admin/devices',
     description: 'All tenants’ devices and latest evidence.',
   },
+  {
+    title: 'Settings',
+    href: '/admin/settings',
+    description: 'Appearance and local browser preferences.',
+  },
 ] as const;

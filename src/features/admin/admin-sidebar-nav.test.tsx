@@ -36,6 +36,10 @@ describe('AdminSidebarNav', () => {
       'href',
       '/admin/devices',
     );
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute(
+      'href',
+      '/admin/settings',
+    );
   });
 
   it('marks the current section with aria-current without highlighting Home', () => {
