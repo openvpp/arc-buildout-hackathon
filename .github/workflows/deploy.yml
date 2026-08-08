@@ -5,7 +5,8 @@ on:
     branches: [main]
 
 concurrency:
-  # Queue deploys on main — do not cancel mid-build (droplet next build lock).
+  # Serialize deploys on main. Do not cancel mid-run — rsync/build on the
+  # droplet can leave a bad tree if interrupted. Newer pushes wait in queue.
   group: deploy-production
   cancel-in-progress: false
 
