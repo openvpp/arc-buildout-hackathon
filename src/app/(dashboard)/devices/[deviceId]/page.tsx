@@ -7,10 +7,10 @@ import { PageHeader } from '@/components/common/page-header';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
-  loadDeviceDetail,
   RequestTelemetryPanel,
   VerifyTelemetryButton,
 } from '@/features/dashboard';
+import { loadDeviceDetail } from '@/features/dashboard/server';
 import {
   DeviceEventTransactionLink,
   DeviceMintTransactionLink,

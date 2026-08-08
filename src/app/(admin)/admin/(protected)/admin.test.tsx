@@ -3,11 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loadAdminSnapshot = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 
+vi.mock('@/features/admin/server', () => ({
+  loadAdminSnapshot: () => loadAdminSnapshot(),
+}));
+
 vi.mock('@/features/admin', async () => {
   const { summarizeFleetFlexibility, formatKilowattHours } =
     await import('@/features/admin/fleet-flexibility');
   return {
-    loadAdminSnapshot: () => loadAdminSnapshot(),
     summarizeFleetFlexibility,
     formatKilowattHours,
   };

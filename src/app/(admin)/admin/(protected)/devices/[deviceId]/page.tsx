@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { loadAdminDeviceDetail } from '@/features/admin';
+import { loadAdminDeviceDetail } from '@/features/admin/server';
 import {
   DeviceEventTransactionLink,
   DeviceMintTransactionLink,

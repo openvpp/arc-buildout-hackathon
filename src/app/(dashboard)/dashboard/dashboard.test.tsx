@@ -6,8 +6,11 @@ import DashboardError from '@/app/(dashboard)/dashboard/error';
 
 const loadDashboardSnapshot = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 
-vi.mock('@/features/dashboard', () => ({
+vi.mock('@/features/dashboard/server', () => ({
   loadDashboardSnapshot: () => loadDashboardSnapshot(),
+}));
+
+vi.mock('@/features/dashboard', () => ({
   RequestTelemetryPanel: () => (
     <div data-testid="request-telemetry-panel">Request panel</div>
   ),

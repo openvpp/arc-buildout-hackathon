@@ -5,7 +5,7 @@ import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { loadDashboardSnapshot } from '@/features/dashboard';
+import { loadDashboardSnapshot } from '@/features/dashboard/server';
 import {
   DeviceMintTransactionLink,
   deviceDisplayName,

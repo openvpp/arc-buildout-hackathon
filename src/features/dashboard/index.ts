@@ -1,5 +1,8 @@
-export { loadDashboardSnapshot } from './load-snapshot';
-export { loadDeviceDetail } from './load-device-detail';
+/**
+ * Client-safe dashboard feature surface.
+ * Server Component loaders stay out of this barrel so layouts/client panels
+ * can import without pulling `server-only` (load-snapshot / load-device-detail).
+ */
 export { DashboardSessionBridge } from './dashboard-session-bridge';
 export {
   createDemoTelemetryApi,

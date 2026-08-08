@@ -5,8 +5,11 @@ const loadDeviceDetail = vi.hoisted(() =>
   vi.fn<(deviceId: string) => Promise<unknown>>(),
 );
 
-vi.mock('@/features/dashboard', () => ({
+vi.mock('@/features/dashboard/server', () => ({
   loadDeviceDetail: (deviceId: string) => loadDeviceDetail(deviceId),
+}));
+
+vi.mock('@/features/dashboard', () => ({
   RequestTelemetryPanel: () => (
     <div data-testid="request-telemetry-panel">Request panel</div>
   ),

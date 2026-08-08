@@ -8,9 +8,9 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
   formatKilowattHours,
-  loadAdminSnapshot,
   summarizeFleetFlexibility,
 } from '@/features/admin';
+import { loadAdminSnapshot } from '@/features/admin/server';
 import {
   DeviceMintTransactionLink,
   arcTxExplorerUrl,

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loadDashboardSnapshot = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 
-vi.mock('@/features/dashboard', () => ({
+vi.mock('@/features/dashboard/server', () => ({
   loadDashboardSnapshot: () => loadDashboardSnapshot(),
 }));
 

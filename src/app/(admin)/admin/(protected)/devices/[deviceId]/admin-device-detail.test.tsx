@@ -5,7 +5,7 @@ const loadAdminDeviceDetail = vi.hoisted(() =>
   vi.fn<(deviceId: string) => Promise<unknown>>(),
 );
 
-vi.mock('@/features/admin', () => ({
+vi.mock('@/features/admin/server', () => ({
   loadAdminDeviceDetail: (deviceId: string) => loadAdminDeviceDetail(deviceId),
 }));
 

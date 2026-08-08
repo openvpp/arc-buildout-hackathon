@@ -237,7 +237,8 @@ const config = [
     },
   },
 
-  // Feature isolation: import features only through their public index.
+  // Feature isolation: import features only through public entries
+  // (`@/features/<name>` or `@/features/<name>/server` for server-only loaders).
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
@@ -246,9 +247,9 @@ const config = [
         {
           patterns: [
             {
-              group: ['@/features/*/*'],
+              regex: '^@/features/[^/]+/(?!server$).+',
               message:
-                "Import from a feature's public entry (@/features/<name>), not its internal files.",
+                "Import from a feature's public entry (@/features/<name> or @/features/<name>/server), not its internal files.",
             },
           ],
         },
