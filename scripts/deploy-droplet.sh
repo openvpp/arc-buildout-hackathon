@@ -41,7 +41,12 @@ echo "==> Restart processes"
 if command -v pm2 >/dev/null 2>&1; then
   pm2 restart web --update-env
   pm2 restart worker --update-env
-  pm2 restart agent --update-env
+  # Agent is optional (demo buyer); skip when not registered in pm2.
+  if pm2 describe agent >/dev/null 2>&1; then
+    pm2 restart agent --update-env
+  else
+    echo "==> Skipping agent restart (process not found)"
+  fi
   pm2 save
   pm2 status
 else
