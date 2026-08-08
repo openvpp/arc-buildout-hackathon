@@ -5,9 +5,11 @@ on:
     branches: [main]
 
 concurrency:
-  # Only the latest main deploy should run; cancel superseded deploys.
+  # One deploy at a time. Do not cancel in-progress: GitHub cancel drops the
+  # SSH client but the droplet script often keeps holding deploy.lock, so the
+  # next run hangs forever on flock.
   group: deploy-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read

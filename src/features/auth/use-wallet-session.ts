@@ -6,7 +6,7 @@ import {
   useWeb3AuthConnect,
   useWeb3AuthDisconnect,
 } from '@web3auth/modal/react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { resolveWalletAddressForOnboarding } from '@/lib/auth/web3auth-wallet-claims';
 
@@ -30,17 +30,42 @@ export type WalletSession =
       readonly getIdToken: () => Promise<string>;
     };
 
+type ResolvedIdentity = {
+  readonly address: string | null;
+  readonly error: string | null;
+};
+
+function resolveIdentityFromIdToken(idToken: string): ResolvedIdentity {
+  try {
+    return {
+      address: resolveWalletAddressForOnboarding({ idToken }),
+      error: null,
+    };
+  } catch (error) {
+    return {
+      address: null,
+      error:
+        error instanceof Error ? error.message : 'Failed to resolve wallet.',
+    };
+  }
+}
+
 /**
  * Active only under Web3AuthProvider.
  * Callers must not use this when Web3Auth is unconfigured.
  *
  * Address source of truth: Web3Auth id-token `wallets` claim.
+ *
+ * Important: prefer the cached id-token from `useAuthTokenInfo`. Calling
+ * `getAuthTokenInfo()` moves connector status to `authorizing`, which is NOT
+ * treated as `isConnected` by the SDK — that would cancel an in-flight effect
+ * and leave the topbar stuck on "Wallet…".
  */
 export function useConfiguredWalletSession(): Exclude<
   WalletSession,
   { status: 'unconfigured' }
 > {
-  const { isInitialized } = useWeb3Auth();
+  const { isInitialized, status: connectorStatus } = useWeb3Auth();
   const {
     connect,
     isConnected,
@@ -48,47 +73,95 @@ export function useConfiguredWalletSession(): Exclude<
     error: connectError,
   } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
-  const { getAuthTokenInfo } = useAuthTokenInfo();
-  const [identityAddress, setIdentityAddress] = useState<string | null>(null);
+  const { getAuthTokenInfo, token: rawCachedIdToken } = useAuthTokenInfo();
+  // Published hook types omit null; runtime starts as null before authorize.
+  const cachedIdToken = (rawCachedIdToken as string | null) ?? '';
+  const [fetchedIdentity, setFetchedIdentity] =
+    useState<ResolvedIdentity | null>(null);
+
+  // `authorizing` is a transient step inside getAuthTokenInfo / reconnect;
+  // treat it as still in-session so we don't wipe / cancel identity resolve.
+  const sessionActive =
+    isConnected ||
+    connectorStatus === 'authorizing' ||
+    connectorStatus === 'authorized';
+
+  const cachedIdentity = useMemo((): ResolvedIdentity | null => {
+    if (!sessionActive || cachedIdToken.length === 0) {
+      return null;
+    }
+    return resolveIdentityFromIdToken(cachedIdToken);
+  }, [sessionActive, cachedIdToken]);
 
   const getIdToken = useCallback(async () => {
-    const token = await getAuthTokenInfo();
-    if (typeof token !== 'string' || token.length === 0) {
+    if (cachedIdToken.length > 0) {
+      return cachedIdToken;
+    }
+    const token = ((await getAuthTokenInfo()) as string | null) ?? '';
+    if (token.length === 0) {
       throw new Error('Web3Auth identity token unavailable.');
     }
     return token;
-  }, [getAuthTokenInfo]);
+  }, [cachedIdToken, getAuthTokenInfo]);
 
+  // Fetch only when connected with no cached JWT. setState stays in the async
+  // callback so we do not trip react-hooks/set-state-in-effect.
   useEffect(() => {
-    if (!isInitialized || !isConnected) {
+    if (!isInitialized || !sessionActive || cachedIdentity !== null) {
       return;
     }
+
     const cancelled = { current: false };
     void (async () => {
       try {
-        const idToken = await getIdToken();
-        const next = resolveWalletAddressForOnboarding({ idToken });
-        if (!cancelled.current) {
-          setIdentityAddress(next);
+        const idToken = ((await getAuthTokenInfo()) as string | null) ?? '';
+        if (cancelled.current) {
+          return;
         }
-      } catch {
-        if (!cancelled.current) {
-          setIdentityAddress(null);
+        if (idToken.length === 0) {
+          throw new Error('Web3Auth identity token unavailable.');
         }
+        setFetchedIdentity(resolveIdentityFromIdToken(idToken));
+      } catch (error) {
+        if (cancelled.current) {
+          return;
+        }
+        setFetchedIdentity({
+          address: null,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Web3Auth identity token unavailable.',
+        });
       }
     })();
+
     return () => {
       cancelled.current = true;
     };
-  }, [isInitialized, isConnected, getIdToken]);
+  }, [isInitialized, sessionActive, cachedIdentity, getAuthTokenInfo]);
 
-  const address = isConnected ? identityAddress : null;
+  useEffect(() => {
+    if (sessionActive) {
+      return;
+    }
+    queueMicrotask(() => {
+      setFetchedIdentity(null);
+    });
+  }, [sessionActive]);
+
+  const resolved: ResolvedIdentity | null = !sessionActive
+    ? null
+    : (cachedIdentity ?? fetchedIdentity);
+
+  const address = resolved?.address ?? null;
+  const identityError = resolved?.error ?? null;
 
   const status: 'initializing' | 'disconnected' | 'connected' = !isInitialized
     ? 'initializing'
-    : isConnected && address !== null
+    : sessionActive && address !== null
       ? 'connected'
-      : isConnected
+      : sessionActive && identityError === null
         ? 'initializing'
         : 'disconnected';
 
@@ -105,7 +178,9 @@ export function useConfiguredWalletSession(): Exclude<
     isReady: isInitialized,
     address,
     isConnecting,
-    connectError: connectError?.message ?? null,
+    connectError:
+      connectError?.message ??
+      (sessionActive && identityError !== null ? identityError : null),
     connect: connectWallet,
     disconnect: disconnectWallet,
     getIdToken,

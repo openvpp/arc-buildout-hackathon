@@ -47,16 +47,31 @@ function ConfiguredWalletConnectButton() {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button
-        type="button"
-        className="px-2 py-1 text-xs"
-        disabled={session.isConnecting}
-        onClick={() => {
-          void session.connect();
-        }}
-      >
-        {session.isConnecting ? 'Connecting…' : 'Connect wallet'}
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          className="px-2 py-1 text-xs"
+          disabled={session.isConnecting}
+          onClick={() => {
+            void session.connect();
+          }}
+        >
+          {session.isConnecting ? 'Connecting…' : 'Connect wallet'}
+        </Button>
+        {/* Session may be half-open (connected SDK, failed JWT address). */}
+        {session.connectError !== null ? (
+          <Button
+            type="button"
+            variant="secondary"
+            className="px-2 py-1 text-xs"
+            onClick={() => {
+              void session.disconnect();
+            }}
+          >
+            Disconnect
+          </Button>
+        ) : null}
+      </div>
       {session.connectError !== null ? (
         <span
           role="alert"
