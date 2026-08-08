@@ -38,10 +38,6 @@ export default async function AdminHomePage() {
       row.devices.filter((d) => d.verification?.status === 'VERIFIED').length,
     0,
   );
-  const principalCount = loaded.snapshot.reduce(
-    (sum, row) => sum + row.bindings.length,
-    0,
-  );
   const paymentCount = loaded.payments.length;
   const flexibility = summarizeFleetFlexibility(
     loaded.snapshot,
@@ -89,7 +85,6 @@ export default async function AdminHomePage() {
             tone="slate"
             title="Wallets"
             value={walletCount}
-            meta="bound across tenants"
           />
           <AdminHomeMetricCard
             tone="sky"
@@ -98,12 +93,6 @@ export default async function AdminHomePage() {
             meta="connected EVs"
             href="/admin/devices"
             linkLabel="View devices →"
-          />
-          <AdminHomeMetricCard
-            tone="cyan"
-            title="Principals"
-            value={principalCount}
-            meta="wallet bindings"
           />
           <AdminHomeMetricCard
             tone="emerald"
