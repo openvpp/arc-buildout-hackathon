@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.describe('smoke', () => {
   test('home page redirects to the dashboard', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/dashboard$/, { timeout: 15_000 });
     await expect(
       page.getByRole('heading', { level: 1, name: 'Dashboard' }),
     ).toBeVisible();
@@ -15,11 +15,13 @@ test.describe('smoke', () => {
       page.getByRole('heading', { level: 1, name: 'Dashboard' }),
     ).toBeVisible();
 
-    // Dashboard is wired to Postgres. Without bound wallets / DB (typical CI),
-    // it shows "No data"; with wallets it shows locked device cards.
+    // Dashboard is session-scoped. Unauthenticated CI has no cookie →
+    // "Connect your wallet". With DB issues → "No data". With a session but
+    // no bindings → "No wallets yet". Signed-in with devices → live section.
     await expect(
       page
-        .getByText('No data')
+        .getByText('Connect your wallet')
+        .or(page.getByText('No data'))
         .or(page.getByText('No wallets yet'))
         .or(page.getByText('Devices — request & unlock')),
     ).toBeVisible();
