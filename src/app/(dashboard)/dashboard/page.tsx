@@ -51,11 +51,17 @@ export default async function DashboardPage() {
           description="Request, unlock, and verify EV telemetry per wallet and device."
         />
         <EmptyState
-          title="No data"
+          title={
+            loaded.reason === 'unauthenticated'
+              ? 'Connect your wallet'
+              : 'No data'
+          }
           description={
-            loaded.reason === 'no_bound_wallets'
-              ? 'Connect a wallet and onboard a device to get started.'
-              : 'Nothing to show right now.'
+            loaded.reason === 'unauthenticated'
+              ? 'Connect a wallet to see only devices bound to that account.'
+              : loaded.reason === 'no_bound_wallets'
+                ? 'Connect a wallet and onboard a device to get started.'
+                : 'Nothing to show right now.'
           }
         />
       </div>

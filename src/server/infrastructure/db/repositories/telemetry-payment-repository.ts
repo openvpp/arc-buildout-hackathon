@@ -367,6 +367,10 @@ export function telemetryPayloadAsData(
       typeof payload['stateOfChargePercent'] === 'number'
         ? payload['stateOfChargePercent']
         : null,
+    batteryCapacityKilowattHours:
+      typeof payload['batteryCapacityKilowattHours'] === 'number'
+        ? payload['batteryCapacityKilowattHours']
+        : null,
     isCharging:
       typeof payload['isCharging'] === 'boolean' ? payload['isCharging'] : null,
     isPluggedIn:

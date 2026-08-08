@@ -35,6 +35,24 @@ describe('DashboardPage', () => {
     expect(screen.getByText('No data')).toBeInTheDocument();
   });
 
+  it('prompts to connect when there is no dashboard session', async () => {
+    loadDashboardSnapshot.mockResolvedValue({
+      ok: false as const,
+      reason: 'unauthenticated' as const,
+    });
+    const DashboardPage = (await import('@/app/(dashboard)/dashboard/page'))
+      .default;
+    const ui = await DashboardPage();
+    render(ui);
+
+    expect(screen.getByText('Connect your wallet')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Connect a wallet to see only devices bound to that account.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('keeps device telemetry locked until request/pay panel unlocks it', async () => {
     loadDashboardSnapshot.mockResolvedValue({
       ok: true as const,

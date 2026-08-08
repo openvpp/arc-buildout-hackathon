@@ -5,6 +5,7 @@ import type { NormalizedTelemetryData } from '@/server/domain/telemetry/canonica
 const chargeStateSchema = z
   .object({
     batteryLevel: z.number().nullable().optional(),
+    batteryCapacity: z.number().nullable().optional(),
     isCharging: z.boolean().nullable().optional(),
     isPluggedIn: z.boolean().nullable().optional(),
     range: z.number().nullable().optional(),
@@ -257,6 +258,8 @@ export function mapUnifiedEnodeVehicleEvent(event: UnifiedEnodeVehicleEvent): {
     data: {
       stateOfChargePercent:
         charge?.batteryLevel === undefined ? null : charge.batteryLevel,
+      batteryCapacityKilowattHours:
+        charge?.batteryCapacity === undefined ? null : charge.batteryCapacity,
       isCharging: charge?.isCharging === undefined ? null : charge.isCharging,
       isPluggedIn:
         charge?.isPluggedIn === undefined ? null : charge.isPluggedIn,

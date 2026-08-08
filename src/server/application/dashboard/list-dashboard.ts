@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import type { Database } from '@/server/infrastructure/db/client';
 import {
@@ -48,7 +48,8 @@ export async function listWalletsForPrincipal(
 
 /**
  * Distinct wallets that appear in principal_wallets (any principal/role).
- * Used by the dashboard RSC until per-session Web3Auth cookie auth lands.
+ * Used by Super Admin cross-tenant views. Owner dashboard uses
+ * listWalletsForPrincipal via the dashboard session cookie.
  */
 export async function listBoundWallets(db: Database) {
   return db
@@ -91,6 +92,44 @@ export async function getLatestTelemetryWithVerification(
     .limit(1);
 
   return { latest, verification: verification ?? null };
+}
+
+/**
+ * Most recent telemetry record for a device that the agent independently
+ * marked VERIFIED (settlement receipt + content-hash match).
+ */
+export async function getLatestVerifiedTelemetry(
+  db: Database,
+  deviceId: string,
+) {
+  const [row] = await db
+    .select({
+      record: telemetryRecords,
+      verification: agentVerificationResults,
+    })
+    .from(telemetryRecords)
+    .innerJoin(
+      agentVerificationResults,
+      eq(agentVerificationResults.telemetryRecordId, telemetryRecords.id),
+    )
+    .where(
+      and(
+        eq(telemetryRecords.deviceId, deviceId),
+        eq(agentVerificationResults.status, 'VERIFIED'),
+      ),
+    )
+    .orderBy(
+      desc(telemetryRecords.recordedAt),
+      desc(telemetryRecords.id),
+      desc(agentVerificationResults.verifiedAt),
+    )
+    .limit(1);
+
+  if (row === undefined) {
+    return { record: null, verification: null };
+  }
+
+  return { record: row.record, verification: row.verification };
 }
 
 async function buildSnapshotForWallets(
@@ -237,10 +276,14 @@ export async function listOwnerTelemetryHistoryForDevice(
 }
 
 /**
- * Device detail for bound wallet owners: full historical telemetry payloads
- * plus settlement/verification fields for independent Verify actions.
+ * Device detail for a single dashboard owner principal: full historical
+ * telemetry payloads plus settlement/verification fields.
  */
-export async function getBoundDeviceDetail(db: Database, deviceId: string) {
+export async function getBoundDeviceDetail(
+  db: Database,
+  deviceId: string,
+  principalId: string,
+) {
   const [device] = await db
     .select()
     .from(devices)
@@ -250,7 +293,7 @@ export async function getBoundDeviceDetail(db: Database, deviceId: string) {
     return null;
   }
 
-  const walletRows = await listBoundWallets(db);
+  const walletRows = await listWalletsForPrincipal(db, principalId);
   const wallet = walletRows.find((row) => row.id === device.walletId);
   if (wallet === undefined) {
     return null;

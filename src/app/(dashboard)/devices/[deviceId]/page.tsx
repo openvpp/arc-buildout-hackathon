@@ -76,8 +76,16 @@ export default async function DeviceDetailPage({ params }: PageProps) {
           description="Vehicle details and telemetry history."
         />
         <EmptyState
-          title="Unavailable"
-          description="Could not load this vehicle right now."
+          title={
+            loaded.reason === 'unauthenticated'
+              ? 'Connect your wallet'
+              : 'Unavailable'
+          }
+          description={
+            loaded.reason === 'unauthenticated'
+              ? 'Connect a wallet to view vehicles bound to that account.'
+              : 'Could not load this vehicle right now.'
+          }
         />
       </div>
     );

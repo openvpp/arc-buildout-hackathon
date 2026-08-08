@@ -44,6 +44,7 @@ describe('enode webhook mapper', () => {
         vendor: 'TESLA',
         chargeState: {
           batteryLevel: 72,
+          batteryCapacity: 75.5,
           isCharging: true,
           isPluggedIn: true,
           range: 280,
@@ -66,6 +67,7 @@ describe('enode webhook mapper', () => {
     const mapped = mapUnifiedEnodeVehicleEvent(coerced);
     expect(mapped.externalDeviceId).toBe('veh-prod-1');
     expect(mapped.data.stateOfChargePercent).toBe(72);
+    expect(mapped.data.batteryCapacityKilowattHours).toBe(75.5);
     expect(mapped.data.isCharging).toBe(true);
     expect(mapped.data.odometerKilometers).toBe(12_000);
     expect(mapped.data.latitude).toBe(37.77);

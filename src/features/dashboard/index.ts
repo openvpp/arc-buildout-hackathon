@@ -1,5 +1,6 @@
 export { loadDashboardSnapshot } from './load-snapshot';
 export { loadDeviceDetail } from './load-device-detail';
+export { DashboardSessionBridge } from './dashboard-session-bridge';
 export {
   createDemoTelemetryApi,
   type DemoTelemetryResponse,

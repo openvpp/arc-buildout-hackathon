@@ -2,6 +2,7 @@ import { eq, inArray } from 'drizzle-orm';
 
 import {
   getLatestTelemetryWithVerification,
+  getLatestVerifiedTelemetry,
   listBoundWallets,
   listDevicesForWallet,
   listRecentTelemetryForDevice,
@@ -94,10 +95,15 @@ export async function listAdminSnapshotForBoundWallets(db: Database) {
         db,
         device.id,
       );
+      const { record: latestVerified } = await getLatestVerifiedTelemetry(
+        db,
+        device.id,
+      );
       devicesWithTelemetry.push({
         device,
         latest,
         verification,
+        latestVerified,
       });
     }
 

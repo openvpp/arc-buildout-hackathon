@@ -65,6 +65,7 @@ async function main(): Promise<void> {
   const now = new Date();
   const data = {
     stateOfChargePercent: 72,
+    batteryCapacityKilowattHours: 75,
     isCharging: true,
     isPluggedIn: true,
     rangeKilometers: 280,

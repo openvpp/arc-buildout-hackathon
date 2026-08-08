@@ -6,6 +6,7 @@ describe('readTelemetryReadingFields', () => {
   it('formats a full normalized payload', () => {
     const fields = readTelemetryReadingFields({
       stateOfChargePercent: 81,
+      batteryCapacityKilowattHours: 75,
       isCharging: true,
       isPluggedIn: true,
       rangeKilometers: 240,
@@ -18,6 +19,7 @@ describe('readTelemetryReadingFields', () => {
 
     expect(fields).toEqual([
       { label: 'State of charge', value: '81%' },
+      { label: 'Battery capacity', value: '75 kWh' },
       { label: 'Charging', value: 'Yes' },
       { label: 'Plugged in', value: 'Yes' },
       { label: 'Range', value: '240 km' },
@@ -39,7 +41,7 @@ describe('readTelemetryReadingFields', () => {
       readTelemetryReadingFields({
         stateOfChargePercent: null,
         isCharging: false,
-      })[1]?.value,
+      })[2]?.value,
     ).toBe('No');
   });
 });

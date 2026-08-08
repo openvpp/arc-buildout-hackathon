@@ -3,9 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loadAdminSnapshot = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 
-vi.mock('@/features/admin', () => ({
-  loadAdminSnapshot: () => loadAdminSnapshot(),
-}));
+vi.mock('@/features/admin', async () => {
+  const { summarizeFleetFlexibility, formatKilowattHours } =
+    await import('@/features/admin/fleet-flexibility');
+  return {
+    loadAdminSnapshot: () => loadAdminSnapshot(),
+    summarizeFleetFlexibility,
+    formatKilowattHours,
+  };
+});
 
 describe('AdminPage', () => {
   beforeEach(() => {
@@ -72,6 +78,12 @@ describe('AdminPage', () => {
                 status: 'VERIFIED',
                 paymentTransactionHash: '0xpaymenthash0123456789',
               },
+              latestVerified: {
+                telemetryPayload: {
+                  stateOfChargePercent: 10,
+                  batteryCapacityKilowattHours: 75,
+                },
+              },
             },
           ],
         },
@@ -83,14 +95,23 @@ describe('AdminPage', () => {
     const ui = await AdminPage();
     render(ui);
 
-    expect(screen.getByText('Owner wallet')).toBeInTheDocument();
+    expect(screen.getAllByText('Owner wallet').length).toBeGreaterThanOrEqual(
+      1,
+    );
     expect(
       screen.getByText(/web3auth:subject-1 · dashboard_user · owner/),
     ).toBeInTheDocument();
-    expect(screen.getByText('Demo EV')).toBeInTheDocument();
+    expect(screen.getAllByText('Demo EV').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('VERIFIED')).toBeInTheDocument();
     expect(screen.getByText('Unlocked')).toBeInTheDocument();
     expect(screen.getByText(/DemoOEM · Sedan/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: 'Fleet flexibility — charge headroom',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Total fleet headroom')).toBeInTheDocument();
+    expect(screen.getAllByText('67.5 kWh').length).toBeGreaterThanOrEqual(1);
     expect(
       screen.getByRole('link', { name: 'View vehicle & full telemetry' }),
     ).toHaveAttribute('href', '/admin/devices/device-1');

@@ -20,6 +20,10 @@ export function readTelemetryReadingFields(
       value: formatPercent(record['stateOfChargePercent']),
     },
     {
+      label: 'Battery capacity',
+      value: formatKilowattHours(record['batteryCapacityKilowattHours']),
+    },
+    {
       label: 'Charging',
       value: formatNullableBoolean(record['isCharging']),
     },
@@ -48,6 +52,7 @@ export function readTelemetryReadingFields(
 
 const EMPTY_FIELDS: readonly TelemetryReadingField[] = [
   { label: 'State of charge', value: '—' },
+  { label: 'Battery capacity', value: '—' },
   { label: 'Charging', value: '—' },
   { label: 'Plugged in', value: '—' },
   { label: 'Range', value: '—' },
@@ -82,4 +87,11 @@ function formatKilowatts(value: unknown): string {
     return '—';
   }
   return `${value} kW`;
+}
+
+function formatKilowattHours(value: unknown): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '—';
+  }
+  return `${value} kWh`;
 }

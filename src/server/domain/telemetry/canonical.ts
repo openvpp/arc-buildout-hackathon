@@ -12,6 +12,8 @@ import {
  */
 export type NormalizedTelemetryData = {
   readonly stateOfChargePercent: number | null;
+  /** Usable pack size from Enode `chargeState.batteryCapacity` (kWh). */
+  readonly batteryCapacityKilowattHours: number | null;
   readonly isCharging: boolean | null;
   readonly isPluggedIn: boolean | null;
   readonly rangeKilometers: number | null;

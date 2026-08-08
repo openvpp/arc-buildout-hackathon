@@ -115,6 +115,7 @@ async function main(): Promise<void> {
       vendor: 'TESLA',
       chargeState: {
         batteryLevel,
+        batteryCapacity: 75,
         isCharging: batteryLevel < 80,
         isPluggedIn: true,
         range: 180 + batteryLevel,

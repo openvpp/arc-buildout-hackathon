@@ -23,7 +23,8 @@ export const TELEMETRY_HASH_ALGORITHM = 'SHA-256' as const;
 /** Canonicalization schema version for provenance-covered telemetry fields. */
 export const TELEMETRY_CANONICALIZATION_VERSION = '1.0.0' as const;
 
-export const TELEMETRY_SCHEMA_VERSION = '1.0.0' as const;
+/** Bumped when normalized telemetry fields change (additive nullable fields OK). */
+export const TELEMETRY_SCHEMA_VERSION = '1.1.0' as const;
 
 export const OUTBOX_STATUSES = [
   'pending',

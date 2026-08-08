@@ -26,6 +26,7 @@ describe('canonical telemetry hashing', () => {
       receivedAt: new Date('2026-01-01T00:00:01.000Z'),
       data: {
         stateOfChargePercent: 80,
+        batteryCapacityKilowattHours: 75,
         isCharging: true,
         isPluggedIn: true,
         rangeKilometers: 250,
