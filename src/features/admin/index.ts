@@ -6,6 +6,15 @@
 export { AdminLogoutButton } from './logout-button';
 export { AdminLoginForm } from './login-form';
 export { loginAdmin, type AdminLoginState } from './login-action';
+export { AdminShell } from './admin-shell';
+export { AdminSidebarNav } from './admin-sidebar-nav';
+export { ADMIN_NAV, type AdminNavItem } from './admin-nav';
+export { AdminUnavailableState } from './admin-unavailable-state';
+export {
+  agentVerificationBadge,
+  headroomUnavailableLabel,
+  paymentStatusBadge,
+} from './admin-display';
 export {
   summarizeFleetFlexibility,
   formatKilowattHours,

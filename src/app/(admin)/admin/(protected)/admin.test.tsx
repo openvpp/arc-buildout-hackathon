@@ -7,16 +7,7 @@ vi.mock('@/features/admin/server', () => ({
   loadAdminSnapshot: () => loadAdminSnapshot(),
 }));
 
-vi.mock('@/features/admin', async () => {
-  const { summarizeFleetFlexibility, formatKilowattHours } =
-    await import('@/features/admin/fleet-flexibility');
-  return {
-    summarizeFleetFlexibility,
-    formatKilowattHours,
-  };
-});
-
-describe('AdminPage', () => {
+describe('AdminHomePage', () => {
   beforeEach(() => {
     loadAdminSnapshot.mockReset();
     vi.resetModules();
@@ -33,12 +24,12 @@ describe('AdminPage', () => {
     render(ui);
 
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Super Admin' }),
+      screen.getByRole('heading', { level: 1, name: 'Home' }),
     ).toBeInTheDocument();
     expect(screen.getByText('No data')).toBeInTheDocument();
   });
 
-  it('renders wallets, principals, and device cards with detail links', async () => {
+  it('renders overview cards with links to section routes', async () => {
     loadAdminSnapshot.mockResolvedValue({
       ok: true as const,
       payments: [
@@ -118,30 +109,25 @@ describe('AdminPage', () => {
     const ui = await AdminPage();
     render(ui);
 
-    expect(screen.getAllByText('Owner wallet').length).toBeGreaterThanOrEqual(
-      1,
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Home' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('67.5 kWh')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View devices' })).toHaveAttribute(
+      'href',
+      '/admin/devices',
+    );
+    expect(screen.getByRole('link', { name: 'View payments' })).toHaveAttribute(
+      'href',
+      '/admin/payments',
     );
     expect(
-      screen.getByText(/web3auth:subject-1 · dashboard_user · owner/),
-    ).toBeInTheDocument();
-    expect(screen.getAllByText('Demo EV').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('VERIFIED')).toBeInTheDocument();
-    expect(screen.getByText('Unlocked')).toBeInTheDocument();
-    expect(screen.getByText(/DemoOEM · Sedan/)).toBeInTheDocument();
+      screen.getByRole('link', { name: 'View fleet flexibility' }),
+    ).toHaveAttribute('href', '/admin/fleet-flexibility');
     expect(
-      screen.getByRole('heading', {
+      screen.queryByRole('heading', {
         name: 'Fleet flexibility — charge headroom',
       }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Total fleet headroom')).toBeInTheDocument();
-    expect(screen.getAllByText('67.5 kWh').length).toBeGreaterThanOrEqual(1);
-    expect(
-      screen.getByRole('heading', { name: 'Nanopayments' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText('0.0004 USDC')).toBeInTheDocument();
-    expect(screen.getByText('confirmed')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'View vehicle & full telemetry' }),
-    ).toHaveAttribute('href', '/admin/devices/device-1');
+    ).not.toBeInTheDocument();
   });
 });
