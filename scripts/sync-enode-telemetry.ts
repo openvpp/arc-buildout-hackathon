@@ -28,20 +28,24 @@ function parseArgs(argv: readonly string[]): CliOptions {
   let missingOnly = false;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    // pnpm/npm may forward a bare `--` separator into argv; ignore it.
+    if (arg === undefined || arg === '--') {
+      continue;
+    }
     if (arg === '--missing-only') {
       missingOnly = true;
       continue;
     }
     if (arg === '--device-id') {
       const next = argv[i + 1];
-      if (next === undefined || next.startsWith('--')) {
+      if (next === undefined || next === '--' || next.startsWith('--')) {
         throw new Error('--device-id requires a uuid value');
       }
       deviceId = next;
       i += 1;
       continue;
     }
-    if (arg !== undefined && arg.startsWith('--')) {
+    if (arg.startsWith('--')) {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
