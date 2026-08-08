@@ -6,6 +6,9 @@
 /.next/
 /out/
 
+# Droplet deploy flock (created on the server, not in git)
+/.deploy/
+
 # Production build
 /build
 

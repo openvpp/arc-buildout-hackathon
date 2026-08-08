@@ -14,6 +14,18 @@ if [[ ! -f .env.local ]]; then
   exit 1
 fi
 
+# Serialize deploys on this host (overlapping CI runs / leftover builds).
+mkdir -p "$ROOT/.deploy"
+exec 9>"$ROOT/.deploy/deploy.lock"
+echo "==> Acquiring deploy lock"
+flock 9
+
+# Next refuses to start if .next/lock exists from a crash or overlapping build.
+if [[ -f "$ROOT/.next/lock" ]]; then
+  echo "==> Clearing stale Next.js build lock (.next/lock)"
+  rm -f "$ROOT/.next/lock"
+fi
+
 echo "==> Install dependencies"
 corepack enable
 pnpm install --frozen-lockfile

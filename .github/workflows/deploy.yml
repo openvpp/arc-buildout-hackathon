@@ -5,6 +5,7 @@ on:
     branches: [main]
 
 concurrency:
+  # Queue deploys on main — do not cancel mid-build (droplet next build lock).
   group: deploy-production
   cancel-in-progress: false
 
