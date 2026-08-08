@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { summarizeFleetFlexibility } from '@/features/admin';
+import { summarizeFleetFlexibility } from './fleet-flexibility';
 
 describe('summarizeFleetFlexibility', () => {
   it('totals headroom from latest verified readings only', () => {
