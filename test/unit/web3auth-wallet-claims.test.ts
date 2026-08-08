@@ -2,6 +2,8 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { describe, expect, it } from 'vitest';
 
 import {
+  decodeJwtPayloadUnsafe,
+  describeIdTokenShape,
   ownedEvmAddressesFromIdToken,
   resolveWalletAddressForOnboarding,
 } from '@/lib/auth/web3auth-wallet-claims';
@@ -10,6 +12,18 @@ function encodeJwtPayload(payload: unknown): string {
   const json = JSON.stringify(payload);
   const b64 = Buffer.from(json, 'utf8').toString('base64url');
   return `hdr.${b64}.sig`;
+}
+
+/** Standard base64 (with + /) as some tokens / polyfills produce. */
+function encodeJwtPayloadStdBase64(payload: unknown): string {
+  const json = JSON.stringify(payload);
+  const b64 = Buffer.from(json, 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  // leave padding stripped like many JWT issuers
+  const stripped = b64.replace(/=+$/, '');
+  return `hdr.${stripped}.sig`;
 }
 
 describe('web3auth wallet claims', () => {
@@ -46,6 +60,22 @@ describe('web3auth wallet claims', () => {
       wallets: [{ type: 'ethereum', address: bound }],
     });
     expect(resolveWalletAddressForOnboarding({ idToken: token })).toBe(bound);
+  });
+
+  it('decodes JWT payload segments that use base64url without padding', () => {
+    const bound = '0x838ece260fd5ff3b48a05b2d3e0053fa469ddef5';
+    const token = encodeJwtPayloadStdBase64({
+      wallets: [{ type: 'ethereum', address: bound }],
+    });
+    expect(decodeJwtPayloadUnsafe(token)).toMatchObject({
+      wallets: [{ address: bound }],
+    });
+    expect(resolveWalletAddressForOnboarding({ idToken: token })).toBe(bound);
+  });
+
+  it('describes non-JWT shapes without treating them as wallets', () => {
+    expect(describeIdTokenShape('not-a-jwt')).toContain('parts=1');
+    expect(decodeJwtPayloadUnsafe('not-a-jwt')).toBeNull();
   });
 
   it('derives app-key addresses from secp256k1 public keys', () => {

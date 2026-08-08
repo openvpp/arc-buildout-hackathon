@@ -109,25 +109,48 @@ export function resolveIdentityWalletAddress(input: {
   return { address: primary, ownedAddresses: owned };
 }
 
+/** Safe shape summary for errors — never log the full token. */
+export function describeIdTokenShape(idToken: string): string {
+  const trimmed = idToken.trim();
+  const parts = trimmed.split('.');
+  return `len=${String(trimmed.length)} parts=${String(parts.length)} jwtish=${String(
+    parts.length === 3 && parts.every((part) => part.length > 0),
+  )}`;
+}
+
+/**
+ * Decode a base64url JWT segment in browser or Node.
+ * Prefer the atob/base64 path: Next's Buffer polyfill often lacks `base64url`
+ * and would throw → "identity token payload is invalid" for a real JWT.
+ */
+function decodeBase64UrlSegment(segment: string): string {
+  const normalized = segment.replace(/-/g, '+').replace(/_/g, '/');
+  const padLength = (4 - (normalized.length % 4)) % 4;
+  const padded = normalized + '='.repeat(padLength);
+
+  if (typeof atob === 'function') {
+    return atob(padded);
+  }
+  if (typeof Buffer !== 'undefined') {
+    try {
+      return Buffer.from(segment, 'base64url').toString('utf8');
+    } catch {
+      return Buffer.from(padded, 'base64').toString('utf8');
+    }
+  }
+  throw new Error('No base64 decoder available.');
+}
+
 /** Unverified JWT payload decode (browser or Node). */
 export function decodeJwtPayloadUnsafe(
   idToken: string,
 ): Record<string, unknown> | null {
-  const parts = idToken.split('.');
+  const parts = idToken.trim().split('.');
   if (parts.length < 2 || parts[1] === undefined) {
     return null;
   }
   try {
-    const segment = parts[1];
-    const json =
-      typeof Buffer !== 'undefined'
-        ? Buffer.from(segment, 'base64url').toString('utf8')
-        : atob(
-            segment
-              .replace(/-/g, '+')
-              .replace(/_/g, '/')
-              .padEnd(Math.ceil(segment.length / 4) * 4, '='),
-          );
+    const json = decodeBase64UrlSegment(parts[1]);
     const payload: unknown = JSON.parse(json);
     if (payload === null || typeof payload !== 'object') {
       return null;
@@ -152,7 +175,9 @@ export function resolveWalletAddressForOnboarding(input: {
 }): string {
   const payload = decodeJwtPayloadUnsafe(input.idToken);
   if (payload === null) {
-    throw new Error('Web3Auth identity token payload is invalid.');
+    throw new Error(
+      `Web3Auth identity token payload is invalid (${describeIdTokenShape(input.idToken)}).`,
+    );
   }
   return resolveIdentityWalletAddress({
     payload,
