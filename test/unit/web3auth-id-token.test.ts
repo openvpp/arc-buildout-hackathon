@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ownedEvmAddressesFromIdToken,
   resolveWalletAddressForOnboarding,
-} from '@/features/auth/web3auth-id-token';
+} from '@/lib/auth/web3auth-wallet-claims';
 
 function encodeJwtPayload(payload: unknown): string {
   const json = JSON.stringify(payload);
@@ -12,7 +12,7 @@ function encodeJwtPayload(payload: unknown): string {
   return `hdr.${b64}.sig`;
 }
 
-describe('web3auth-id-token helpers', () => {
+describe('web3auth wallet claims', () => {
   it('prefers session address when it is bound in the token', () => {
     const session = '0x84f688dc18c38690464dd42520a6cca29fdf09d5';
     const token = encodeJwtPayload({
@@ -26,7 +26,7 @@ describe('web3auth-id-token helpers', () => {
     ).toBe(session);
   });
 
-  it('falls back to id-token ethereum address when session differs', () => {
+  it('uses id-token address when session/wagmi address differs', () => {
     const session = '0x84f688dc18c38690464dd42520a6cca29fdf09d5';
     const bound = '0x838ece260fd5ff3b48a05b2d3e0053fa469ddef5';
     const token = encodeJwtPayload({
@@ -38,6 +38,14 @@ describe('web3auth-id-token helpers', () => {
         sessionAddress: session,
       }),
     ).toBe(bound);
+  });
+
+  it('resolves from token alone without session address', () => {
+    const bound = '0x838ece260fd5ff3b48a05b2d3e0053fa469ddef5';
+    const token = encodeJwtPayload({
+      wallets: [{ type: 'ethereum', address: bound }],
+    });
+    expect(resolveWalletAddressForOnboarding({ idToken: token })).toBe(bound);
   });
 
   it('derives app-key addresses from secp256k1 public keys', () => {

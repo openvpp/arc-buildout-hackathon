@@ -6,8 +6,9 @@ import {
   useWeb3AuthConnect,
   useWeb3AuthDisconnect,
 } from '@web3auth/modal/react';
-import { useCallback } from 'react';
-import { useAccount } from 'wagmi';
+import { useCallback, useEffect, useState } from 'react';
+
+import { resolveWalletAddressForOnboarding } from '@/lib/auth/web3auth-wallet-claims';
 
 export type WalletSession =
   | {
@@ -32,6 +33,8 @@ export type WalletSession =
 /**
  * Active only under Web3AuthProvider + WagmiProvider.
  * Callers must not use this when Web3Auth is unconfigured.
+ *
+ * Address source of truth: Web3Auth id-token `wallets` claim (not wagmi).
  */
 export function useConfiguredWalletSession(): Exclude<
   WalletSession,
@@ -46,18 +49,7 @@ export function useConfiguredWalletSession(): Exclude<
   } = useWeb3AuthConnect();
   const { disconnect } = useWeb3AuthDisconnect();
   const { getAuthTokenInfo } = useAuthTokenInfo();
-  const { address } = useAccount();
-
-  const normalizedAddress =
-    typeof address === 'string' && address.length > 0
-      ? address.toLowerCase()
-      : null;
-
-  const status: 'initializing' | 'disconnected' | 'connected' = !isInitialized
-    ? 'initializing'
-    : isConnected && normalizedAddress !== null
-      ? 'connected'
-      : 'disconnected';
+  const [identityAddress, setIdentityAddress] = useState<string | null>(null);
 
   const getIdToken = useCallback(async () => {
     const token = await getAuthTokenInfo();
@@ -66,6 +58,39 @@ export function useConfiguredWalletSession(): Exclude<
     }
     return token;
   }, [getAuthTokenInfo]);
+
+  useEffect(() => {
+    if (!isInitialized || !isConnected) {
+      return;
+    }
+    const cancelled = { current: false };
+    void (async () => {
+      try {
+        const idToken = await getIdToken();
+        const next = resolveWalletAddressForOnboarding({ idToken });
+        if (!cancelled.current) {
+          setIdentityAddress(next);
+        }
+      } catch {
+        if (!cancelled.current) {
+          setIdentityAddress(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled.current = true;
+    };
+  }, [isInitialized, isConnected, getIdToken]);
+
+  const address = isConnected ? identityAddress : null;
+
+  const status: 'initializing' | 'disconnected' | 'connected' = !isInitialized
+    ? 'initializing'
+    : isConnected && address !== null
+      ? 'connected'
+      : isConnected
+        ? 'initializing'
+        : 'disconnected';
 
   const connectWallet = useCallback(async () => {
     await connect();
@@ -78,7 +103,7 @@ export function useConfiguredWalletSession(): Exclude<
   return {
     status,
     isReady: isInitialized,
-    address: normalizedAddress,
+    address,
     isConnecting,
     connectError: connectError?.message ?? null,
     connect: connectWallet,

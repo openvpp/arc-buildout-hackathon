@@ -18,7 +18,11 @@ export const dynamic = 'force-dynamic';
 
 const bodySchema = z
   .object({
-    walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+    /** Optional hint only — identity wallet is taken from the verified JWT. */
+    walletAddress: z
+      .string()
+      .regex(/^0x[a-fA-F0-9]{40}$/)
+      .optional(),
   })
   .strict();
 
@@ -29,10 +33,24 @@ function cookieSecureFlag(): boolean {
 
 /**
  * Establish an httpOnly dashboard session for RSC loaders after Web3Auth login.
- * Body: { walletAddress }. Auth: Bearer idToken (or mock when allowed).
+ * Auth: Bearer idToken. Wallet comes from the JWT wallets claim.
  */
 export const POST = createRouteHandler(async (request, context) => {
-  const parsed = bodySchema.safeParse(await request.json());
+  let body: unknown = {};
+  const text = await request.text();
+  if (text.trim().length > 0) {
+    try {
+      body = JSON.parse(text) as unknown;
+    } catch {
+      throw new ApiError({
+        code: 'VALIDATION_FAILED',
+        message: 'Invalid dashboard session request body.',
+        status: 400,
+      });
+    }
+  }
+
+  const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
     throw new ApiError({
       code: 'VALIDATION_FAILED',
@@ -44,7 +62,7 @@ export const POST = createRouteHandler(async (request, context) => {
 
   const identity = await verifyWeb3AuthIdentity({
     authorizationHeader: request.headers.get('authorization'),
-    claimedWalletAddress: parsed.data.walletAddress,
+    claimedWalletAddress: parsed.data.walletAddress ?? null,
   });
 
   const container = getContainer();

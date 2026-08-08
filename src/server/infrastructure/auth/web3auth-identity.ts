@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
-import { publicKeyToAddress } from 'viem/accounts';
 
+import { resolveIdentityWalletAddress } from '@/lib/auth/web3auth-wallet-claims';
 import { getServerEnv } from '@/server/config/env';
 import { ApiError } from '@/server/transport/http/api-error';
 
@@ -9,13 +9,6 @@ export type VerifiedWeb3AuthIdentity = {
   readonly walletAddress: string;
   readonly email: string | null;
   readonly name: string | null;
-};
-
-type WalletClaim = {
-  readonly type?: unknown;
-  readonly curve?: unknown;
-  readonly public_key?: unknown;
-  readonly address?: unknown;
 };
 
 const DEFAULT_JWKS_URLS = [
@@ -42,33 +35,6 @@ function normalizeHexAddress(value: string): string {
   return trimmed;
 }
 
-function asWalletClaims(payload: JWTPayload): WalletClaim[] {
-  const wallets = payload['wallets'];
-  if (!Array.isArray(wallets)) {
-    return [];
-  }
-  return wallets.filter(
-    (entry): entry is WalletClaim =>
-      typeof entry === 'object' && entry !== null,
-  );
-}
-
-function addressFromSecp256k1PublicKey(publicKey: string): string | null {
-  const normalized = publicKey.trim().toLowerCase().replace(/^0x/, '');
-  if (!/^[0-9a-f]+$/.test(normalized)) {
-    return null;
-  }
-  // Compressed (33 bytes / 66 hex) or uncompressed (65 bytes / 130 hex).
-  if (normalized.length !== 66 && normalized.length !== 130) {
-    return null;
-  }
-  try {
-    return publicKeyToAddress(`0x${normalized}`).toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
 function resolveSubject(payload: JWTPayload): string {
   const userId = payload['userId'];
   if (typeof userId === 'string' && userId.length > 0) {
@@ -90,56 +56,23 @@ function resolveSubject(payload: JWTPayload): string {
 
 function extractWalletAddress(
   payload: JWTPayload,
-  claimedAddress: string,
+  claimedAddress: string | null,
 ): string {
-  const wanted = normalizeHexAddress(claimedAddress);
-  const wallets = asWalletClaims(payload);
-
-  // Accept any wallets[].address (Web3Auth v2 may omit type, or use
-  // walletPublicAddress / app-key EVM address rather than provider eoaAddress).
-  for (const wallet of wallets) {
-    if (typeof wallet.address === 'string') {
-      if (wallet.address.trim().toLowerCase() === wanted) {
-        return wanted;
-      }
-    }
+  try {
+    return resolveIdentityWalletAddress({
+      payload,
+      claimedAddress,
+    }).address;
+  } catch {
+    throw new ApiError({
+      code: 'AUTHENTICATION_REQUIRED',
+      message: 'Web3Auth identity token has no bound EVM wallet.',
+      status: 401,
+      details: {
+        claimedWalletAddress: claimedAddress,
+      },
+    });
   }
-
-  for (const wallet of wallets) {
-    if (
-      (wallet.type === 'web3auth_app_key' || wallet.type === 'ethereum') &&
-      wallet.curve === 'secp256k1' &&
-      typeof wallet.public_key === 'string'
-    ) {
-      const derived = addressFromSecp256k1PublicKey(wallet.public_key);
-      if (derived === wanted) {
-        return wanted;
-      }
-    }
-  }
-
-  // Curve may be omitted on some app-key entries.
-  for (const wallet of wallets) {
-    if (
-      wallet.type === 'web3auth_app_key' &&
-      typeof wallet.public_key === 'string'
-    ) {
-      const derived = addressFromSecp256k1PublicKey(wallet.public_key);
-      if (derived === wanted) {
-        return wanted;
-      }
-    }
-  }
-
-  throw new ApiError({
-    code: 'ACCESS_DENIED',
-    message: 'Wallet address is not owned by the verified Web3Auth identity.',
-    status: 403,
-    details: {
-      claimedWalletAddress: wanted,
-      boundWalletCount: wallets.length,
-    },
-  });
 }
 
 export function extractBearerToken(
@@ -157,12 +90,14 @@ export function extractBearerToken(
 }
 
 /**
- * Verify Web3Auth identity token and that claimedAddress is bound to it.
- * Mock path (ALLOW_MOCK_ADAPTERS): Bearer `mock:0x…` proves address only.
+ * Verify Web3Auth identity token.
+ * Wallet identity comes from the JWT (`wallets` claims). An optional claimed
+ * address is used only when it is attested in the token; otherwise the primary
+ * JWT-bound address is used (no wagmi coupling).
  */
 export async function verifyWeb3AuthIdentity(input: {
   authorizationHeader: string | null;
-  claimedWalletAddress: string;
+  claimedWalletAddress?: string | null;
 }): Promise<VerifiedWeb3AuthIdentity> {
   const token = extractBearerToken(input.authorizationHeader);
   if (token === null) {
@@ -174,17 +109,15 @@ export async function verifyWeb3AuthIdentity(input: {
   }
 
   const env = getServerEnv();
-  const claimed = normalizeHexAddress(input.claimedWalletAddress);
+  const claimed =
+    input.claimedWalletAddress !== undefined &&
+    input.claimedWalletAddress !== null &&
+    input.claimedWalletAddress.trim().length > 0
+      ? normalizeHexAddress(input.claimedWalletAddress)
+      : null;
 
   if (env.ALLOW_MOCK_ADAPTERS && token.toLowerCase().startsWith('mock:')) {
     const mockAddress = normalizeHexAddress(token.slice('mock:'.length));
-    if (mockAddress !== claimed) {
-      throw new ApiError({
-        code: 'ACCESS_DENIED',
-        message: 'Mock identity address does not match claimed wallet.',
-        status: 403,
-      });
-    }
     return {
       subject: `mock:${mockAddress}`,
       walletAddress: mockAddress,

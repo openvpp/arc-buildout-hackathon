@@ -52,6 +52,15 @@ describe('verifyWeb3AuthIdentity mock path', () => {
     expect(identity.subject).toBe(`mock:${address}`);
   });
 
+  it('uses mock token wallet even when claimed address differs', async () => {
+    const address = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
+    const identity = await verifyWeb3AuthIdentity({
+      authorizationHeader: `Bearer mock:${address}`,
+      claimedWalletAddress: '0x1111111111111111111111111111111111111111',
+    });
+    expect(identity.walletAddress).toBe(address);
+  });
+
   it('rejects missing Authorization', async () => {
     await expect(
       verifyWeb3AuthIdentity({
@@ -59,15 +68,5 @@ describe('verifyWeb3AuthIdentity mock path', () => {
         claimedWalletAddress: '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
       }),
     ).rejects.toBeInstanceOf(ApiError);
-  });
-
-  it('rejects mock address mismatch', async () => {
-    await expect(
-      verifyWeb3AuthIdentity({
-        authorizationHeader:
-          'Bearer mock:0xabcdefabcdefabcdefabcdefabcdefabcdefabcd',
-        claimedWalletAddress: '0x1111111111111111111111111111111111111111',
-      }),
-    ).rejects.toMatchObject({ code: 'ACCESS_DENIED', status: 403 });
   });
 });

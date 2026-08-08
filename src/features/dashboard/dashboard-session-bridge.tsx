@@ -36,8 +36,8 @@ function DashboardSessionSyncInner() {
       void (async () => {
         try {
           const idToken = await getIdToken();
-          // Always send the same address shown in the topbar (wagmi useAccount).
-          await sessionApi.establish({ idToken, walletAddress: address });
+          // Wallet comes from the verified JWT on the server — no wagmi claim.
+          await sessionApi.establish({ idToken });
           syncedAddressRef.current = address;
           clearedUnauthRef.current = false;
           setSyncError(null);

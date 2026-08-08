@@ -17,14 +17,11 @@ const clearSchema = z.object({
  */
 export function createDashboardSessionApi(client: ApiClient = new ApiClient()) {
   return {
-    async establish(input: {
-      readonly idToken: string;
-      readonly walletAddress: string;
-    }) {
+    async establish(input: { readonly idToken: string }) {
       const result = await client.request('/api/v1/dashboard/session', {
         method: 'POST',
         headers: { Authorization: `Bearer ${input.idToken}` },
-        body: { walletAddress: input.walletAddress },
+        body: {},
         schema: establishSchema,
       });
       if (!result.ok) {
