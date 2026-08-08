@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
 import { PageHeader } from '@/components/common/page-header';
-import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import {
+  AdminHomeMetricCard,
   AdminUnavailableState,
   formatKilowattHours,
   summarizeFleetFlexibility,
@@ -52,94 +51,82 @@ export default async function AdminHomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Home"
-        description="Cross-tenant overview. Open Fleet flexibility, Payments, or Devices from the sidebar for detail."
-      />
+      <div className="relative overflow-hidden rounded-2xl border border-sky-200/70 bg-gradient-to-br from-sky-50 via-white to-emerald-50 px-5 py-6 dark:border-slate-800 dark:from-sky-950/40 dark:via-slate-950 dark:to-emerald-950/30">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-sky-200/40 blur-3xl dark:bg-sky-500/10"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-20 -left-8 h-44 w-44 rounded-full bg-emerald-200/40 blur-3xl dark:bg-emerald-500/10"
+        />
+        <div className="relative">
+          <PageHeader
+            title="Home"
+            description="Cross-tenant pulse for the demo. Jump into fleet flexibility, payments, or devices from here or the sidebar."
+          />
+        </div>
+      </div>
 
       <section
         aria-labelledby="admin-overview-heading"
         className="flex flex-col gap-3"
       >
-        <h2 id="admin-overview-heading" className="sr-only">
-          Overview
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardTitle>Wallets</CardTitle>
-            <CardDescription>
-              <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                {walletCount}
-              </span>{' '}
-              bound
-            </CardDescription>
-          </Card>
-          <Card>
-            <CardTitle>Devices</CardTitle>
-            <CardDescription>
-              <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                {deviceCount}
-              </span>{' '}
-              connected
-              <Link
-                href="/admin/devices"
-                className="mt-2 block text-xs font-medium text-slate-800 underline decoration-2 underline-offset-4 dark:text-slate-200"
-              >
-                View devices
-              </Link>
-            </CardDescription>
-          </Card>
-          <Card>
-            <CardTitle>Principals</CardTitle>
-            <CardDescription>
-              <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                {principalCount}
-              </span>{' '}
-              bindings
-            </CardDescription>
-          </Card>
-          <Card>
-            <CardTitle>Verified latest</CardTitle>
-            <CardDescription>
-              <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                {verifiedCount}
-              </span>{' '}
-              devices
-            </CardDescription>
-          </Card>
-          <Card>
-            <CardTitle>Payments</CardTitle>
-            <CardDescription>
-              <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                {paymentCount}
-              </span>{' '}
-              recent
-              <Link
-                href="/admin/payments"
-                className="mt-2 block text-xs font-medium text-slate-800 underline decoration-2 underline-offset-4 dark:text-slate-200"
-              >
-                View payments
-              </Link>
-            </CardDescription>
-          </Card>
-          <Card>
-            <CardTitle>Fleet headroom</CardTitle>
-            <CardDescription>
-              <span className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                {formatKilowattHours(flexibility.totalHeadroomKilowattHours)}
-              </span>
-              <span className="mt-1 block text-xs text-slate-500">
-                from {flexibility.includedVehicleCount} of {deviceCount}{' '}
-                vehicles with verified SoC + capacity
-              </span>
-              <Link
-                href="/admin/fleet-flexibility"
-                className="mt-2 block text-xs font-medium text-slate-800 underline decoration-2 underline-offset-4 dark:text-slate-200"
-              >
-                View fleet flexibility
-              </Link>
-            </CardDescription>
-          </Card>
+        <div className="flex items-end justify-between gap-3">
+          <h2
+            id="admin-overview-heading"
+            className="text-sm font-semibold tracking-wide text-slate-700 uppercase dark:text-slate-300"
+          >
+            Overview
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Live from Postgres · independently verified where noted
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <AdminHomeMetricCard
+            tone="slate"
+            title="Wallets"
+            value={walletCount}
+            meta="bound across tenants"
+          />
+          <AdminHomeMetricCard
+            tone="sky"
+            title="Devices"
+            value={deviceCount}
+            meta="connected EVs"
+            href="/admin/devices"
+            linkLabel="View devices →"
+          />
+          <AdminHomeMetricCard
+            tone="cyan"
+            title="Principals"
+            value={principalCount}
+            meta="wallet bindings"
+          />
+          <AdminHomeMetricCard
+            tone="emerald"
+            title="Verified latest"
+            value={verifiedCount}
+            meta="devices with independent VERIFIED evidence"
+          />
+          <AdminHomeMetricCard
+            tone="amber"
+            title="Payments"
+            value={paymentCount}
+            meta="recent settled nanopayments"
+            href="/admin/payments"
+            linkLabel="View payments →"
+          />
+          <AdminHomeMetricCard
+            tone="lime"
+            title="Fleet headroom"
+            value={formatKilowattHours(flexibility.totalHeadroomKilowattHours)}
+            meta={`from ${flexibility.includedVehicleCount} of ${deviceCount} vehicles with verified SoC + capacity`}
+            href="/admin/fleet-flexibility"
+            linkLabel="View fleet flexibility →"
+          />
         </div>
       </section>
     </div>

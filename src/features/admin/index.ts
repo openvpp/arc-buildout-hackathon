@@ -11,6 +11,10 @@ export { AdminSidebarNav } from './admin-sidebar-nav';
 export { ADMIN_NAV, type AdminNavItem } from './admin-nav';
 export { AdminUnavailableState } from './admin-unavailable-state';
 export {
+  AdminHomeMetricCard,
+  type AdminHomeTone,
+} from './admin-home-metric-card';
+export {
   agentVerificationBadge,
   headroomUnavailableLabel,
   paymentStatusBadge,

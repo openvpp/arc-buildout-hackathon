@@ -113,21 +113,15 @@ describe('AdminHomePage', () => {
       screen.getByRole('heading', { level: 1, name: 'Home' }),
     ).toBeInTheDocument();
     expect(screen.getByText('67.5 kWh')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View devices' })).toHaveAttribute(
-      'href',
-      '/admin/devices',
-    );
-    expect(screen.getByRole('link', { name: 'View payments' })).toHaveAttribute(
-      'href',
-      '/admin/payments',
-    );
     expect(
-      screen.getByRole('link', { name: 'View fleet flexibility' }),
+      screen.getByRole('link', { name: 'View devices →' }),
+    ).toHaveAttribute('href', '/admin/devices');
+    expect(
+      screen.getByRole('link', { name: 'View payments →' }),
+    ).toHaveAttribute('href', '/admin/payments');
+    expect(
+      screen.getByRole('link', { name: 'View fleet flexibility →' }),
     ).toHaveAttribute('href', '/admin/fleet-flexibility');
-    expect(
-      screen.queryByRole('heading', {
-        name: 'Fleet flexibility — charge headroom',
-      }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText('Overview')).toBeInTheDocument();
   });
 });
