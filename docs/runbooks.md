@@ -15,6 +15,43 @@ do not treat it as the live money flow.
 - **Reconcile:** after recovery, inspect unfinished deliveries / outbox
 - **Audit:** record outage window and actions
 
+**Never** run `docker compose down -v` on the droplet — that deletes the
+Postgres volume. Prefer `docker compose stop` / `restart` without `-v`.
+Never pay “readme_to_recover” ransom databases; restore from backup or
+re-import from Enode (`pnpm enode:import-vehicles`).
+
+## Postgres local backup (droplet)
+
+Nightly dump cron (root): `15 3 * * * /opt/ev-telemetry/scripts/backup-postgres.sh`
+
+- **Path:** `/var/backups/ev-telemetry/ev_telemetry-YYYYMMDD-HHMM.dump` (`-Fc`)
+- **Retention:** 7 days
+- **Log:** `/var/log/ev-telemetry-backup.log`
+- **Manual run:** `bash /opt/ev-telemetry/scripts/backup-postgres.sh`
+
+**Restore (destructive — empty/replace app DB):**
+
+```bash
+cd /opt/ev-telemetry
+# pick a dump
+DUMP=/var/backups/ev-telemetry/ev_telemetry-YYYYMMDD-HHMM.dump
+
+# Drop + recreate app DB inside the container, then restore custom-format dump
+docker exec -i ev-telemetry-postgres psql -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+  WHERE datname = 'ev_telemetry' AND pid <> pg_backend_pid();
+DROP DATABASE IF EXISTS ev_telemetry;
+CREATE DATABASE ev_telemetry OWNER postgres;
+SQL
+docker exec -i ev-telemetry-postgres pg_restore -U postgres -d ev_telemetry --clean --if-exists <"$DUMP"
+
+pm2 restart web worker
+curl -fsS http://127.0.0.1:3000/api/readiness
+```
+
+If the schema is missing but Enode Links remain, remigrate +
+`pnpm enode:import-vehicles` instead of a full restore.
+
 ## Circle Gateway facilitator unavailable
 
 - **Detect:** settle failures `PAYMENT_VERIFICATION_UNAVAILABLE` / `402` after signature
@@ -57,6 +94,50 @@ do not treat it as the live money flow.
 - **Diagnose:** secret rotation skew, raw-body mutation, using SHA-256 instead of Enode’s HMAC-SHA1 (`sha1=<hex>`), wrong secret from webhook create
 - **Remediate:** rotate/sync secrets; verify against raw bytes; never disable verification in production
 - **Audit:** count rejected deliveries
+
+### Operator: rotate Enode sandbox credentials / webhook secret
+
+1. In Enode developer console, rotate **sandbox** `CLIENT_SECRET` (leave sandbox
+   API/OAuth URLs unchanged).
+2. On the droplet, update `/opt/ev-telemetry/.env.local`:
+   - `ENODE_CLIENT_SECRET=…`
+   - If rotating the webhook: generate `ENODE_WEBHOOK_SECRET` (e.g. `openssl rand -hex 32`),
+     delete/recreate the sandbox webhook with that secret + public tunnel URL
+     `…/api/webhooks/enode`.
+3. Avoid frozen pm2 env overrides (they beat `--env-file`):
+
+```bash
+cd /opt/ev-telemetry
+unset ENODE_API_BASE_URL ENODE_OAUTH_TOKEN_URL ENODE_CLIENT_ID \
+  ENODE_CLIENT_SECRET ENODE_WEBHOOK_SECRET || true
+pm2 delete web worker 2>/dev/null || true
+pm2 start pnpm --name web -- start
+pm2 start pnpm --name worker -- worker:start
+pm2 save
+```
+
+4. Smoke-test signature (expect HTTP `202`):
+
+```bash
+cd /opt/ev-telemetry
+node --env-file-if-exists=.env.local <<'NODE'
+const crypto = require('crypto');
+const secret = process.env.ENODE_WEBHOOK_SECRET;
+const body = Buffer.from(
+  '[{"event":"enode:webhook:test","createdAt":"2026-08-08T00:00:00Z","version":"2024-10-01"}]',
+);
+const sig =
+  'sha1=' + crypto.createHmac('sha1', secret).update(body).digest('hex');
+require('child_process').execSync(
+  `curl -s -i -X POST http://127.0.0.1:3000/api/webhooks/enode ` +
+    `-H 'Content-Type: application/json' ` +
+    `-H 'x-enode-signature: ${sig}' ` +
+    `-H 'x-enode-delivery: test-${Date.now()}' ` +
+    `--data-binary '${body.toString()}'`,
+  { stdio: 'inherit' },
+);
+NODE
+```
 
 ## Worker queue backlog
 
