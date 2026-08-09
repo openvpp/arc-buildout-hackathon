@@ -175,6 +175,25 @@ export async function requestLatestTelemetry(input: {
     input.principal.principalId,
     device.id,
   );
+  const existingDelivery = await findDeliveryForPurchase(
+    input.db,
+    input.principal.principalId,
+    latest.id,
+  );
+  const hasPaymentSignature =
+    input.paymentSignatureHeader !== null &&
+    input.paymentSignatureHeader.length > 0;
+
+  // Concurrent / retried settle must redeliver when a signature is present,
+  // even if the agent cursor already advanced. Unsigned polls stay NO_NEW_RECORD.
+  if (existingDelivery !== null && hasPaymentSignature) {
+    return await buildDeliveredFromExisting({
+      db: input.db,
+      existingDelivery,
+      record: latest,
+    });
+  }
+
   if (cursor?.lastDeliveredRecordId === latest.id) {
     return {
       kind: 'NO_NEW_RECORD',
@@ -184,37 +203,11 @@ export async function requestLatestTelemetry(input: {
     };
   }
 
-  const existingDelivery = await findDeliveryForPurchase(
-    input.db,
-    input.principal.principalId,
-    latest.id,
-  );
   if (existingDelivery !== null) {
-    const paymentTxId = existingDelivery.paymentTransactionId;
-    if (paymentTxId === null) {
-      throw new ApiError({
-        code: 'INTERNAL_ERROR',
-        message: 'Delivery is missing a settlement payment transaction.',
-        status: 500,
-        expose: false,
-      });
-    }
-    const paymentTx = await findPaymentTransactionById(input.db, paymentTxId);
-    if (paymentTx === null) {
-      throw new ApiError({
-        code: 'INTERNAL_ERROR',
-        message: 'Settlement payment transaction not found for delivery.',
-        status: 500,
-        expose: false,
-      });
-    }
-    return buildDeliveredResult({
-      deliveryId: existingDelivery.id,
+    return await buildDeliveredFromExisting({
+      db: input.db,
+      existingDelivery,
       record: latest,
-      paymentRequirementId: existingDelivery.paymentRequirementId,
-      transactionHash: paymentTx.transactionHash,
-      verifiedAt: existingDelivery.deliveredAt.toISOString(),
-      chainId: String(paymentTx.chainId),
     });
   }
 
@@ -442,4 +435,56 @@ function buildDeliveredResult(input: {
       anchoredAt: input.record.anchoredAt?.toISOString() ?? null,
     },
   };
+}
+
+async function buildDeliveredFromExisting(input: {
+  db: Database;
+  existingDelivery: {
+    id: string;
+    paymentRequirementId: string;
+    paymentTransactionId: string | null;
+    deliveredAt: Date;
+  };
+  record: {
+    id: string;
+    deviceId: string;
+    schemaVersion: string;
+    recordedAt: Date;
+    receivedAt: Date;
+    telemetryPayload: Record<string, unknown>;
+    contentHash: string;
+    contentHashAlgorithm: string;
+    canonicalizationVersion: string;
+    anchorStatus: string;
+    anchorTransactionHash: string | null;
+    anchorBlockNumber: bigint | null;
+    anchoredAt: Date | null;
+  };
+}): Promise<LatestTelemetryResult> {
+  const paymentTxId = input.existingDelivery.paymentTransactionId;
+  if (paymentTxId === null) {
+    throw new ApiError({
+      code: 'INTERNAL_ERROR',
+      message: 'Delivery is missing a settlement payment transaction.',
+      status: 500,
+      expose: false,
+    });
+  }
+  const paymentTx = await findPaymentTransactionById(input.db, paymentTxId);
+  if (paymentTx === null) {
+    throw new ApiError({
+      code: 'INTERNAL_ERROR',
+      message: 'Settlement payment transaction not found for delivery.',
+      status: 500,
+      expose: false,
+    });
+  }
+  return buildDeliveredResult({
+    deliveryId: input.existingDelivery.id,
+    record: input.record,
+    paymentRequirementId: input.existingDelivery.paymentRequirementId,
+    transactionHash: paymentTx.transactionHash,
+    verifiedAt: input.existingDelivery.deliveredAt.toISOString(),
+    chainId: String(paymentTx.chainId),
+  });
 }
