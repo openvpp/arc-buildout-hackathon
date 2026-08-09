@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import {
   BatchFacilitatorClient,
   GATEWAY_AUTH_VALIDITY_WINDOW_SECONDS,
@@ -240,6 +242,11 @@ export function createMockCircleGatewaySeller(input?: {
     );
   }
 
+  // Unique per seller instance so integration tests sharing one DB do not
+  // collide on payment_transactions (chain_id, transaction_hash). Concurrent
+  // settle calls on the same instance still share one hash for exactly-once.
+  const defaultTransactionHash = `0x${randomBytes(32).toString('hex')}`;
+
   return {
     buildPaymentRequired(args) {
       return createCircleGatewaySeller().buildPaymentRequired(args);
@@ -251,8 +258,7 @@ export function createMockCircleGatewaySeller(input?: {
       return (
         input?.settleResult ?? {
           success: true,
-          transactionHash:
-            '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          transactionHash: defaultTransactionHash,
           payer: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
           network: ARC_TESTNET_CAIP2,
         }
