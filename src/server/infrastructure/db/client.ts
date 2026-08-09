@@ -92,7 +92,13 @@ export async function checkDatabaseConnectivity(
   const sqlClient = getSqlClient();
   try {
     const result = await Promise.race([
-      sqlClient`select 1 as ok`,
+      sqlClient`
+        select exists (
+          select 1
+          from information_schema.tables
+          where table_schema = 'public' and table_name = 'wallets'
+        ) as "walletsExist"
+      `,
       new Promise<never>((_, reject) => {
         setTimeout(() => {
           reject(new Error(`database ping timed out after ${timeoutMs}ms`));
@@ -102,6 +108,15 @@ export async function checkDatabaseConnectivity(
 
     if (!Array.isArray(result) || result.length === 0) {
       return { ok: false, error: 'empty ping response' };
+    }
+
+    const row = result[0] as { walletsExist?: unknown };
+    if (row.walletsExist !== true) {
+      return {
+        ok: false,
+        error:
+          'public.wallets missing (schema wiped or migrations not applied)',
+      };
     }
 
     return { ok: true };
