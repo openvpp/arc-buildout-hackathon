@@ -201,9 +201,11 @@ export default async function DeviceDetailPage({ params }: PageProps) {
                       <StatusBadge tone={rowBadge.tone}>
                         {rowBadge.label}
                       </StatusBadge>
-                      <StatusBadge tone="neutral">
-                        {row.anchorStatus}
-                      </StatusBadge>
+                      {row.anchorStatus !== 'unanchored' ? (
+                        <StatusBadge tone="neutral">
+                          {row.anchorStatus}
+                        </StatusBadge>
+                      ) : null}
                       {!isPaid ? (
                         <StatusBadge tone="warning">Locked</StatusBadge>
                       ) : null}

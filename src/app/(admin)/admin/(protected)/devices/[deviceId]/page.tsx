@@ -204,9 +204,11 @@ export default async function AdminDeviceDetailPage({ params }: PageProps) {
                       <StatusBadge tone={rowBadge.tone}>
                         {rowBadge.label}
                       </StatusBadge>
-                      <StatusBadge tone="neutral">
-                        {row.anchorStatus}
-                      </StatusBadge>
+                      {row.anchorStatus !== 'unanchored' ? (
+                        <StatusBadge tone="neutral">
+                          {row.anchorStatus}
+                        </StatusBadge>
+                      ) : null}
                       {isPaid ? (
                         <StatusBadge tone="success">Settled</StatusBadge>
                       ) : (
