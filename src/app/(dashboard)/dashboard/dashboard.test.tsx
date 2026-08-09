@@ -99,7 +99,7 @@ describe('DashboardPage', () => {
 
     expect(screen.getByText('Devices — request & unlock')).toBeInTheDocument();
     expect(screen.getByText('Locked')).toBeInTheDocument();
-    expect(screen.getByText('VERIFIED')).toBeInTheDocument();
+    expect(screen.getByText('Agent reported: VERIFIED')).toBeInTheDocument();
     expect(screen.getByText('Verified records')).toBeInTheDocument();
     expect(screen.queryByText(/0xdead/)).not.toBeInTheDocument();
     expect(screen.getByTestId('request-telemetry-panel')).toBeInTheDocument();

@@ -23,18 +23,18 @@ export function DeviceMintTransactionLink({
     return null;
   }
 
+  const suffix =
+    nftTokenId !== null && nftTokenId !== undefined && nftTokenId.length > 0
+      ? ` (#${nftTokenId})`
+      : '';
+
   if (isOnchainTxHash(nftTransactionHash)) {
     return (
       <ExternalLink
         href={arcTxExplorerUrl(nftTransactionHash)}
         className={linkClassName}
       >
-        View mint transaction
-        {nftTokenId !== null &&
-        nftTokenId !== undefined &&
-        nftTokenId.length > 0
-          ? ` (#${nftTokenId})`
-          : ''}
+        {`View mint transaction${suffix}`}
       </ExternalLink>
     );
   }

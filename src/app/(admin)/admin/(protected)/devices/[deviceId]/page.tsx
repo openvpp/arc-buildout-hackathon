@@ -11,6 +11,7 @@ import {
   DeviceEventTransactionLink,
   DeviceMintTransactionLink,
   SettlementPaymentRef,
+  agentVerificationBadge,
   deviceDisplayName,
   deviceStatusTone,
   formatTimestamp,
@@ -39,22 +40,6 @@ export async function generateMetadata({
     title: `${deviceDisplayName(loaded.detail.device)} · Super Admin`,
     description: 'Cross-tenant vehicle detail with unlocked telemetry.',
   };
-}
-
-function agentVerificationBadge(status: string | null | undefined): {
-  tone: 'neutral' | 'success' | 'danger' | 'warning';
-  label: string;
-} {
-  if (status === null || status === undefined) {
-    return { tone: 'neutral', label: 'Not verified' };
-  }
-  if (status === 'VERIFIED') {
-    return { tone: 'success', label: 'VERIFIED' };
-  }
-  if (status === 'PENDING_ONCHAIN') {
-    return { tone: 'warning', label: 'Pending on Arc' };
-  }
-  return { tone: 'danger', label: status };
 }
 
 export default async function AdminDeviceDetailPage({ params }: PageProps) {

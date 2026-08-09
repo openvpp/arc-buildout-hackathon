@@ -1,20 +1,6 @@
 import type { FleetFlexibilityVehicle } from './fleet-flexibility';
 
-export function agentVerificationBadge(status: string | undefined): {
-  tone: 'neutral' | 'success' | 'danger' | 'warning';
-  label: string;
-} {
-  if (status === undefined) {
-    return { tone: 'neutral', label: 'Not verified' };
-  }
-  if (status === 'VERIFIED') {
-    return { tone: 'success', label: 'VERIFIED' };
-  }
-  if (status === 'PENDING_ONCHAIN') {
-    return { tone: 'warning', label: 'Pending on Arc' };
-  }
-  return { tone: 'danger', label: status };
-}
+export { agentVerificationBadge } from '@/features/devices';
 
 export function headroomUnavailableLabel(
   vehicle: FleetFlexibilityVehicle,

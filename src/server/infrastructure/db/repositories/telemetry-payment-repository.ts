@@ -136,6 +136,18 @@ export async function findDeliveryForPurchase(
   return row ?? null;
 }
 
+export async function findPaymentTransactionById(
+  db: DbOrTx,
+  paymentTransactionId: string,
+) {
+  const [row] = await db
+    .select()
+    .from(paymentTransactions)
+    .where(eq(paymentTransactions.id, paymentTransactionId))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function findActivePaymentRequirement(
   db: DbOrTx,
   principalId: string,

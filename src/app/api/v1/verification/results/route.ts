@@ -1,9 +1,12 @@
 import { z } from 'zod';
 
+import {
+  AGENT_VERIFICATION_STATUSES,
+  recordAgentVerification,
+} from '@/server/application/verification/record-agent-verification';
 import { getContainer } from '@/server/bootstrap/container';
 import { API_KEY_HEADER } from '@/server/config/constants';
 import { credentialHasScope } from '@/server/infrastructure/auth/api-keys';
-import { agentVerificationResults } from '@/server/infrastructure/db/schema';
 import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
 import { createRouteHandler } from '@/server/transport/http/route-handler';
@@ -15,14 +18,7 @@ const bodySchema = z
   .object({
     telemetryRecordId: z.string().uuid(),
     paymentTransactionHash: z.string().min(1),
-    status: z.enum([
-      'VERIFIED',
-      'TX_MISSING',
-      'TX_FAILED',
-      'HASH_MISMATCH',
-      'ERROR',
-      'PENDING_ONCHAIN',
-    ]),
+    status: z.enum(AGENT_VERIFICATION_STATUSES),
     receiptFound: z.boolean(),
     receiptSuccess: z.boolean(),
     contentHashExpected: z.string().min(1),
@@ -55,43 +51,29 @@ export const POST = createRouteHandler(async (request, context) => {
     });
   }
 
-  const [row] = await container.db
-    .insert(agentVerificationResults)
-    .values({
-      principalId: principal.principalId,
+  const result = await recordAgentVerification({
+    db: container.db,
+    principal,
+    payload: {
       telemetryRecordId: parsed.data.telemetryRecordId,
-      paymentTransactionHash: parsed.data.paymentTransactionHash.toLowerCase(),
+      paymentTransactionHash: parsed.data.paymentTransactionHash,
       status: parsed.data.status,
       receiptFound: parsed.data.receiptFound,
       receiptSuccess: parsed.data.receiptSuccess,
       contentHashExpected: parsed.data.contentHashExpected,
       contentHashComputed: parsed.data.contentHashComputed,
       contentHashMatched: parsed.data.contentHashMatched,
-      details: parsed.data.details,
-      verifiedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: [
-        agentVerificationResults.principalId,
-        agentVerificationResults.telemetryRecordId,
-        agentVerificationResults.paymentTransactionHash,
-      ],
-      set: {
-        status: parsed.data.status,
-        receiptFound: parsed.data.receiptFound,
-        receiptSuccess: parsed.data.receiptSuccess,
-        contentHashComputed: parsed.data.contentHashComputed,
-        contentHashMatched: parsed.data.contentHashMatched,
-        details: parsed.data.details,
-        verifiedAt: new Date(),
-      },
-    })
-    .returning();
+      ...(parsed.data.details === undefined
+        ? {}
+        : { details: parsed.data.details }),
+    },
+  });
 
   return jsonOk(
     {
-      id: row?.id,
-      status: parsed.data.status,
+      id: result.id,
+      status: result.status,
+      source: result.source,
     },
     context.requestId,
     { status: 201 },

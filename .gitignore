@@ -30,7 +30,7 @@ next-env.d.ts
 #
 # `.env` holds ONLY public, non-secret NEXT_PUBLIC_* defaults and IS committed
 # so the boilerplate builds/runs zero-config. Server secrets belong in
-# `.env.local` / `.env.server.local` (git-ignored) — never in NEXT_PUBLIC_*.
+# `.env.local` (git-ignored) — never in NEXT_PUBLIC_*.
 .env.local
 .env.development.local
 .env.test.local

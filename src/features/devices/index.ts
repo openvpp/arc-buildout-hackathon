@@ -1,7 +1,8 @@
 /** Public surface of the devices feature. */
-export { PLACEHOLDER_DEVICES } from './placeholders';
+export { agentVerificationBadge } from './agent-verification-badge';
 export { DeviceEventTransactionLink } from './device-event-transaction-link';
 export { DeviceMintTransactionLink } from './device-mint-transaction-link';
+export { OnchainTxLink } from './onchain-tx-link';
 export { SettlementPaymentRef } from './settlement-payment-ref';
 export {
   arcTxExplorerUrl,

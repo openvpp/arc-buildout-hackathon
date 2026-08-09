@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeChargeHeadroom,
   sumChargeHeadroomKilowattHours,
-} from '@/server/domain/telemetry/fleet-headroom';
+} from '@/lib/telemetry/fleet-headroom';
 
 describe('computeChargeHeadroom', () => {
   it('matches the demo fleet example (75 kWh packs)', () => {

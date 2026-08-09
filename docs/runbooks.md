@@ -3,8 +3,7 @@
 Each runbook: detection → containment → diagnosis → remediation → reconciliation → audit.
 
 Primary payment rail is **Circle Gateway settle on the agent telemetry POST**.
-Legacy async ERC-20 `VERIFY_ARC_PAYMENT` reconciliation is a stub / future path —
-do not treat it as the live money flow.
+Facilitator settle is terminal for ledger credit (`payment_transactions.verification_status = confirmed` means facilitator-settled). There is no async Arc `VERIFY_ARC_PAYMENT` job.
 
 ## PostgreSQL unavailable
 
@@ -165,11 +164,31 @@ NODE
 
 ## Device event transaction stuck
 
-- **Detect:** telemetry `anchor_status` stuck in `submitted` (live DeviceNFT `recordDeviceEvent`)
-- **Contain:** do not invent `ANCHORED` status
-- **Diagnose:** RPC, contract, confirmations
-- **Remediate:** confirmation jobs (not implemented yet)
-- **Audit:** batch IDs affected
+- **Detect:** telemetry `anchor_status` stuck in `submitted` after DeviceNFT
+  `recordDeviceEvent` broadcast
+- **Contain:** do not invent `ANCHORED` status in the UI or DB by hand
+- **Diagnose:** worker logs for `ANCHOR_TELEMETRY` / `CHECK_ANCHOR_CONFIRMATIONS`;
+  Arc RPC; DeviceNFT contract; confirmation threshold
+- **Remediate:** ensure `pnpm worker:start` is running; jobs re-queue on
+  transient RPC failures. Inspect `outbox_events` for `failed` /
+  `dead_letter` rows for the telemetry record id
+- **Audit:** telemetry record id, anchor tx hash, outbox event ids
 
-Today deliveries may show provenance `PENDING`; that is expected until DeviceNFT events
-is implemented.
+Deliveries may show provenance `PENDING` until `CHECK_ANCHOR_CONFIRMATIONS`
+marks the DeviceNFT event anchored — that is expected under
+`PROVENANCE_DELIVERY_MODE=pending`.
+
+## Outbox retention
+
+Completed and dead-letter outbox rows grow unbounded. Ops purge example
+(PostgreSQL, ~30 days):
+
+```sql
+delete from outbox_events
+where status in ('completed', 'dead_letter')
+  and coalesce(processed_at, created_at) < now() - interval '30 days';
+```
+
+A TypeScript helper `purgeTerminalOutboxEvents` exists in
+`src/server/infrastructure/db/repositories/outbox-repository.ts` for scripted
+use.

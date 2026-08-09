@@ -17,6 +17,7 @@ import {
   findDeliveryForPurchase,
   findDeviceById,
   findLatestTelemetryForDevice,
+  findPaymentTransactionById,
   findWalletByNormalizedAddress,
   getAgentCursor,
   insertPaymentRequirement,
@@ -189,13 +190,31 @@ export async function requestLatestTelemetry(input: {
     latest.id,
   );
   if (existingDelivery !== null) {
+    const paymentTxId = existingDelivery.paymentTransactionId;
+    if (paymentTxId === null) {
+      throw new ApiError({
+        code: 'INTERNAL_ERROR',
+        message: 'Delivery is missing a settlement payment transaction.',
+        status: 500,
+        expose: false,
+      });
+    }
+    const paymentTx = await findPaymentTransactionById(input.db, paymentTxId);
+    if (paymentTx === null) {
+      throw new ApiError({
+        code: 'INTERNAL_ERROR',
+        message: 'Settlement payment transaction not found for delivery.',
+        status: 500,
+        expose: false,
+      });
+    }
     return buildDeliveredResult({
       deliveryId: existingDelivery.id,
       record: latest,
       paymentRequirementId: existingDelivery.paymentRequirementId,
-      transactionHash: '',
+      transactionHash: paymentTx.transactionHash,
       verifiedAt: existingDelivery.deliveredAt.toISOString(),
-      chainId: String(chainId),
+      chainId: String(paymentTx.chainId),
     });
   }
 

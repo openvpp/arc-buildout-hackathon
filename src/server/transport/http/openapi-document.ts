@@ -234,16 +234,22 @@ export const openApiDocument = {
     '/api/v1/verification/results': {
       post: {
         tags: ['Verification'],
-        summary: 'Persist agent-side Arc + content-hash verification',
+        summary:
+          'Persist agent-reported Arc + content-hash checks (not server-authoritative)',
         operationId: 'submitVerificationResult',
         security: [{ ApiKeyAuth: [] }],
-        responses: { '201': { description: 'Stored' } },
+        responses: {
+          '201': {
+            description: 'Stored agent_reported verification result',
+          },
+        },
       },
     },
     '/api/v1/verification/{telemetryRecordId}': {
       get: {
         tags: ['Verification'],
-        summary: 'Read agent verification status for a telemetry record',
+        summary:
+          'Read agent-reported verification status for a telemetry record',
         operationId: 'getVerificationResult',
         security: [{ ApiKeyAuth: [] }],
         parameters: [
@@ -254,7 +260,9 @@ export const openApiDocument = {
             schema: { type: 'string', format: 'uuid' },
           },
         ],
-        responses: { '200': { description: 'Verification snapshot' } },
+        responses: {
+          '200': { description: 'Agent-reported verification snapshot' },
+        },
       },
     },
   },

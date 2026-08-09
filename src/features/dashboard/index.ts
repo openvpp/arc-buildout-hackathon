@@ -6,8 +6,11 @@
 export { DashboardSessionBridge } from './dashboard-session-bridge';
 export {
   createDemoTelemetryApi,
+  createOwnerTelemetryApi,
   type DemoTelemetryResponse,
   type DemoVerifyResponse,
-} from './demo-telemetry-api';
+  type OwnerTelemetryResponse,
+  type OwnerVerifyResponse,
+} from './owner-telemetry-api';
 export { RequestTelemetryPanel } from './request-telemetry-panel';
 export { VerifyTelemetryButton } from './verify-telemetry-button';

@@ -9,6 +9,7 @@ import { RequestTelemetryPanel } from '@/features/dashboard';
 import { loadDashboardSnapshot } from '@/features/dashboard/server';
 import {
   DeviceMintTransactionLink,
+  agentVerificationBadge,
   deviceDisplayName,
   deviceStatusTone,
   formatTimestamp,
@@ -21,22 +22,7 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = 'force-dynamic';
-
-function agentVerificationBadge(status: string | undefined): {
-  tone: 'neutral' | 'success' | 'danger' | 'warning';
-  label: string;
-} {
-  if (status === undefined) {
-    return { tone: 'neutral', label: 'Not verified' };
-  }
-  if (status === 'VERIFIED') {
-    return { tone: 'success', label: 'VERIFIED' };
-  }
-  if (status === 'PENDING_ONCHAIN') {
-    return { tone: 'warning', label: 'Pending on Arc' };
-  }
-  return { tone: 'danger', label: status };
-}
+export const runtime = 'nodejs';
 
 export default async function DashboardPage() {
   const loaded = await loadDashboardSnapshot();

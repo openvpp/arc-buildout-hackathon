@@ -114,13 +114,21 @@ not on every commit.
 
 ## Validation process
 
-`pnpm validate` runs, in order:
+`pnpm validate` runs a fast local gate (no Postgres / e2e):
 
 ```
-format:check → lint → typecheck → test → build
+format:check → lint → typecheck → test:unit → build
 ```
 
-Run `pnpm test:e2e` separately (it starts a dev server and drives Chromium).
+`pnpm validate:backend` adds `db:check`, integration tests, and OpenAPI (needs
+Postgres for integration).
+
+`pnpm validate:ci` mirrors [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
+format, lint, typecheck, drizzle check + migrate, unit + integration, OpenAPI,
+build, and Playwright e2e.
+
+Run `pnpm test:e2e` separately when iterating on UI (starts a dev server and
+drives Chromium).
 
 ## Troubleshooting
 

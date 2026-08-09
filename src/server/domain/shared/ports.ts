@@ -120,38 +120,10 @@ export type OutboxRepository = {
 };
 
 /**
- * Payment verification port — production Arc adapter lands in a later phase.
- * Production must fail closed when a mock is not explicitly allowed.
+ * Payment verification port — retired for the Circle Gateway vertical slice.
+ * Settlement is terminal via Circle facilitator; do not add a second Arc
+ * payment-verification rail without an explicit product decision.
  */
-export type PaymentVerifier = {
-  verifyPayment(input: {
-    chainId: bigint;
-    transactionHash: string;
-    tokenContractAddress: string;
-    recipientAddress: string;
-    amountAtomic: string;
-    payerAddress: string | null;
-    requiredConfirmations: number;
-  }): Promise<
-    | {
-        status: 'confirmed';
-        blockNumber: bigint;
-        blockHash: string;
-        confirmationCount: number;
-        fromAddress: string;
-        toAddress: string;
-      }
-    | {
-        status: 'pending';
-        confirmationCount: number;
-      }
-    | {
-        status: 'failed';
-        code: string;
-        message: string;
-      }
-  >;
-};
 
 /**
  * Provenance port — DeviceNFT `recordDeviceEvent` submit/confirm via worker.
@@ -195,12 +167,9 @@ export type DeviceNftMinter = {
 };
 
 /**
- * Enode API port — concrete client lands in a later phase.
+ * Enode HTTP access is implemented by `createHttpEnodeVehicleClient`.
+ * A broad EnodeClient port is intentionally not registered on the container.
  */
-export type EnodeClient = {
-  getVehicle(input: { vehicleId: string }): Promise<unknown>;
-  listVehicles(input: { userId: string }): Promise<unknown[]>;
-};
 
 export type TelemetryPricingPolicy = {
   getPrice(input: { deviceId: string; telemetryRecordId: string }): Promise<{

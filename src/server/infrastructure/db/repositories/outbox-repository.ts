@@ -108,6 +108,7 @@ export function createOutboxRepository(db: Database): OutboxRepository {
     },
 
     async claimNext(input) {
+      const lockSeconds = Math.max(1, Math.floor(input.lockDurationMs / 1000));
       const result = await db.execute(sql`
         with candidates as (
           select id
@@ -116,7 +117,7 @@ export function createOutboxRepository(db: Database): OutboxRepository {
             and available_at <= now()
             and (
               locked_at is null
-              or locked_at < now() - interval '5 minutes'
+              or locked_at < now() - make_interval(secs => ${lockSeconds})
             )
           order by available_at asc, created_at asc
           for update skip locked
@@ -176,4 +177,20 @@ export function createOutboxRepository(db: Database): OutboxRepository {
         .where(eq(outboxEvents.id, input.id));
     },
   };
+}
+
+/**
+ * Ops helper: delete terminal outbox rows older than N days.
+ * Prefer scheduling manually; not part of the worker claim loop.
+ */
+export async function purgeTerminalOutboxEvents(
+  db: Database,
+  olderThanDays: number,
+): Promise<void> {
+  const days = Math.max(1, Math.floor(olderThanDays));
+  await db.execute(sql`
+    delete from outbox_events
+    where status in ('completed', 'dead_letter')
+      and coalesce(processed_at, created_at) < now() - make_interval(days => ${days})
+  `);
 }

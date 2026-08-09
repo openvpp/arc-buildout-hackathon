@@ -41,7 +41,7 @@ is a separate process and never runs in the browser.
 **Still deferred / not production-complete:**
 
 - Production KMS DeviceNFT / buyer signing (raw private keys forbidden in prod/staging)
-- Live Enode HTTP API client sync (`EnodeClient` remains fail-closed)
+- Live Enode HTTP API sync beyond webhook ingest / onboarding client helpers
 - DeviceNFT live provenance via `recordDeviceEvent` (mint path shares signer; needs UPDATER_ROLE)
 - Separate BE/FE repositories (monorepo process/module split documented in architecture.md)
 

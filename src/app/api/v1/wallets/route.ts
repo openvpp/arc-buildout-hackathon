@@ -1,9 +1,7 @@
-import { eq } from 'drizzle-orm';
-
+import { listWalletsForPrincipal } from '@/server/application/wallets/list-wallets';
 import { getContainer } from '@/server/bootstrap/container';
 import { API_KEY_HEADER } from '@/server/config/constants';
 import { credentialHasScope } from '@/server/infrastructure/auth/api-keys';
-import { principalWallets, wallets } from '@/server/infrastructure/db/schema';
 import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
 import { createRouteHandler } from '@/server/transport/http/route-handler';
@@ -27,29 +25,28 @@ export const GET = createRouteHandler(async (request, context) => {
     });
   }
 
-  const rows = await container.db
-    .select({
-      id: wallets.id,
-      address: wallets.address,
-      label: wallets.label,
-      chainId: wallets.chainId,
-      status: wallets.status,
-    })
-    .from(principalWallets)
-    .innerJoin(wallets, eq(wallets.id, principalWallets.walletId))
-    .where(eq(principalWallets.principalId, principal.principalId));
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get('cursor');
+  const limitParam = url.searchParams.get('limit');
+  const limit =
+    limitParam === null || limitParam.length === 0
+      ? undefined
+      : Number.parseInt(limitParam, 10);
 
-  return jsonOk(
-    {
-      items: rows.map((row) => ({
-        id: row.id,
-        address: row.address,
-        label: row.label,
-        chainId: String(row.chainId),
-        status: row.status,
-      })),
-      pageInfo: { nextCursor: null, hasNextPage: false },
-    },
-    context.requestId,
-  );
+  if (limit !== undefined && !Number.isFinite(limit)) {
+    throw new ApiError({
+      code: 'VALIDATION_FAILED',
+      message: 'limit must be a number.',
+      status: 400,
+    });
+  }
+
+  const result = await listWalletsForPrincipal({
+    db: container.db,
+    principal,
+    ...(cursor === null ? {} : { cursor }),
+    ...(limit === undefined ? {} : { limit }),
+  });
+
+  return jsonOk(result, context.requestId);
 });

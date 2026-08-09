@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { StatusBadge } from '@/components/ui/status-badge';
 import {
   isWeb3AuthConfigured,
   RequireWeb3Auth,
@@ -12,13 +11,14 @@ import {
 } from '@/features/auth';
 
 import {
-  createDemoTelemetryApi,
-  type DemoVerifyResponse,
-} from './demo-telemetry-api';
+  createOwnerTelemetryApi,
+  type OwnerVerifyResponse,
+} from './owner-telemetry-api';
+import { OwnerVerifyStatusBadge } from './owner-verify-status';
 
 type VerifyState =
   | { kind: 'idle' }
-  | { kind: 'result'; data: DemoVerifyResponse }
+  | { kind: 'result'; data: OwnerVerifyResponse }
   | { kind: 'error'; message: string };
 
 /**
@@ -69,7 +69,7 @@ function VerifyTelemetryButtonConnected(props: {
     startTransition(async () => {
       try {
         const idToken = await session.getIdToken();
-        const api = createDemoTelemetryApi();
+        const api = createOwnerTelemetryApi();
         const data = await api.verify({
           idToken,
           walletAddress: props.walletAddress,
@@ -121,19 +121,7 @@ function VerifyTelemetryButtonConnected(props: {
       {state.kind === 'result' ? (
         <div className="flex flex-col gap-1 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge
-              tone={
-                state.data.status === 'VERIFIED'
-                  ? 'success'
-                  : state.data.status === 'PENDING_ONCHAIN'
-                    ? 'warning'
-                    : 'danger'
-              }
-            >
-              {state.data.status === 'PENDING_ONCHAIN'
-                ? 'Pending on Arc'
-                : state.data.status}
-            </StatusBadge>
+            <OwnerVerifyStatusBadge status={state.data.status} />
             <span>
               receiptFound={String(state.data.receiptFound)} · hashMatched=
               {String(state.data.contentHashMatched)}

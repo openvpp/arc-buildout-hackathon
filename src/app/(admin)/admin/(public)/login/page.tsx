@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 
 import { PageHeader } from '@/components/common/page-header';
 import { AdminLoginForm } from '@/features/admin';
-import { getAdminBasicCredentials } from '@/server/config/env';
-import { sanitizeAdminNextPath } from '@/server/infrastructure/auth/admin-session';
+import {
+  isAdminConfigured,
+  sanitizeAdminNextPath,
+} from '@/features/admin/server';
 
 export const metadata: Metadata = {
   title: 'Admin sign in',
@@ -20,7 +22,7 @@ export default async function AdminLoginPage({
 }) {
   const params = await searchParams;
   const nextPath = sanitizeAdminNextPath(params.next);
-  const configured = getAdminBasicCredentials() !== null;
+  const configured = isAdminConfigured();
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">

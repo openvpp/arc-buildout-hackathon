@@ -44,6 +44,26 @@ Primary payment path is **settle on this same POST**, not a separate proofs rout
 
 Dashboard APIs do **not** execute nanopayments.
 
+Agent `POST /verification/results` stores **agent-reported** evidence only
+(`source: agent_reported`). It is not server-authoritative chain authorization.
+
+## Dashboard session / owner BFF (documented; OpenAPI deferred)
+
+These live routes are intentionally thinner / demo-named and are **not yet** in
+the generated OpenAPI contract (`pnpm openapi:check` only covers listed paths):
+
+| Method | Path                                               | Purpose                               |
+| ------ | -------------------------------------------------- | ------------------------------------- |
+| `POST` | `/api/v1/dashboard/session`                        | Bind Web3Auth owner session / wallet  |
+| `POST` | `/api/v1/demo/telemetry/latest`                    | Owner quote/settle BFF (Circle buyer) |
+| `POST` | `/api/v1/demo/telemetry/verify`                    | Owner Arc + hash re-check             |
+| `POST` | `/api/v1/vehicle-onboarding/link`                  | Start Enode OAuth link                |
+| `GET`  | `/api/v1/vehicle-onboarding/oauth/enode-complete`  | OAuth return                          |
+| `GET`  | `/api/v1/vehicle-onboarding/pending/{id}`          | Pending connection                    |
+| `POST` | `/api/v1/vehicle-onboarding/pending/{id}/complete` | Finalize + mint job                   |
+
+Treat them as in-app BFF surfaces until OpenAPI coverage is extended.
+
 ## Error contract
 
 ```json

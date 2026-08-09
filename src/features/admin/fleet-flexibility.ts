@@ -2,7 +2,7 @@ import {
   computeChargeHeadroom,
   sumChargeHeadroomKilowattHours,
   type ChargeHeadroomResult,
-} from '@/server/domain/telemetry/fleet-headroom';
+} from '@/lib/telemetry/fleet-headroom';
 
 export type FleetFlexibilityVehicle = {
   readonly deviceId: string;

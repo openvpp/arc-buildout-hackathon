@@ -6,7 +6,10 @@ import { ExternalLink } from '@/components/common/external-link';
 import { PageHeader } from '@/components/common/page-header';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { AdminUnavailableState, paymentStatusBadge } from '@/features/admin';
-import { loadAdminSnapshot } from '@/features/admin/server';
+import {
+  ADMIN_PAYMENTS_LIMIT,
+  loadAdminSnapshot,
+} from '@/features/admin/server';
 import {
   arcTxExplorerUrl,
   formatTimestamp,
@@ -14,7 +17,6 @@ import {
   truncateHash,
 } from '@/features/devices';
 import { shortenAddress } from '@/features/wallets';
-import { ADMIN_PAYMENTS_LIMIT } from '@/server/application/admin/list-admin-payments';
 
 export const metadata: Metadata = {
   title: 'Payments',

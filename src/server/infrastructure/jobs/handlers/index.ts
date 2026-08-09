@@ -4,9 +4,6 @@ import { submitTelemetryAnchor } from '@/server/application/provenance/submit-te
 import { processEnodeWebhookDelivery } from '@/server/application/webhooks/enode-webhook';
 import { getContainer } from '@/server/bootstrap/container';
 import type { JobHandler } from '@/server/infrastructure/jobs/worker';
-import { createServerLogger } from '@/server/infrastructure/logging/logger';
-
-const log = createServerLogger({ component: 'job-handlers' });
 
 export const foundationJobHandlers: Readonly<Record<string, JobHandler>> = {
   PROCESS_ENODE_WEBHOOK: async (event) => {
@@ -28,13 +25,6 @@ export const foundationJobHandlers: Readonly<Record<string, JobHandler>> = {
     }
     const container = getContainer();
     await mintDeviceNftIfNeeded({ db: container.db, deviceId });
-  },
-  VERIFY_ARC_PAYMENT: async (event) => {
-    log.info('job.deferred', {
-      jobId: event.id,
-      eventType: event.eventType,
-      reason: 'Arc payment reconciliation deferred',
-    });
   },
   ANCHOR_TELEMETRY: async (event) => {
     const telemetryRecordId = event.payload['telemetryRecordId'];
@@ -63,20 +53,6 @@ export const foundationJobHandlers: Readonly<Record<string, JobHandler>> = {
       provenanceAnchor: container.provenanceAnchor,
       telemetryRecordId,
       ...(typeof transactionHash === 'string' ? { transactionHash } : {}),
-    });
-  },
-  RECONCILE_PAYMENT: async (event) => {
-    log.info('job.deferred', {
-      jobId: event.id,
-      eventType: event.eventType,
-      reason: 'Payment reconciliation deferred',
-    });
-  },
-  RECONCILE_DEVICE: async (event) => {
-    log.info('job.deferred', {
-      jobId: event.id,
-      eventType: event.eventType,
-      reason: 'Device reconciliation deferred',
     });
   },
 };

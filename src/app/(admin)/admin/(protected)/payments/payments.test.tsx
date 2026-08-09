@@ -5,6 +5,7 @@ const loadAdminSnapshot = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
 
 vi.mock('@/features/admin/server', () => ({
   loadAdminSnapshot: () => loadAdminSnapshot(),
+  ADMIN_PAYMENTS_LIMIT: 50,
 }));
 
 describe('AdminPaymentsPage', () => {

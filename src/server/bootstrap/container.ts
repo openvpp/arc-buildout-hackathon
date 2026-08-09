@@ -2,9 +2,7 @@ import { getServerEnv } from '@/server/config/env';
 import type { CircleGatewaySeller } from '@/server/domain/payments/circle-gateway';
 import type {
   DeviceRepository,
-  EnodeClient,
   OutboxRepository,
-  PaymentVerifier,
   PrincipalRepository,
   ProvenanceAnchor,
   TelemetryPricingPolicy,
@@ -12,10 +10,6 @@ import type {
 } from '@/server/domain/shared/ports';
 import { createAuthService } from '@/server/infrastructure/auth/auth-service';
 import type { AuthService } from '@/server/infrastructure/auth/auth-service';
-import {
-  createFailClosedEnodeClient,
-  createFailClosedPaymentVerifier,
-} from '@/server/infrastructure/blockchain/adapters';
 import { createProvenanceAnchorForEnv } from '@/server/infrastructure/blockchain/provenance-anchor';
 import {
   checkDatabaseConnectivity,
@@ -42,9 +36,7 @@ export type AppContainer = {
   readonly wallets: WalletRepository;
   readonly devices: DeviceRepository;
   readonly outbox: OutboxRepository;
-  readonly paymentVerifier: PaymentVerifier;
   readonly provenanceAnchor: ProvenanceAnchor;
-  readonly enodeClient: EnodeClient;
   readonly pricing: TelemetryPricingPolicy;
   readonly circleSeller: CircleGatewaySeller;
   readonly checkDatabase: typeof checkDatabaseConnectivity;
@@ -70,9 +62,7 @@ export function createContainer(): AppContainer {
     wallets: createWalletRepository(db),
     devices: createDeviceRepository(db),
     outbox: createOutboxRepository(db),
-    paymentVerifier: createFailClosedPaymentVerifier(),
     provenanceAnchor: createProvenanceAnchorForEnv(),
-    enodeClient: createFailClosedEnodeClient(),
     pricing: createConfiguredPricingPolicy(),
     circleSeller: createCircleSellerForEnv(),
     checkDatabase: checkDatabaseConnectivity,

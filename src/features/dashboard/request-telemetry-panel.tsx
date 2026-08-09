@@ -14,19 +14,20 @@ import { SettlementPaymentRef } from '@/features/devices';
 import { readTelemetryReadingFields } from '@/features/telemetry';
 
 import {
-  createDemoTelemetryApi,
-  type DemoTelemetryResponse,
-  type DemoVerifyResponse,
-} from './demo-telemetry-api';
+  createOwnerTelemetryApi,
+  type OwnerTelemetryResponse,
+  type OwnerVerifyResponse,
+} from './owner-telemetry-api';
+import { OwnerVerifyStatusBadge } from './owner-verify-status';
 
 type PanelState =
   | { kind: 'idle' }
-  | { kind: 'result'; data: DemoTelemetryResponse }
+  | { kind: 'result'; data: OwnerTelemetryResponse }
   | { kind: 'error'; message: string };
 
 type VerifyState =
   | { kind: 'idle' }
-  | { kind: 'result'; data: DemoVerifyResponse }
+  | { kind: 'result'; data: OwnerVerifyResponse }
   | { kind: 'error'; message: string };
 
 export function RequestTelemetryPanel(props: {
@@ -77,7 +78,7 @@ function RequestTelemetryPanelConnected(props: {
     startTransition(async () => {
       try {
         const idToken = await idTokenOrThrow();
-        const api = createDemoTelemetryApi();
+        const api = createOwnerTelemetryApi();
         const data = await api.quote({
           idToken,
           walletAddress: props.walletAddress,
@@ -100,7 +101,7 @@ function RequestTelemetryPanelConnected(props: {
     startTransition(async () => {
       try {
         const idToken = await idTokenOrThrow();
-        const api = createDemoTelemetryApi();
+        const api = createOwnerTelemetryApi();
         const data = await api.settle({
           idToken,
           walletAddress: props.walletAddress,
@@ -120,14 +121,14 @@ function RequestTelemetryPanelConnected(props: {
 
   function runVerify(
     delivered: Extract<
-      DemoTelemetryResponse,
+      OwnerTelemetryResponse,
       { status: 'TELEMETRY_DELIVERED' }
     >,
   ) {
     startTransition(async () => {
       try {
         const idToken = await idTokenOrThrow();
-        const api = createDemoTelemetryApi();
+        const api = createOwnerTelemetryApi();
         const data = await api.verify({
           idToken,
           walletAddress: props.walletAddress,
@@ -289,7 +290,7 @@ function UnlockedTelemetry({
   onVerify,
 }: {
   readonly result: Extract<
-    DemoTelemetryResponse,
+    OwnerTelemetryResponse,
     { status: 'TELEMETRY_DELIVERED' }
   >;
   readonly pending: boolean;
@@ -382,19 +383,7 @@ function UnlockedTelemetry({
         {verifyState.kind === 'result' ? (
           <div className="flex flex-col gap-1 rounded-md border border-emerald-400/60 bg-white/50 p-2 dark:bg-emerald-950/50">
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge
-                tone={
-                  verifyState.data.status === 'VERIFIED'
-                    ? 'success'
-                    : verifyState.data.status === 'PENDING_ONCHAIN'
-                      ? 'warning'
-                      : 'danger'
-                }
-              >
-                {verifyState.data.status === 'PENDING_ONCHAIN'
-                  ? 'Pending on Arc'
-                  : verifyState.data.status}
-              </StatusBadge>
+              <OwnerVerifyStatusBadge status={verifyState.data.status} />
               <span>
                 receiptFound={String(verifyState.data.receiptFound)} ·
                 hashMatched={String(verifyState.data.contentHashMatched)}
