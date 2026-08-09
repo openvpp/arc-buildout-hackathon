@@ -100,8 +100,11 @@ export async function mintDeviceNftIfNeeded(input: {
         eq(devices.id, deviceId),
         or(isNull(devices.nftTokenId), eq(devices.nftTokenId, '')),
         ne(devices.mintStatus, 'minted'),
+        // enqueueDeviceMint sets pending + mintClaimedAt=null before the job
+        // runs. Treat null claim time as reclaimable (not an active lease).
         or(
           ne(devices.mintStatus, 'pending'),
+          isNull(devices.mintClaimedAt),
           lt(devices.mintClaimedAt, staleBoundary),
         ),
       ),
