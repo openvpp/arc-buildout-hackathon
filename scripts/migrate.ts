@@ -10,31 +10,32 @@ import postgres from 'postgres';
 async function assertSchemaOrClearStaleJournal(
   sql: postgres.Sql,
 ): Promise<void> {
-  const [{ walletsExist }] = await sql<{ walletsExist: boolean }[]>`
+  const walletsRows = await sql<{ walletsExist: boolean }[]>`
     select exists (
       select 1
       from information_schema.tables
       where table_schema = 'public' and table_name = 'wallets'
     ) as "walletsExist"
   `;
-  if (walletsExist) {
+  if (walletsRows[0]?.walletsExist === true) {
     return;
   }
 
-  const [{ journalExists }] = await sql<{ journalExists: boolean }[]>`
+  const journalRows = await sql<{ journalExists: boolean }[]>`
     select exists (
       select 1
       from information_schema.tables
       where table_schema = 'drizzle' and table_name = '__drizzle_migrations'
     ) as "journalExists"
   `;
-  if (!journalExists) {
+  if (journalRows[0]?.journalExists !== true) {
     return;
   }
 
-  const [{ applied }] = await sql<{ applied: number }[]>`
+  const appliedRows = await sql<{ applied: number }[]>`
     select count(*)::int as applied from drizzle.__drizzle_migrations
   `;
+  const applied = appliedRows[0]?.applied ?? 0;
   if (applied === 0) {
     return;
   }

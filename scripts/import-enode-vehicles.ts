@@ -131,14 +131,14 @@ async function main(): Promise<void> {
   const sqlClient = postgres(env.DATABASE_URL, { max: 1 });
   const db = drizzle(sqlClient, { schema });
 
-  const [{ exists }] = await sqlClient<{ exists: boolean }[]>`
+  const existsRows = await sqlClient<{ exists: boolean }[]>`
     select exists (
       select 1
       from information_schema.tables
       where table_schema = 'public' and table_name = 'wallets'
     ) as exists
   `;
-  if (!exists) {
+  if (existsRows[0]?.exists !== true) {
     await sqlClient.end({ timeout: 5 });
     throw new Error(
       'public.wallets is missing. Truncate drizzle.__drizzle_migrations and run pnpm db:migrate first.',
@@ -151,13 +151,13 @@ async function main(): Promise<void> {
   console.log(`Enode returned ${vehicles.length} vehicle(s).`);
 
   const allowDeviceIds = new Set(
-    (process.env.ENODE_IMPORT_EXTERNAL_DEVICE_IDS ?? '')
+    (process.env['ENODE_IMPORT_EXTERNAL_DEVICE_IDS'] ?? '')
       .split(',')
       .map((value) => value.trim())
       .filter((value) => value.length > 0),
   );
   const allowWalletRaw = asNonEmptyString(
-    process.env.ENODE_IMPORT_WALLET_ADDRESS,
+    process.env['ENODE_IMPORT_WALLET_ADDRESS'],
   );
   const allowWallet =
     allowWalletRaw === null
