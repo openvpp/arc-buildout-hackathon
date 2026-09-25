@@ -26,6 +26,7 @@ const eslintConfig = [
       'test-results/**',
       'drizzle/migrations/**',
       '.claude/**',
+      'next-env.d.ts',
     ],
   },
 ];

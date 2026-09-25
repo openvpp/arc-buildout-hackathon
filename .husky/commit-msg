@@ -1,3 +1,4 @@
 #!/usr/bin/env sh
-command -v pnpm >/dev/null 2>&1 || exit 0
-pnpm exec commitlint --edit "$1" 2>/dev/null || true
+# No commit-message linter installed for this milestone; placeholder kept
+# for parity with the pre-commit hook so `pnpm prepare` has a stable set.
+exit 0

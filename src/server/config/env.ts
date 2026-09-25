@@ -7,7 +7,7 @@ const boolFromString = z
 
 const serverEnvSchema = z.object({
   APP_ENV: z
-    .enum(['development', 'test', 'staging', 'production'])
+    .enum(['development', 'test', 'demo', 'staging', 'production'])
     .default('development'),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   ALLOW_MOCK_ADAPTERS: boolFromString,
@@ -22,7 +22,7 @@ const serverEnvSchema = z.object({
   CIRCLE_API_KEY: z.string().optional(),
   CIRCLE_ENTITY_SECRET: z.string().optional(),
   CIRCLE_WALLET_SET_ID: z.string().optional(),
-  CIRCLE_WALLET_BLOCKCHAIN: z.string().default('MATIC-AMOY'),
+  CIRCLE_WALLET_BLOCKCHAIN: z.string().default('ARC-TESTNET'),
 
   ENODE_API_BASE_URL: z.string().optional(),
   ENODE_OAUTH_TOKEN_URL: z.string().optional(),
