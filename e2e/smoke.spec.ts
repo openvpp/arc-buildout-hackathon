@@ -8,12 +8,12 @@ import { expect, test } from '@playwright/test';
  * docs/demo-runbook.md.
  */
 
-test('home page is the globe and requires sign-in when unauthenticated', async ({
-  page,
-}) => {
+test('home page is the globe and never gates on sign-in', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'Arc EV Fleet' })).toBeVisible();
-  await expect(page.getByText('Sign in to continue')).toBeVisible();
+  // The globe itself is the permanent base view — signed in or not, this
+  // page must never show the "sign in to continue" wall other pages use.
+  await expect(page.getByText('Sign in to continue')).not.toBeVisible();
 });
 
 test('devices page requires sign-in when unauthenticated', async ({ page }) => {

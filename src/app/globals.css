@@ -51,3 +51,12 @@ body {
   border-top-color: var(--color-modalbg);
   border-bottom-color: var(--color-modalbg);
 }
+
+/* No chrome on the globe canvas: no wordmark, no zoom/compass control
+   (attribution is already disabled via the Map constructor). */
+.mapboxgl-ctrl-logo,
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right,
+.mapboxgl-ctrl-top-right {
+  display: none !important;
+}
