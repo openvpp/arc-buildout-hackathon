@@ -21,6 +21,10 @@ const serverEnvSchema = z.object({
   GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
 
   CIRCLE_API_KEY: z.string().optional(),
+  // Informational only — Circle infers sandbox/production from the
+  // CIRCLE_API_KEY prefix (TEST_API_KEY: vs LIVE_API_KEY:) itself; kept here
+  // so it's validated/documented alongside the other Circle config.
+  CIRCLE_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
   CIRCLE_ENTITY_SECRET: z.string().optional(),
   CIRCLE_WALLET_SET_ID: z.string().optional(),
   CIRCLE_WALLET_BLOCKCHAIN: z.string().default('ARC-TESTNET'),
