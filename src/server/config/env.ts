@@ -13,6 +13,7 @@ const serverEnvSchema = z.object({
   ALLOW_MOCK_ADAPTERS: boolFromString,
 
   DATABASE_URL: z.string().min(1),
+  TEST_DATABASE_URL: z.string().optional(),
   DATABASE_SSL_MODE: z.enum(['disable', 'require']).default('disable'),
 
   API_KEY_HASH_SECRET: z.string().min(16),
