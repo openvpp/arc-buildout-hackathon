@@ -1,0 +1,75 @@
+{
+  "name": "arc-buildout-hackathon",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "worker:dev": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs watch src/worker/index.ts",
+    "services:up": "docker compose up -d",
+    "services:down": "docker compose down",
+    "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts",
+    "db:seed": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/seed-demo.ts",
+    "db:generate": "drizzle-kit generate",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:e2e": "playwright test",
+    "validate": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:unit",
+    "validate:backend": "pnpm lint && pnpm typecheck && pnpm test:integration",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^9.6.0",
+    "@react-oauth/google": "^0.12.1",
+    "drizzle-orm": "^0.36.4",
+    "google-auth-library": "^9.15.0",
+    "jose": "^5.9.6",
+    "mapbox-gl": "^3.7.0",
+    "next": "^15.1.0",
+    "postgres": "^3.4.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "viem": "^2.21.54",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@playwright/test": "^1.49.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "drizzle-kit": "^0.28.1",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.0",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.1.7",
+    "jsdom": "^25.0.1",
+    "lint-staged": "^15.2.11",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix"
+    ],
+    "*.{ts,tsx,js,jsx,json,md,css}": [
+      "prettier --write"
+    ]
+  }
+}

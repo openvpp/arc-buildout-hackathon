@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [accelerator-milestone1]
+  pull_request:
+    branches: [accelerator-milestone1]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: arc_buildout
+          POSTGRES_PASSWORD: arc_buildout
+          POSTGRES_DB: arc_buildout
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U arc_buildout"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://arc_buildout:arc_buildout@localhost:5432/arc_buildout
+      API_KEY_HASH_SECRET: ci-only-secret-not-used-in-prod-0000000000
+      ALLOW_MOCK_ADAPTERS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm db:migrate
+      - run: pnpm test:unit
+      - run: pnpm test:integration

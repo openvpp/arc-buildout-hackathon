@@ -1,0 +1,38 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# testing
+coverage
+test-results
+playwright-report
+
+# next.js
+.next
+out
+
+# production
+build
+dist
+
+# misc
+.DS_Store
+*.pem
+tsconfig.tsbuildinfo
+
+# env
+.env
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+next-env.d.ts
+
+# logs
+*.log
+
+# Claude Code local session state / other-branch worktrees — never commit
+.claude/
