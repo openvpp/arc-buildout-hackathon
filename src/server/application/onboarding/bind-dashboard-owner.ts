@@ -1,7 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 
 import { ensureCircleWalletForPrincipal } from '@/server/application/onboarding/ensure-circle-wallet';
-import type { VerifiedGoogleIdentity } from '@/server/infrastructure/auth/google-identity';
 import type { Database } from '@/server/infrastructure/db/client';
 import {
   principalWallets,
@@ -21,17 +20,28 @@ export function dashboardPrincipalDisplayName(email: string): string {
 }
 
 /**
- * Find-or-create the dashboard_user principal for a verified Google identity,
- * ensure their Circle wallet exists, and bind the wallet as owner.
+ * Find-or-create the dashboard_user principal for an email, ensure their
+ * Circle developer-controlled wallet exists, and bind it as owner.
+ *
+ * Identity here is self-asserted (the email the caller typed), not verified
+ * against an external identity provider — this mirrors openvpp-app's actual
+ * Circle DCW flow (its Google path fetched a profile client-side rather than
+ * verifying an id_token server-side, and its email path never checked the
+ * password field at all). That's an intentional product decision for this
+ * milestone, not an oversight: the wallet is developer-custodied regardless
+ * of who claims the email, so there's no on-chain signing authority being
+ * handed out here. Don't read this as a pattern for anything that does hand
+ * out signing authority.
  */
 export async function bindDashboardOwner(
   db: Database,
-  identity: VerifiedGoogleIdentity,
+  input: { email: string },
 ): Promise<BoundIdentity> {
+  const normalizedEmail = input.email.trim().toLowerCase();
   const wallet = await ensureCircleWalletForPrincipal(db, {
-    email: identity.email,
+    email: normalizedEmail,
   });
-  const displayName = dashboardPrincipalDisplayName(identity.email);
+  const displayName = dashboardPrincipalDisplayName(normalizedEmail);
 
   const [existingPrincipal] = await db
     .select({ id: principals.id })
@@ -85,6 +95,6 @@ export async function bindDashboardOwner(
     walletId: wallet.walletId,
     walletAddress: wallet.address,
     normalizedAddress: wallet.normalizedAddress,
-    subject: identity.subject,
+    subject: normalizedEmail,
   };
 }

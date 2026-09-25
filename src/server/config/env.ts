@@ -18,8 +18,6 @@ const serverEnvSchema = z.object({
 
   API_KEY_HASH_SECRET: z.string().min(16),
 
-  GOOGLE_OAUTH_CLIENT_ID: z.string().optional(),
-
   CIRCLE_API_KEY: z.string().optional(),
   // Informational only — Circle infers sandbox/production from the
   // CIRCLE_API_KEY prefix (TEST_API_KEY: vs LIVE_API_KEY:) itself; kept here

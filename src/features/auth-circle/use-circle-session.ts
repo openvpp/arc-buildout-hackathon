@@ -16,8 +16,9 @@ const sessionApi = createCircleSessionApi();
 
 /**
  * Drives the dashboard session lifecycle for Circle developer-controlled
- * wallet login: takes a Google id_token, establishes the httpOnly session
- * cookie server-side, and refreshes RSCs so wallet-scoped data loads.
+ * wallet login: takes an email, establishes the httpOnly session cookie
+ * server-side (creating/finding the Circle wallet for that email), and
+ * refreshes RSCs so wallet-scoped data loads.
  */
 export function useCircleSession() {
   const router = useRouter();
@@ -26,11 +27,11 @@ export function useCircleSession() {
     error: null,
   });
 
-  const signInWithGoogleIdToken = useCallback(
-    async (googleIdToken: string) => {
+  const signInWithEmail = useCallback(
+    async (email: string) => {
       setState({ status: 'signing_in' });
       try {
-        const result = await sessionApi.establish({ googleIdToken });
+        const result = await sessionApi.establish({ email });
         setState({ status: 'signed_in', walletAddress: result.walletAddress });
         router.refresh();
       } catch (error) {
@@ -55,5 +56,5 @@ export function useCircleSession() {
     }
   }, [router]);
 
-  return { state, signInWithGoogleIdToken, signOut };
+  return { state, signInWithEmail, signOut };
 }

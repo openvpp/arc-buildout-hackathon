@@ -33,7 +33,7 @@ export default async function DevicesPage() {
           />
           <EmptyState
             title="Sign in to continue"
-            description="Sign in with Google to create or access your Circle wallet."
+            description="Sign in to create or access your Circle wallet."
           />
         </div>
       </PageContainer>

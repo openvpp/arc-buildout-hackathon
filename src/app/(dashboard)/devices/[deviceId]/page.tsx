@@ -32,7 +32,7 @@ export default async function DeviceDetailPage({
           <PageHeader title="Device" />
           <EmptyState
             title="Sign in to continue"
-            description="Sign in with Google to view this device."
+            description="Sign in to view this device."
           />
         </div>
       </PageContainer>

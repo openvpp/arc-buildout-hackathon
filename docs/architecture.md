@@ -26,12 +26,17 @@ Route Handler → transport → application → domain → infrastructure
 
 ## Request flow (Circle login → Enode link → Arc mint → globe)
 
-1. Browser: Google Sign-In → `credential` (id_token) →
-   `POST /api/v1/dashboard/session { googleIdToken }`.
-2. Route → `verifyGoogleIdentity` (JWKS) → `bindDashboardOwner` →
-   `ensureCircleWalletForPrincipal` (Circle SDK, `refId`-keyed, idempotent) →
-   upsert `principals`/`wallets`/`principal_wallets` → sign the dashboard
-   session JWT → set as an httpOnly cookie.
+1. Browser: sign-in popup (`CircleAuthModal`) — either "Continue with
+   Google" (client-side profile fetch, only shown when
+   `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is set) or a direct email field.
+   Both funnel into the same call: `POST /api/v1/dashboard/session { email }`.
+   Neither path is verified against an external provider — see
+   `bind-dashboard-owner.ts` for why that's intentional here (mirrors
+   openvpp-app's actual `CircleAuthModal`).
+2. Route → `bindDashboardOwner` → `ensureCircleWalletForPrincipal` (Circle
+   SDK, `refId`-keyed, idempotent) → upsert
+   `principals`/`wallets`/`principal_wallets` → sign the dashboard session
+   JWT → set as an httpOnly cookie.
 3. Every other route in this app reads that cookie
    (`requirePrincipal`/`getCurrentPrincipal`) instead of trusting anything
    from the request body — the wallet id/address in the session is the only

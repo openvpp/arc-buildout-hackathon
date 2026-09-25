@@ -1,10 +1,13 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * Smoke coverage for what's reachable without real Circle/Google/Enode
- * credentials: page structure, nav, and the auth gate on every protected
- * surface. The signed-in path (Google login -> Enode Link -> mint -> globe
- * pins) needs real provider credentials and is exercised manually — see
+ * Smoke coverage for what's reachable without real credentials, plus one
+ * real sign-in test: unlike the old Google-only flow, the email path in
+ * the Circle DCW popup needs no external provider, so it's genuinely
+ * testable here — this test creates a real Circle sandbox wallet each run
+ * when CIRCLE_API_KEY/CIRCLE_ENTITY_SECRET are configured (a fresh email
+ * per run avoids colliding with previous runs). Enode Link -> mint -> globe
+ * pins still need a real Enode OEM login and are exercised manually — see
  * docs/demo-runbook.md.
  */
 
@@ -35,6 +38,32 @@ test('starting onboarding while unauthenticated surfaces a clear error, not a cr
   await page.goto('/devices/onboard');
   await page.getByRole('button', { name: 'Connect with Enode' }).click();
   await expect(page.getByText('Sign in required.')).toBeVisible();
+});
+
+test('email sign-in creates a session and shows the wallet chip', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Connect Wallet' }),
+  ).toBeVisible();
+
+  const email = `e2e-${Date.now()}@example.com`;
+  await page.getByPlaceholder('Email address').fill(email);
+  await page.getByRole('button', { name: 'Create Wallet' }).click();
+
+  // The modal closes and the header trigger becomes the wallet chip
+  // (a 0x-prefixed, shortened address) once the session is established.
+  await expect(
+    page.getByRole('heading', { name: 'Connect Wallet' }),
+  ).not.toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: /^0x/ })).toBeVisible();
+
+  await page.goto('/devices');
+  await expect(page.getByText('Sign in to continue')).not.toBeVisible();
 });
 
 test('unsigned Enode webhook deliveries are rejected', async ({ request }) => {

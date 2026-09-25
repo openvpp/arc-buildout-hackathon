@@ -1,8 +1,8 @@
 'use client';
 
-import { GoogleLogin } from '@react-oauth/google';
+import { useEffect, useState } from 'react';
 
-import { isGoogleSignInConfigured } from './google-provider';
+import { CircleAuthModal } from './circle-auth-modal';
 import { useCircleSession } from './use-circle-session';
 
 function shortenAddress(address: string): string {
@@ -10,16 +10,22 @@ function shortenAddress(address: string): string {
 }
 
 /**
- * Sign in / out control for the Circle developer-controlled wallet flow.
- * Identity proof is Google Sign-In; the Circle wallet is created/found
- * server-side and never touches the browser.
+ * Header trigger for the Circle developer-controlled wallet sign-in popup
+ * (see CircleAuthModal) — mirrors openvpp-app's header WalletButton opening
+ * CircleAuthModal. Connected state shows the wallet address; disconnected
+ * shows a "Sign in" trigger.
  */
 export function CircleAuthButton() {
-  const { state, signInWithGoogleIdToken, signOut } = useCircleSession();
+  const { state, signInWithEmail, signOut } = useCircleSession();
+  const [modalOpen, setModalOpen] = useState(false);
 
-  if (!isGoogleSignInConfigured()) {
-    return <span className="text-xs text-white/40">Sign-in unavailable</span>;
-  }
+  // Close the popup once sign-in actually succeeds; on error it stays open
+  // so the error banner (rendered inside the modal) is visible.
+  useEffect(() => {
+    if (state.status === 'signed_in') {
+      setModalOpen(false);
+    }
+  }, [state.status]);
 
   if (state.status === 'signed_in') {
     return (
@@ -38,28 +44,27 @@ export function CircleAuthButton() {
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <GoogleLogin
-        theme="filled_black"
-        shape="pill"
-        size="medium"
-        onSuccess={(credentialResponse) => {
-          if (credentialResponse.credential !== undefined) {
-            void signInWithGoogleIdToken(credentialResponse.credential);
-          }
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setModalOpen(true);
         }}
-        onError={() => {
-          // GoogleLogin surfaces its own inline error UI; nothing to add here.
+        className="flex h-[50px] items-center rounded-md border border-primary-500 px-4 text-sm font-medium text-primary-500 hover:bg-primary-500/10"
+      >
+        Sign in
+      </button>
+      <CircleAuthModal
+        open={modalOpen}
+        isSubmitting={state.status === 'signing_in'}
+        sessionError={state.status === 'idle' ? state.error : null}
+        onClose={() => {
+          setModalOpen(false);
+        }}
+        onSubmitEmail={(email) => {
+          void signInWithEmail(email);
         }}
       />
-      {state.status === 'idle' && state.error !== null ? (
-        <span
-          role="alert"
-          className="max-w-48 text-right text-[10px] text-red-400"
-        >
-          {state.error}
-        </span>
-      ) : null}
-    </div>
+    </>
   );
 }
