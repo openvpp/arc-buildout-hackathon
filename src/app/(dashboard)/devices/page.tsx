@@ -104,6 +104,12 @@ export default async function DevicesPage() {
                     </dd>
                   </div>
                 </dl>
+                <Link
+                  href={`/devices/${device.id}`}
+                  className="mt-auto text-sm font-medium text-slate-900 underline"
+                >
+                  View device
+                </Link>
               </Card>
             </li>
           ))}
