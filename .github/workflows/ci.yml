@@ -25,6 +25,10 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgres://arc_buildout:arc_buildout@localhost:5432/arc_buildout
+      # Ephemeral CI container recreated every run — reusing the same DB for
+      # dev migrate and integration tests is fine here; locally these are
+      # deliberately separate databases (see .env.example).
+      TEST_DATABASE_URL: postgres://arc_buildout:arc_buildout@localhost:5432/arc_buildout
       API_KEY_HASH_SECRET: ci-only-secret-not-used-in-prod-0000000000
       ALLOW_MOCK_ADAPTERS: 'true'
     steps:

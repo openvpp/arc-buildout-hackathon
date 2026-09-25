@@ -11,6 +11,10 @@ A small, end-to-end flow on Arc testnet:
 
 See [CLAUDE.md](./CLAUDE.md) for the engineering contract, architecture
 boundaries, and what is deliberately out of scope for this milestone.
+See [docs/architecture.md](./docs/architecture.md) for the full request
+flow, [docs/database.md](./docs/database.md) for the schema, and
+[docs/demo-runbook.md](./docs/demo-runbook.md) to run the whole thing
+end to end.
 
 ## Local setup
 
@@ -32,7 +36,12 @@ pnpm worker:dev
 
 - [x] Repo scaffold (Next.js App Router, Postgres/Drizzle, lint/format/test
       tooling)
-- [ ] Circle developer-controlled wallet auth
-- [ ] Enode device linking
-- [ ] Arc DeviceNFT minting
-- [ ] Mapbox device globe
+- [x] Circle developer-controlled wallet auth (Google-verified)
+- [x] Enode device linking (pending-connection wizard + webhook)
+- [x] Arc DeviceNFT minting (worker + claim-before-mint)
+- [x] Mapbox device globe
+
+All four are implemented and covered by unit/integration/e2e tests; the
+live signed-in path (real Google/Circle/Enode/Arc/Mapbox credentials) is
+not yet exercised in this environment — see
+[docs/demo-runbook.md](./docs/demo-runbook.md#prerequisites).
