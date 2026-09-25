@@ -1,7 +1,27 @@
 @import 'tailwindcss';
 
+/* Dark-only theme, inspired by openvpp-app: near-black canvas, lime accent. */
+@theme {
+  --color-primary-50: #f7fdf0;
+  --color-primary-100: #ecfad9;
+  --color-primary-200: #d9f4b3;
+  --color-primary-300: #c6ee8c;
+  --color-primary-400: #b7ee65;
+  --color-primary-500: #b7ee65;
+  --color-primary-600: #94c94a;
+  --color-primary-700: #71a038;
+  --color-primary-800: #4a7220;
+  --color-primary-900: #33501a;
+
+  --color-background: #000000;
+  --color-itemground: rgba(36, 36, 36, 1);
+  --color-overlayground: rgba(17, 17, 17, 0.8);
+  --color-modalbg: #181919;
+  --color-modalborder: #535353;
+}
+
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 * {
@@ -15,18 +35,19 @@ body {
 }
 
 body {
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
-  background: #fff;
-  color: #0f172a;
+  background: var(--color-background);
+  color: #f5f5f5;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #0f172a;
-    color: #f8fafc;
-  }
+.device-popup .mapboxgl-popup-content {
+  background: var(--color-modalbg);
+  border: 1px solid var(--color-modalborder);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.device-popup .mapboxgl-popup-tip {
+  border-top-color: var(--color-modalbg);
+  border-bottom-color: var(--color-modalbg);
 }

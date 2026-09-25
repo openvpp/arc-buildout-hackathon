@@ -26,7 +26,7 @@ export function isMapboxConfigured(): boolean {
 export function MapGlobe({
   devices,
   onSelectDevice,
-  heightClassName = 'h-96',
+  heightClassName = 'h-[100dvh]',
 }: {
   devices: DeviceLocation[];
   onSelectDevice: (deviceId: string) => void;
@@ -102,10 +102,10 @@ export function MapGlobe({
           return;
         }
         const dotColor = pinColorForMintStatus(String(mintStatus));
-        new mapboxgl.Popup({ closeButton: false })
+        new mapboxgl.Popup({ closeButton: false, className: 'device-popup' })
           .setLngLat(feature.geometry.coordinates as [number, number])
           .setHTML(
-            `<div style="font:13px sans-serif;color:#0f172a"><strong>${String(displayName)}</strong><br/>${String(vendor)} · <span style="color:${dotColor}">●</span> ${String(mintStatus)}<br/><a href="/devices/${id}" style="color:#2563eb">View device</a></div>`,
+            `<div style="font:13px 'Plus Jakarta Sans',sans-serif;color:#fff"><strong>${String(displayName)}</strong><br/><span style="color:#a3a3a3">${String(vendor)} · <span style="color:${dotColor}">●</span> ${String(mintStatus)}</span><br/><a href="/devices/${id}" style="color:#b7ee65">View device</a></div>`,
           )
           .addTo(map);
         onSelectDeviceRef.current(id);
@@ -138,17 +138,12 @@ export function MapGlobe({
   if (!isMapboxConfigured()) {
     return (
       <div
-        className={`flex items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500 ${heightClassName}`}
+        className={`flex w-full items-center justify-center bg-background text-sm text-white/50 ${heightClassName}`}
       >
         Globe unavailable — Mapbox is not configured.
       </div>
     );
   }
 
-  return (
-    <div
-      ref={containerRef}
-      className={`w-full overflow-hidden rounded-lg border border-slate-200 ${heightClassName}`}
-    />
-  );
+  return <div ref={containerRef} className={`w-full ${heightClassName}`} />;
 }

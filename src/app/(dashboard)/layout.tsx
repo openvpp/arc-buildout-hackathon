@@ -10,21 +10,35 @@ export default function DashboardGroupLayout({
 }) {
   return (
     <CircleGoogleProvider>
-      <div className="min-h-screen bg-slate-50">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
+      <div className="min-h-screen bg-background">
+        <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between p-6">
           <div className="flex items-center gap-6">
-            <Link href="/" className="text-sm font-semibold text-slate-900">
+            <Link
+              href="/"
+              className="text-base font-bold tracking-tight text-primary-500"
+            >
               Arc EV Fleet
             </Link>
-            <nav className="flex items-center gap-4 text-sm text-slate-600">
-              <Link href="/devices" className="hover:text-slate-900">
+            <nav className="hidden items-center gap-1 sm:flex">
+              <Link
+                href="/devices"
+                className="rounded-md px-3 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white"
+              >
                 Devices
               </Link>
             </nav>
           </div>
-          <CircleAuthButton />
+          <div className="flex items-center gap-3">
+            <Link
+              href="/devices/onboard"
+              className="hidden h-[50px] items-center rounded-md border border-primary-500 px-4 text-sm font-medium text-primary-500 hover:bg-primary-500/10 sm:flex"
+            >
+              Add vehicle
+            </Link>
+            <CircleAuthButton />
+          </div>
         </header>
-        <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+        {children}
       </div>
     </CircleGoogleProvider>
   );

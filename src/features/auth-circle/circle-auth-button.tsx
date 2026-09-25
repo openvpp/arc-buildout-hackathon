@@ -2,8 +2,6 @@
 
 import { GoogleLogin } from '@react-oauth/google';
 
-import { Button } from '@/components/ui/button';
-
 import { isGoogleSignInConfigured } from './google-provider';
 import { useCircleSession } from './use-circle-session';
 
@@ -20,35 +18,31 @@ export function CircleAuthButton() {
   const { state, signInWithGoogleIdToken, signOut } = useCircleSession();
 
   if (!isGoogleSignInConfigured()) {
-    return <span className="text-xs text-slate-500">Sign-in unavailable</span>;
+    return <span className="text-xs text-white/40">Sign-in unavailable</span>;
   }
 
   if (state.status === 'signed_in') {
     return (
-      <div className="flex items-center gap-2">
-        <span
-          className="font-mono text-xs text-slate-600"
-          title={state.walletAddress}
-        >
-          {shortenAddress(state.walletAddress)}
-        </span>
-        <Button
-          type="button"
-          variant="secondary"
-          className="px-2 py-1 text-xs"
-          onClick={() => {
-            void signOut();
-          }}
-        >
-          Sign out
-        </Button>
-      </div>
+      <button
+        type="button"
+        title={state.walletAddress}
+        onClick={() => {
+          void signOut();
+        }}
+        className="flex h-[50px] items-center gap-2 rounded-md bg-itemground px-3 font-mono text-xs text-white/80 hover:bg-white/10"
+      >
+        <span className="h-2 w-2 rounded-full bg-primary-500" />
+        {shortenAddress(state.walletAddress)}
+      </button>
     );
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
       <GoogleLogin
+        theme="filled_black"
+        shape="pill"
+        size="medium"
         onSuccess={(credentialResponse) => {
           if (credentialResponse.credential !== undefined) {
             void signInWithGoogleIdToken(credentialResponse.credential);
@@ -61,7 +55,7 @@ export function CircleAuthButton() {
       {state.status === 'idle' && state.error !== null ? (
         <span
           role="alert"
-          className="max-w-48 text-right text-[10px] text-red-600"
+          className="max-w-48 text-right text-[10px] text-red-400"
         >
           {state.error}
         </span>
