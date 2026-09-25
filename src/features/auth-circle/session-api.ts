@@ -12,13 +12,13 @@ const clearSchema = z.object({
   ok: z.literal(true),
 });
 
-/** Establish / clear the httpOnly dashboard session cookie via Circle/Google login. */
+/** Establish / clear the httpOnly dashboard session cookie for the Circle DCW flow. */
 export function createCircleSessionApi(client: ApiClient = new ApiClient()) {
   return {
-    async establish(input: { googleIdToken: string }) {
+    async establish(input: { email: string }) {
       const result = await client.request('/api/v1/dashboard/session', {
         method: 'POST',
-        body: { googleIdToken: input.googleIdToken },
+        body: { email: input.email },
         schema: establishSchema,
       });
       if (!result.ok) {

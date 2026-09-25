@@ -7,7 +7,6 @@ import {
   clearDashboardSessionCookie,
   createDashboardSessionToken,
 } from '@/server/infrastructure/auth/dashboard-session';
-import { verifyGoogleIdentity } from '@/server/infrastructure/auth/google-identity';
 import { getDb } from '@/server/infrastructure/db/client';
 import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
@@ -18,7 +17,7 @@ export const dynamic = 'force-dynamic';
 
 const bodySchema = z
   .object({
-    googleIdToken: z.string().min(1),
+    email: z.string().trim().email(),
   })
   .strict();
 
@@ -28,10 +27,12 @@ function cookieSecureFlag(): boolean {
 }
 
 /**
- * Establish the httpOnly dashboard session after Circle developer-controlled
- * wallet registration/login. Auth proof: a Google id_token, verified
- * server-side. The Circle wallet is created/found server-side; its address
- * never comes from the request body.
+ * Establish the httpOnly dashboard session for the Circle developer-
+ * controlled wallet flow. Identity is the email the caller typed — see the
+ * comment on bindDashboardOwner for why this is intentionally unverified,
+ * matching openvpp-app's actual DCW flow. The Circle wallet itself is
+ * always created/found server-side; its address never comes from the
+ * request body.
  */
 export const POST = createRouteHandler(async (request, context) => {
   const text = await request.text();
@@ -47,11 +48,8 @@ export const POST = createRouteHandler(async (request, context) => {
   }
   const parsed = bodySchema.parse(body);
 
-  const identity = await verifyGoogleIdentity({
-    idToken: parsed.googleIdToken,
-  });
   const db = getDb();
-  const bound = await bindDashboardOwner(db, identity);
+  const bound = await bindDashboardOwner(db, { email: parsed.email });
 
   const env = getServerEnv();
   const token = await createDashboardSessionToken({

@@ -22,7 +22,7 @@ const timestamps = {
     .defaultNow(),
 };
 
-/** Dashboard user identity. Registration/login is Circle DCW (Google-verified). */
+/** Dashboard user identity. Registration/login is Circle DCW (email-keyed). */
 export const principals = pgTable(
   'principals',
   {
