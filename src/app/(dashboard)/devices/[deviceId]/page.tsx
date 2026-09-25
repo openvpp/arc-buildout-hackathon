@@ -103,7 +103,7 @@ export default async function DeviceDetailPage({
         <Link href="/devices" className="underline">
           Back to devices
         </Link>
-        <Link href="/globe" className="underline">
+        <Link href="/" className="underline">
           View on globe
         </Link>
       </div>

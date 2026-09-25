@@ -48,7 +48,7 @@ external_device_id)`) and enqueues a `MINT_DEVICE_NFT` outbox event.
    DeviceNFT contract → `devices.mint_status` `pending` → `minted`.
 7. Enode webhook (`POST /api/webhooks/enode`) → HMAC-SHA1 verify → dedupe on
    `(provider, delivery_id)` → update `devices.last_latitude/longitude`.
-8. `/globe` → `GET /api/v1/dashboard/devices/locations` (paginated, wallet-
+8. `/` (home) → `GET /api/v1/dashboard/devices/locations` (paginated, wallet-
    scoped) → Mapbox GL globe, one pin per device with a known location.
 
 ## Why this data model is smaller than a typical "EV platform"

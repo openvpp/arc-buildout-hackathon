@@ -4,11 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { EmptyState } from '@/components/common/empty-state';
-import {
-  createGlobeApi,
-  type DeviceLocation,
-} from '@/features/globe/client-api';
-import { MapGlobe } from '@/features/globe/map-globe';
+
+import { createGlobeApi, type DeviceLocation } from './client-api';
+import { MapGlobe } from './map-globe';
 
 type LoadState =
   | { status: 'loading' }
@@ -43,7 +41,9 @@ export function GlobeView() {
   }, []);
 
   if (state.status === 'loading') {
-    return <div className="h-96 animate-pulse rounded-lg bg-slate-100" />;
+    return (
+      <div className="h-[calc(100vh-8rem)] animate-pulse rounded-lg bg-slate-100" />
+    );
   }
   if (state.status === 'error') {
     return (
@@ -64,6 +64,7 @@ export function GlobeView() {
   return (
     <MapGlobe
       devices={state.locations}
+      heightClassName="h-[calc(100vh-8rem)]"
       onSelectDevice={(deviceId) => {
         router.prefetch(`/devices/${deviceId}`);
       }}

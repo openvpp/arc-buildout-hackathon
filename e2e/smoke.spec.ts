@@ -8,13 +8,12 @@ import { expect, test } from '@playwright/test';
  * docs/demo-runbook.md.
  */
 
-test('home page loads and links to the dashboard', async ({ page }) => {
+test('home page is the globe and requires sign-in when unauthenticated', async ({
+  page,
+}) => {
   await page.goto('/');
-  await expect(
-    page.getByRole('heading', { name: 'Arc EV Fleet' }),
-  ).toBeVisible();
-  await page.getByRole('link', { name: 'Go to dashboard' }).click();
-  await expect(page).toHaveURL(/\/devices$/);
+  await expect(page.getByRole('link', { name: 'Arc EV Fleet' })).toBeVisible();
+  await expect(page.getByText('Sign in to continue')).toBeVisible();
 });
 
 test('devices page requires sign-in when unauthenticated', async ({ page }) => {
@@ -22,15 +21,10 @@ test('devices page requires sign-in when unauthenticated', async ({ page }) => {
   await expect(page.getByText('Sign in to continue')).toBeVisible();
 });
 
-test('globe page requires sign-in when unauthenticated', async ({ page }) => {
-  await page.goto('/globe');
-  await expect(page.getByText('Sign in to continue')).toBeVisible();
-});
-
-test('nav links move between devices and globe', async ({ page }) => {
+test('nav moves between home (globe) and devices', async ({ page }) => {
   await page.goto('/devices');
-  await page.getByRole('link', { name: 'Globe' }).click();
-  await expect(page).toHaveURL(/\/globe$/);
+  await page.getByRole('link', { name: 'Arc EV Fleet' }).click();
+  await expect(page).toHaveURL(/\/$/);
   await page.getByRole('link', { name: 'Devices' }).click();
   await expect(page).toHaveURL(/\/devices$/);
 });

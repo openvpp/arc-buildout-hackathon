@@ -47,7 +47,7 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
    `/devices` should move to `mint_status: minted` with a transaction link
    that resolves on `testnet.arcscan.app`.
 5. Send (or wait for) an Enode webhook with a `location` payload for that
-   vehicle; `/globe` should show a pin at that location. Click it → popup →
+   vehicle; `/` (home) should show a pin at that location. Click it → popup →
    **View device** → lands on the same device detail page.
 
 ## Duplicate-link / retry checks
@@ -59,7 +59,7 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
   broadcast tx instead of minting a second NFT
   (`mintDeviceNftIfNeeded`'s `reconcileMint` path — covered by
   `test/integration/device-mint-concurrency.test.ts`).
-- A device with no reported location never appears on `/globe`, but still
+- A device with no reported location never appears on `/` (home), but still
   shows normally on `/devices`.
 
 ## Automated coverage

@@ -26,9 +26,11 @@ export function isMapboxConfigured(): boolean {
 export function MapGlobe({
   devices,
   onSelectDevice,
+  heightClassName = 'h-96',
 }: {
   devices: DeviceLocation[];
   onSelectDevice: (deviceId: string) => void;
+  heightClassName?: string;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -135,7 +137,9 @@ export function MapGlobe({
 
   if (!isMapboxConfigured()) {
     return (
-      <div className="flex h-96 items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500">
+      <div
+        className={`flex items-center justify-center rounded-lg border border-dashed border-slate-300 text-sm text-slate-500 ${heightClassName}`}
+      >
         Globe unavailable — Mapbox is not configured.
       </div>
     );
@@ -144,7 +148,7 @@ export function MapGlobe({
   return (
     <div
       ref={containerRef}
-      className="h-96 w-full overflow-hidden rounded-lg border border-slate-200"
+      className={`w-full overflow-hidden rounded-lg border border-slate-200 ${heightClassName}`}
     />
   );
 }
