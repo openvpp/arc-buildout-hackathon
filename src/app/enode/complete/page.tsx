@@ -104,7 +104,7 @@ function EnodeCompleteInner() {
             <div className="mt-4">
               <Link
                 href="/devices/onboard"
-                className="inline-flex items-center justify-center rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white"
+                className="inline-flex items-center justify-center rounded-md border border-primary-500 px-3.5 py-2 text-sm font-medium text-primary-500 hover:bg-primary-500/10"
               >
                 Try again
               </Link>
@@ -124,7 +124,7 @@ function EnodeCompleteInner() {
                   setNickname(e.target.value);
                 }}
                 placeholder="My EV"
-                className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"
+                className="rounded-md border border-white/15 bg-black px-3 py-2 text-sm text-white placeholder:text-white/30"
               />
             </label>
             <div className="mt-4">
@@ -147,7 +147,7 @@ export default function EnodeCompletePage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-lg px-4 py-10 text-sm text-slate-600">
+        <div className="mx-auto max-w-lg px-4 py-10 text-sm text-white/60">
           Loading…
         </div>
       }

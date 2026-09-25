@@ -17,7 +17,7 @@ export function MintTransactionLink({
       href={href}
       target="_blank"
       rel="noreferrer noopener"
-      className="text-xs font-medium text-slate-700 underline decoration-dotted"
+      className="text-xs font-medium text-white/70 underline decoration-dotted"
     >
       {truncateHash(transactionHash)}
     </a>

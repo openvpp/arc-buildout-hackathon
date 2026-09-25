@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 
 const TONE_CLASS: Record<string, string> = {
-  neutral: 'bg-slate-100 text-slate-700',
-  success: 'bg-emerald-100 text-emerald-800',
-  warning: 'bg-amber-100 text-amber-800',
-  danger: 'bg-red-100 text-red-800',
+  neutral: 'bg-white/10 text-white/70',
+  success: 'bg-primary-500/15 text-primary-400',
+  warning: 'bg-amber-500/15 text-amber-400',
+  danger: 'bg-red-500/15 text-red-400',
 };
 
 export function StatusBadge({

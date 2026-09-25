@@ -7,9 +7,9 @@ export function PageHeader({
 }) {
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
+      <h1 className="text-xl font-semibold text-white">{title}</h1>
       {description !== undefined ? (
-        <p className="mt-1 text-sm text-slate-600">{description}</p>
+        <p className="mt-1 text-sm text-white/60">{description}</p>
       ) : null}
     </div>
   );
