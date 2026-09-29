@@ -26,7 +26,7 @@ async function seedDevice() {
       walletId: wallet.id,
       provider: 'enode',
       externalDeviceId,
-      deviceType: 'vehicle',
+      deviceType: 'electric_vehicle',
     })
     .returning();
   if (device === undefined) {

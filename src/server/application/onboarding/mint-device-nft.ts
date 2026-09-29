@@ -6,6 +6,7 @@ import {
   createDeviceNftMinter,
   type DeviceNftMinter,
 } from '@/server/infrastructure/blockchain/device-nft';
+import { getProviderDeviceMintTypeId } from '@/server/infrastructure/blockchain/device-types';
 import { arcNetworkLabel } from '@/server/infrastructure/blockchain/network-provider';
 import type { Database } from '@/server/infrastructure/db/client';
 import { devices, wallets } from '@/server/infrastructure/db/schema';
@@ -86,7 +87,10 @@ export async function mintDeviceNftIfNeeded(input: {
     throw new Error(`Wallet not found for device mint: ${deviceId}`);
   }
   const walletAddress = wallet.address;
-  const typeId = BigInt(env.DEVICE_NFT_TYPE_ID);
+  // Minting is irreversible — resolved from the standardized on-chain
+  // device-class taxonomy, not a flat env var, so a mis-typed devices row
+  // fails loudly here instead of minting the wrong typeId.
+  const typeId = BigInt(getProviderDeviceMintTypeId(device.deviceType));
 
   const now = new Date();
   const staleBoundary = new Date(now.getTime() - MINT_CLAIM_LEASE_MS);

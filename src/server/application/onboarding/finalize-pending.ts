@@ -188,7 +188,7 @@ export async function finalizePendingVehicleConnection(
       .values({
         provider: 'enode',
         externalDeviceId: mapped.vehicleId,
-        deviceType: 'vehicle',
+        deviceType: 'electric_vehicle',
         metadata: { year: mapped.year },
         ...deviceValues,
       })

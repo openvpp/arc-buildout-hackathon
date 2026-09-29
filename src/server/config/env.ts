@@ -47,7 +47,6 @@ const serverEnvSchema = z.object({
     .optional(),
   PRIVATE_KEY: z.string().optional(),
   DEVICE_NFT_MINTER_PRIVATE_KEY: z.string().optional(),
-  DEVICE_NFT_TYPE_ID: z.string().default('1'),
   ARC_REQUIRED_CONFIRMATIONS: z.coerce.number().default(3),
 
   WORKER_ID: z.string().default('local'),

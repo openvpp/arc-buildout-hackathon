@@ -151,6 +151,11 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - Mint using the already-deployed DeviceNFT contract
   (`DEVICE_NFT_CONTRACT_ADDRESS`) — do not redeploy without an explicit
   decision to do so.
+- `typeId` is resolved from `devices.device_type` via the standardized
+  on-chain taxonomy in `device-types.ts` (source of truth shared with the
+  deployed contract) — never hardcode or configure it as a flat value.
+  Adding a new entry there is a contract-compatibility decision, not a
+  routine config change; don't renumber existing entries.
 - Claim-before-mint: only one worker attempt may hold a device's mint job at
   a time (`mint_status='pending'` + `mint_claimed_at` lease).
 - Persist the broadcast transaction hash **before** confirmation, so a crash

@@ -175,7 +175,10 @@ export const devices = pgTable(
     ),
     provider: text('provider').notNull().default('enode'),
     externalDeviceId: text('external_device_id').notNull(),
-    deviceType: text('device_type').notNull().default('vehicle'),
+    // Matches the on-chain device-class taxonomy — see device-types.ts.
+    // Only 'electric_vehicle' is onboarded by this app today; the rest are
+    // reserved to mirror the deployed contract's typeId space.
+    deviceType: text('device_type').notNull().default('electric_vehicle'),
     vendor: text('vendor'),
     model: text('model'),
     displayName: text('display_name'),
@@ -204,6 +207,12 @@ export const devices = pgTable(
     check(
       'devices_mint_status_check',
       sql`${table.mintStatus} in ('unminted', 'pending', 'minted', 'failed')`,
+    ),
+    // Mirrors the on-chain device-class taxonomy (device-types.ts). Only
+    // 'electric_vehicle' is actually onboarded by this app.
+    check(
+      'devices_device_type_check',
+      sql`${table.deviceType} in ('electric_vehicle', 'charger', 'battery', 'solar', 'thermostat')`,
     ),
     uniqueIndex('devices_provider_external_device_uidx').on(
       table.provider,

@@ -1,0 +1,2 @@
+ALTER TABLE "devices" ALTER COLUMN "device_type" SET DEFAULT 'electric_vehicle';--> statement-breakpoint
+ALTER TABLE "devices" ADD CONSTRAINT "devices_device_type_check" CHECK ("devices"."device_type" in ('electric_vehicle', 'charger', 'battery', 'solar', 'thermostat'));

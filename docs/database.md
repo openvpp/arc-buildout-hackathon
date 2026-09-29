@@ -33,6 +33,20 @@ migration — add a new one.
 - `nft_token_id` is only ever set once; the application layer refuses to
   mutate it after a successful mint.
 
+## `devices` class / on-chain type
+
+`device_type` is constrained (`devices_device_type_check`) to the on-chain
+device-class taxonomy defined in
+[`device-types.ts`](../src/server/infrastructure/blockchain/device-types.ts)
+— the same source of truth used to resolve the `typeId` argument to the
+deployed DeviceNFT contract's `mintDevice`. Only `electric_vehicle` is ever
+written by this app's onboarding flow; the other classes
+(`charger`/`battery`/`solar`/`thermostat`) are reserved in the constraint to
+mirror the contract's typeId space, not because this milestone onboards
+them — see CLAUDE.md's scope boundary. Minting resolves `typeId` from this
+column, not from a flat env var, so an unrecognized class fails the mint
+loudly instead of guessing.
+
 ## `devices` location
 
 `last_latitude`/`last_longitude`/`last_location_at` are denormalized from
