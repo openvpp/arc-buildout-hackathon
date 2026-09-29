@@ -56,6 +56,31 @@ body {
   border-bottom-color: var(--color-modalbg);
 }
 
+/* Mapbox's default close button is unpositioned/unstyled against a custom
+   card — pin it inside the card's own padding instead of the raw content
+   corner, and give it a visible hit target and hover state. */
+.device-popup .mapboxgl-popup-close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.device-popup .mapboxgl-popup-close-button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* No chrome on the globe canvas: no wordmark, no zoom/compass control
    (attribution is already disabled via the Map constructor). */
 .mapboxgl-ctrl-logo,
