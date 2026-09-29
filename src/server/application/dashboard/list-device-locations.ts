@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, isNotNull } from 'drizzle-orm';
 
 import type { Database } from '@/server/infrastructure/db/client';
 import { devices } from '@/server/infrastructure/db/schema';
@@ -8,39 +8,38 @@ export type DeviceLocation = {
   displayName: string | null;
   externalDeviceId: string;
   vendor: string | null;
+  deviceType: string;
   mintStatus: string;
   latitude: number;
   longitude: number;
 };
 
 /**
- * Devices owned by one wallet that have a known location, for the globe.
- * Devices without coordinates are simply omitted — no fallback pin.
- * Paginated (default page size 100) to keep this a bounded query as the
- * fleet grows.
+ * Every device with a known location, across every wallet — the globe is a
+ * public view of the whole connected fleet, not scoped to who (if anyone)
+ * is signed in. Devices without coordinates are simply omitted — no
+ * fallback pin. Paginated (default page size 100) to keep this a bounded
+ * query as the fleet grows.
  */
-export async function listDeviceLocationsForWallet(
+export async function listAllDeviceLocations(
   db: Database,
-  input: { walletId: string; limit?: number },
+  input?: { limit?: number },
 ): Promise<DeviceLocation[]> {
-  const limit = Math.min(input.limit ?? 100, 200);
+  const limit = Math.min(input?.limit ?? 100, 200);
   const rows = await db
     .select({
       id: devices.id,
       displayName: devices.displayName,
       externalDeviceId: devices.externalDeviceId,
       vendor: devices.vendor,
+      deviceType: devices.deviceType,
       mintStatus: devices.mintStatus,
       lastLatitude: devices.lastLatitude,
       lastLongitude: devices.lastLongitude,
     })
     .from(devices)
     .where(
-      and(
-        eq(devices.walletId, input.walletId),
-        isNotNull(devices.lastLatitude),
-        isNotNull(devices.lastLongitude),
-      ),
+      and(isNotNull(devices.lastLatitude), isNotNull(devices.lastLongitude)),
     )
     .orderBy(desc(devices.lastLocationAt))
     .limit(limit);
@@ -52,6 +51,7 @@ export async function listDeviceLocationsForWallet(
       displayName: row.displayName,
       externalDeviceId: row.externalDeviceId,
       vendor: row.vendor,
+      deviceType: row.deviceType,
       mintStatus: row.mintStatus,
       latitude: Number(row.lastLatitude),
       longitude: Number(row.lastLongitude),

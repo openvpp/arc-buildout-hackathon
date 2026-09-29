@@ -37,10 +37,12 @@ Route Handler → transport → application → domain → infrastructure
    SDK, `refId`-keyed, idempotent) → upsert
    `principals`/`wallets`/`principal_wallets` → sign the dashboard session
    JWT → set as an httpOnly cookie.
-3. Every other route in this app reads that cookie
+3. Every other route that acts on a wallet reads that cookie
    (`requirePrincipal`/`getCurrentPrincipal`) instead of trusting anything
    from the request body — the wallet id/address in the session is the only
-   source of truth for "who is asking."
+   source of truth for "who is asking." The one exception is step 8: the
+   globe's locations endpoint is deliberately public, since it's a fleet-wide
+   view, not a per-wallet one.
 4. `POST /api/v1/vehicle-onboarding/link` → `createVehicleLink` → Enode
    client-credentials token → Enode `POST /users/:id/link` → pending
    connection row, redirect to Enode's hosted Link UI.
@@ -53,8 +55,9 @@ external_device_id)`) and enqueues a `MINT_DEVICE_NFT` outbox event.
    DeviceNFT contract → `devices.mint_status` `pending` → `minted`.
 7. Enode webhook (`POST /api/webhooks/enode`) → HMAC-SHA1 verify → dedupe on
    `(provider, delivery_id)` → update `devices.last_latitude/longitude`.
-8. `/` (home) → `GET /api/v1/dashboard/devices/locations` (paginated, wallet-
-   scoped) → Mapbox GL globe, one pin per device with a known location.
+8. `/` (home) → `GET /api/v1/dashboard/devices/locations` (paginated, public
+   — every device with a known location, not scoped to a wallet) → Mapbox GL
+   globe, one pin per device.
 
 ## Why this data model is smaller than a typical "EV platform"
 

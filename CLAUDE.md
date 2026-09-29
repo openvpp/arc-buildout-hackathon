@@ -24,8 +24,10 @@ Scope (and only this):
    and displays the mint status and transaction accurately
    (`unminted → pending → minted | failed`), never claiming a mint is
    complete before the on-chain transaction is confirmed.
-4. The user's devices with known coordinates appear as pins on a **Mapbox
-   globe**.
+4. Every device with known coordinates — across every wallet — appears as a
+   pin on a **Mapbox globe**. The globe is a public, fleet-wide view: its
+   `GET /api/v1/dashboard/devices/locations` endpoint is deliberately
+   unauthenticated, unlike every other route in this app.
 
 ### Explicitly out of scope
 

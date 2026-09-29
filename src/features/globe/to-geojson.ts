@@ -1,11 +1,13 @@
 import type { FeatureCollection, Point } from 'geojson';
 
 import type { DeviceLocation } from './client-api';
+import { deviceTypeClusterProperties } from './device-pin-style';
 
 export type DevicePinProperties = {
   id: string;
   displayName: string;
   vendor: string;
+  deviceType: string;
   mintStatus: string;
 };
 
@@ -24,8 +26,18 @@ export function devicesToGeoJson(
         id: device.id,
         displayName: device.displayName ?? device.externalDeviceId,
         vendor: device.vendor ?? 'Unknown vendor',
+        deviceType: device.deviceType,
         mintStatus: device.mintStatus,
       },
     })),
   };
 }
+
+/** Clustering config ported from openvpp-app's EVLayer/DeviceLayer source. */
+export const DEVICE_CLUSTER_OPTIONS = {
+  cluster: true,
+  clusterRadius: 50,
+  clusterMaxZoom: 12,
+  clusterMinPoints: 2,
+  clusterProperties: deviceTypeClusterProperties(),
+} as const;

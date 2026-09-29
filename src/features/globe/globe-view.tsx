@@ -12,10 +12,10 @@ type LoadState =
   | { status: 'loaded'; locations: DeviceLocation[] };
 
 /**
- * The globe is always rendered — signed out, signed in with zero devices,
- * and signed in with devices are all just different pin counts on the same
- * map, never a different screen. Only a genuine fetch failure (not "no
- * pins yet") replaces the map with a message.
+ * The globe is always rendered and its data is public — every device with
+ * a known location, regardless of who (if anyone) is signed in. Only a
+ * genuine fetch failure (not "no pins yet") replaces the map with a
+ * message.
  */
 export function GlobeView() {
   const router = useRouter();

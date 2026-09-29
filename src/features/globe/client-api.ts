@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { ApiClient, ApiRequestError } from '@/lib/api/client';
+import { ApiClient } from '@/lib/api/client';
 
 const locationsSchema = z.object({
   locations: z.array(
@@ -9,6 +9,7 @@ const locationsSchema = z.object({
       displayName: z.string().nullable(),
       externalDeviceId: z.string(),
       vendor: z.string().nullable(),
+      deviceType: z.string(),
       mintStatus: z.string(),
       latitude: z.number(),
       longitude: z.number(),
@@ -22,11 +23,7 @@ export type DeviceLocation = z.infer<
 
 export function createGlobeApi(client: ApiClient = new ApiClient()) {
   return {
-    /**
-     * The globe is always visible, signed in or not — an anonymous visitor
-     * simply sees no pins yet, not an error. Only a genuine failure (not
-     * "you're not signed in") surfaces as an error state.
-     */
+    /** Public — every device with a known location, not scoped to a wallet. */
     async listLocations(): Promise<DeviceLocation[]> {
       const result = await client.request(
         '/api/v1/dashboard/devices/locations',
@@ -36,12 +33,6 @@ export function createGlobeApi(client: ApiClient = new ApiClient()) {
         },
       );
       if (!result.ok) {
-        if (
-          result.error instanceof ApiRequestError &&
-          result.error.code === 'UNAUTHENTICATED'
-        ) {
-          return [];
-        }
         throw result.error;
       }
       return result.data.locations;
