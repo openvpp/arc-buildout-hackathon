@@ -3,12 +3,33 @@ import type { ReactNode } from 'react';
 
 import { CircleAuthButton, CircleGoogleProvider } from '@/features/auth-circle';
 import { DeviceOnboardModalProvider } from '@/features/onboarding';
+import { getCurrentPrincipal } from '@/server/infrastructure/auth/current-principal';
+import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
-export default function DashboardGroupLayout({
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const log = createServerLogger({ component: 'dashboard-layout' });
+
+export default async function DashboardGroupLayout({
   children,
 }: {
   children: ReactNode;
 }) {
+  let walletAddress: string | null = null;
+  let walletId: string | null = null;
+  try {
+    const principal = await getCurrentPrincipal();
+    walletAddress = principal?.walletAddress ?? null;
+    walletId = principal?.walletId ?? null;
+  } catch (error) {
+    // The globe is public. A database outage must not take the map down
+    // with the header; privileged pages still query the session themselves.
+    log.error('dashboard.session_lookup_failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   return (
     <CircleGoogleProvider>
       <DeviceOnboardModalProvider>
@@ -20,7 +41,10 @@ export default function DashboardGroupLayout({
             >
               Arc EV Fleet
             </Link>
-            <CircleAuthButton />
+            <CircleAuthButton
+              key={walletId ?? 'signed-out'}
+              initialWalletAddress={walletAddress}
+            />
           </header>
           {children}
         </div>

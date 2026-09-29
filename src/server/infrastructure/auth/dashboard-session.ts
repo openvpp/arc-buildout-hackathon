@@ -75,6 +75,17 @@ export async function verifyDashboardSessionToken(input: {
   }
 }
 
+export function isSecureSessionCookie(input: {
+  appEnv: string;
+  nodeEnv: string | undefined;
+}): boolean {
+  return (
+    input.appEnv === 'production' ||
+    input.appEnv === 'staging' ||
+    input.nodeEnv === 'production'
+  );
+}
+
 export function buildDashboardSessionCookie(input: {
   token: string;
   secure: boolean;

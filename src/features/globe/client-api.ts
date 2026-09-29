@@ -15,6 +15,7 @@ const locationsSchema = z.object({
       longitude: z.number(),
     }),
   ),
+  nextCursor: z.string().nullable(),
 });
 
 export type DeviceLocation = z.infer<
@@ -23,19 +24,38 @@ export type DeviceLocation = z.infer<
 
 export function createGlobeApi(client: ApiClient = new ApiClient()) {
   return {
-    /** Public — every device with a known location, not scoped to a wallet. */
-    async listLocations(): Promise<DeviceLocation[]> {
-      const result = await client.request(
-        '/api/v1/dashboard/devices/locations',
-        {
-          method: 'GET',
-          schema: locationsSchema,
-        },
-      );
-      if (!result.ok) {
-        throw result.error;
+    /**
+     * Public — every device with a known location, not scoped to a wallet.
+     * Follows cursors so a fleet larger than one page still renders. Caps
+     * the walk so a broken cursor cannot loop forever.
+     */
+    async listLocations(signal?: AbortSignal): Promise<DeviceLocation[]> {
+      const locations: DeviceLocation[] = [];
+      let cursor: string | null = null;
+      for (let page = 0; page < 25; page += 1) {
+        const searchParams: Record<string, string> = { limit: '200' };
+        if (cursor !== null) {
+          searchParams.cursor = cursor;
+        }
+        const result = await client.request(
+          '/api/v1/dashboard/devices/locations',
+          {
+            method: 'GET',
+            searchParams,
+            schema: locationsSchema,
+            ...(signal !== undefined ? { signal } : {}),
+          },
+        );
+        if (!result.ok) {
+          throw result.error;
+        }
+        locations.push(...result.data.locations);
+        if (result.data.nextCursor === null) {
+          return locations;
+        }
+        cursor = result.data.nextCursor;
       }
-      return result.data.locations;
+      return locations;
     },
   };
 }

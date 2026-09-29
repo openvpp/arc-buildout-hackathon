@@ -83,8 +83,15 @@ export type DeviceNftMinter = {
     transactionHash: string;
     to: string;
     typeId: bigint;
-  }): Promise<{ tokenId: string } | null>;
+  }): Promise<
+    | { outcome: 'confirmed'; tokenId: string }
+    | { outcome: 'reverted' }
+    | { outcome: 'pending' }
+    | { outcome: 'unrecognized' }
+  >;
 };
+
+const MINT_RECEIPT_TIMEOUT_MS = 180_000;
 
 /** Returns null when Arc minting isn't configured — callers must not mint. */
 export function createDeviceNftMinter(): DeviceNftMinter | null {
@@ -123,6 +130,7 @@ export function createDeviceNftMinter(): DeviceNftMinter | null {
       const receipt = await publicClient.waitForTransactionReceipt({
         hash,
         confirmations: env.ARC_REQUIRED_CONFIRMATIONS,
+        timeout: MINT_RECEIPT_TIMEOUT_MS,
       });
       const tokenId = extractTokenId(receipt.logs, { to: input.to });
       if (tokenId === null) {
@@ -137,16 +145,18 @@ export function createDeviceNftMinter(): DeviceNftMinter | null {
           hash: input.transactionHash as `0x${string}`,
         });
         if (receipt.status !== 'success') {
-          return null;
+          return { outcome: 'reverted' };
         }
         const tokenId = extractTokenId(receipt.logs, { to: input.to });
-        return tokenId !== null ? { tokenId } : null;
+        return tokenId !== null
+          ? { outcome: 'confirmed', tokenId }
+          : { outcome: 'unrecognized' };
       } catch (error) {
         log.warn('mint.reconcile_lookup_failed', {
           transactionHash: input.transactionHash,
           errorMessage: error instanceof Error ? error.message : String(error),
         });
-        return null;
+        return { outcome: 'pending' };
       }
     },
   };

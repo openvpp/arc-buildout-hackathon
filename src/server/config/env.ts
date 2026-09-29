@@ -71,6 +71,23 @@ export function getServerEnv(): ServerEnv {
         .join('; ')}`,
     );
   }
+  assertProductionSafe(parsed.data);
   cached = parsed.data;
   return cached;
+}
+
+function assertProductionSafe(env: ServerEnv): void {
+  if (env.APP_ENV !== 'production' && env.APP_ENV !== 'staging') {
+    return;
+  }
+  if (env.ALLOW_MOCK_ADAPTERS) {
+    throw new Error(
+      'ALLOW_MOCK_ADAPTERS must be false when APP_ENV is production or staging.',
+    );
+  }
+  if (env.API_KEY_HASH_SECRET.length < 32) {
+    throw new Error(
+      'API_KEY_HASH_SECRET must be at least 32 characters when APP_ENV is production or staging.',
+    );
+  }
 }

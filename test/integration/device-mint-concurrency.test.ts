@@ -33,7 +33,7 @@ function makeFakeMinter(): DeviceNftMinter & { callCount: number } {
       return { tokenId: '42', transactionHash: hash };
     },
     async reconcileMint() {
-      return null;
+      return { outcome: 'pending' as const };
     },
   };
   return minter;
@@ -125,5 +125,37 @@ describe('mintDeviceNftIfNeeded concurrency (claim-before-mint)', () => {
       .limit(1);
     expect(row?.mintStatus).toBe('unminted');
     expect(row?.nftTokenId).toBeNull();
+  });
+
+  it('does not broadcast a second mint while the prior transaction is unconfirmed', async () => {
+    const device = await seedDevice();
+    const hash = `0x${'ab'.repeat(32)}`;
+    await db
+      .update(devices)
+      .set({
+        mintStatus: 'pending',
+        mintClaimedAt: new Date(Date.now() - 11 * 60 * 1000),
+        nftTransactionHash: hash,
+      })
+      .where(eq(devices.id, device.id));
+
+    const minter = makeFakeMinter();
+    await expect(
+      mintDeviceNftIfNeeded({
+        db,
+        deviceId: device.id,
+        minterOverride: minter,
+      }),
+    ).rejects.toThrow(/not confirmed/i);
+    expect(minter.callCount).toBe(0);
+
+    const [row] = await db
+      .select()
+      .from(devices)
+      .where(eq(devices.id, device.id))
+      .limit(1);
+    expect(row?.nftTransactionHash).toBe(hash);
+    expect(row?.nftTokenId).toBeNull();
+    expect(row?.mintStatus).toBe('pending');
   });
 });

@@ -1,6 +1,10 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 
+import {
+  ApplicationError,
+  applicationErrorStatus,
+} from '@/server/application/application-error';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 import { ApiError } from '@/server/transport/http/api-error';
 import { jsonError } from '@/server/transport/http/api-response';
@@ -27,7 +31,7 @@ export function createRouteHandler<Params = Record<string, never>>(
     request: NextRequest,
     routeArgs?: { params: Promise<Params> },
   ): Promise<NextResponse> => {
-    const context = createRequestContext();
+    const context = createRequestContext(request);
     try {
       const params =
         routeArgs?.params !== undefined
@@ -36,9 +40,22 @@ export function createRouteHandler<Params = Record<string, never>>(
       return await handler(request, { ...context, params });
     } catch (error) {
       if (error instanceof ApiError) {
-        return jsonError(
+        const response = jsonError(
           { code: error.code, message: error.message, details: error.details },
           error.status,
+          context.requestId,
+        );
+        if (error.headers !== undefined) {
+          for (const [name, value] of Object.entries(error.headers)) {
+            response.headers.set(name, value);
+          }
+        }
+        return response;
+      }
+      if (error instanceof ApplicationError) {
+        return jsonError(
+          { code: error.code, message: error.message },
+          applicationErrorStatus(error.code),
           context.requestId,
         );
       }

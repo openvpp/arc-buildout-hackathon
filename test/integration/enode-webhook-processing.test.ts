@@ -108,6 +108,74 @@ describe('processEnodeWebhook', () => {
     expect(deliveries).toHaveLength(1);
   });
 
+  it('ignores an older location event after a newer one was applied', async () => {
+    const device = await seedDevice();
+    const newer = new Date('2026-09-30T12:00:00.000Z').toISOString();
+    const older = new Date('2026-09-30T11:00:00.000Z').toISOString();
+
+    await processEnodeWebhook(db, {
+      rawBody: JSON.stringify([
+        {
+          event: 'user:vehicle:updated',
+          createdAt: newer,
+          vehicle: {
+            id: device.externalDeviceId,
+            location: { latitude: 40, longitude: -70 },
+          },
+        },
+      ]),
+      deliveryIdHeader: randomUUID(),
+      signatureValid: true,
+    });
+    await processEnodeWebhook(db, {
+      rawBody: JSON.stringify([
+        {
+          event: 'user:vehicle:updated',
+          createdAt: older,
+          vehicle: {
+            id: device.externalDeviceId,
+            location: { latitude: 1, longitude: 2 },
+          },
+        },
+      ]),
+      deliveryIdHeader: randomUUID(),
+      signatureValid: true,
+    });
+
+    const [row] = await db
+      .select()
+      .from(devices)
+      .where(eq(devices.id, device.id))
+      .limit(1);
+    expect(row?.lastLatitude).toBe('40.000000');
+    expect(row?.lastLongitude).toBe('-70.000000');
+  });
+
+  it('does not store coordinates outside the valid range', async () => {
+    const device = await seedDevice();
+    const result = await processEnodeWebhook(db, {
+      rawBody: JSON.stringify([
+        {
+          event: 'user:vehicle:updated',
+          vehicle: {
+            id: device.externalDeviceId,
+            location: { latitude: 999, longitude: 10 },
+          },
+        },
+      ]),
+      deliveryIdHeader: randomUUID(),
+      signatureValid: true,
+    });
+    expect(result).toEqual({ status: 'processed', eventsHandled: 1 });
+    const [row] = await db
+      .select()
+      .from(devices)
+      .where(eq(devices.id, device.id))
+      .limit(1);
+    expect(row?.lastLatitude).toBeNull();
+    expect(row?.lastLongitude).toBeNull();
+  });
+
   it('does not crash on an unknown event type', async () => {
     const rawBody = JSON.stringify([
       { event: 'user:schedule:execution-updated' },

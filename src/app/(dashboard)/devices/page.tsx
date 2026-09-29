@@ -11,6 +11,7 @@ import { getCurrentPrincipal } from '@/server/infrastructure/auth/current-princi
 import { getDb } from '@/server/infrastructure/db/client';
 import { mintStatusTone, formatTimestamp } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
+import { RefreshWhilePending } from '@/features/devices/refresh-while-pending';
 import { AddVehicleButton } from '@/features/onboarding';
 
 export const metadata: Metadata = {
@@ -84,9 +85,9 @@ export default async function DevicesPage() {
                       transactionHash={device.nftTransactionHash}
                     />
                   </div>
-                  <dl className="grid grid-cols-1 gap-2 text-xs text-white/50">
+                  <dl className="grid grid-cols-1 gap-2 text-xs text-white/70">
                     <div>
-                      <dt className="font-medium tracking-wide text-white/40 uppercase">
+                      <dt className="font-medium tracking-wide text-white/60 uppercase">
                         External ID
                       </dt>
                       <dd className="font-mono break-all">
@@ -94,7 +95,7 @@ export default async function DevicesPage() {
                       </dd>
                     </div>
                     <div>
-                      <dt className="font-medium tracking-wide text-white/40 uppercase">
+                      <dt className="font-medium tracking-wide text-white/60 uppercase">
                         Last seen
                       </dt>
                       <dd>
@@ -115,6 +116,9 @@ export default async function DevicesPage() {
             ))}
           </ul>
         )}
+        <RefreshWhilePending
+          active={deviceList.some((device) => device.mintStatus === 'pending')}
+        />
       </div>
     </PageContainer>
   );

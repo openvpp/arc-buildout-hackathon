@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 import { onEnodeOAuthComplete } from '@/server/application/onboarding/pending-oauth';
 import { getDb } from '@/server/infrastructure/db/client';
-import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
+import { enforceRateLimit } from '@/server/transport/http/rate-limit';
 import { requirePrincipal } from '@/server/transport/http/require-principal';
 import { createRouteHandler } from '@/server/transport/http/route-handler';
 
@@ -14,6 +14,12 @@ const querySchema = z.object({ pendingId: z.string().uuid() });
 
 /** GET /api/v1/vehicle-onboarding/oauth/enode-complete?pendingId=... — after the OEM redirect. */
 export const GET = createRouteHandler(async (request, context) => {
+  enforceRateLimit({
+    request,
+    bucket: 'enode-oauth-complete',
+    limit: 30,
+    windowMs: 10 * 60 * 1000,
+  });
   const principal = await requirePrincipal();
   const parsed = querySchema.parse({
     pendingId: new URL(request.url).searchParams.get('pendingId'),
@@ -24,12 +30,5 @@ export const GET = createRouteHandler(async (request, context) => {
     pendingId: parsed.pendingId,
     walletId: principal.walletId,
   });
-  if (!result.ok) {
-    throw new ApiError({
-      code: 'VALIDATION_FAILED',
-      message: result.message,
-      status: 400,
-    });
-  }
-  return jsonOk(result, context.requestId);
+  return jsonOk({ ok: true as const, ...result }, context.requestId);
 });

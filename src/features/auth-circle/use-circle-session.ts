@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import { logger } from '@/lib/logger/logger';
 
@@ -20,15 +20,21 @@ const sessionApi = createCircleSessionApi();
  * server-side (creating/finding the Circle wallet for that email), and
  * refreshes RSCs so wallet-scoped data loads.
  */
-export function useCircleSession() {
+export function useCircleSession(initialWalletAddress: string | null = null) {
   const router = useRouter();
-  const [state, setState] = useState<CircleSessionState>({
-    status: 'idle',
-    error: null,
-  });
+  const inFlight = useRef(false);
+  const [state, setState] = useState<CircleSessionState>(
+    initialWalletAddress !== null
+      ? { status: 'signed_in', walletAddress: initialWalletAddress }
+      : { status: 'idle', error: null },
+  );
 
   const signInWithEmail = useCallback(
     async (email: string) => {
+      if (inFlight.current) {
+        return;
+      }
+      inFlight.current = true;
       setState({ status: 'signing_in' });
       try {
         const result = await sessionApi.establish({ email });
@@ -42,6 +48,8 @@ export function useCircleSession() {
           status: 'idle',
           error: error instanceof Error ? error.message : 'Sign-in failed.',
         });
+      } finally {
+        inFlight.current = false;
       }
     },
     [router],

@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 
+import { ApplicationError } from '@/server/application/application-error';
 import type { Database } from '@/server/infrastructure/db/client';
 import { pendingDeviceConnections } from '@/server/infrastructure/db/schema';
 import { createHttpEnodeVehicleClient } from '@/server/infrastructure/enode/http-client';
@@ -44,28 +45,22 @@ async function markExpiredIfNeeded(
 export async function onEnodeOAuthComplete(
   db: Database,
   input: { pendingId: string; walletId: string },
-): Promise<
-  | { ok: true; pendingId: string; status: string; requiresForm: boolean }
-  | { ok: false; message: string }
-> {
+): Promise<{ pendingId: string; status: string; requiresForm: boolean }> {
   const pending = await loadPending(db, input.pendingId);
-  if (pending === null) {
-    return { ok: false, message: 'Pending connection not found' };
+  // Same response for a missing id and someone else's id. Do not mutate
+  // the row — a guessed id must not be able to fail another wallet's link.
+  if (pending === null || pending.walletId !== input.walletId) {
+    throw new ApplicationError(
+      'PENDING_CONNECTION_NOT_FOUND',
+      'Pending connection not found.',
+    );
   }
   const current = await markExpiredIfNeeded(db, pending);
-  if (current.walletId !== input.walletId) {
-    await db
-      .update(pendingDeviceConnections)
-      .set({
-        status: 'failed',
-        error: { code: 'USER_MISMATCH', message: 'wallet mismatch' },
-        updatedAt: new Date(),
-      })
-      .where(eq(pendingDeviceConnections.id, current.id));
-    return { ok: false, message: 'wallet mismatch' };
-  }
   if (TERMINAL.has(current.status)) {
-    return { ok: false, message: `Invalid status: ${current.status}` };
+    throw new ApplicationError(
+      'PENDING_INVALID_STATUS',
+      'This connection can no longer be completed.',
+    );
   }
 
   const enodeUserId = encodeEnodeUserId(current.walletId);
@@ -93,16 +88,18 @@ export async function onEnodeOAuthComplete(
     .returning();
 
   return {
-    ok: true,
     pendingId: current.id,
     status: updated?.status ?? 'pending_form',
     requiresForm: true,
   };
 }
 
-export async function getPendingConnection(db: Database, id: string) {
-  const pending = await loadPending(db, id);
-  if (pending === null) {
+export async function getPendingConnection(
+  db: Database,
+  input: { id: string; walletId: string },
+) {
+  const pending = await loadPending(db, input.id);
+  if (pending === null || pending.walletId !== input.walletId) {
     return null;
   }
   const current = await markExpiredIfNeeded(db, pending);

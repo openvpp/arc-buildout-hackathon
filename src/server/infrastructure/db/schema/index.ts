@@ -208,8 +208,6 @@ export const devices = pgTable(
       'devices_mint_status_check',
       sql`${table.mintStatus} in ('unminted', 'pending', 'minted', 'failed')`,
     ),
-    // Mirrors the on-chain device-class taxonomy (device-types.ts). Only
-    // 'electric_vehicle' is actually onboarded by this app.
     check(
       'devices_device_type_check',
       sql`${table.deviceType} in ('electric_vehicle', 'charger', 'battery', 'solar', 'thermostat')`,
@@ -220,6 +218,13 @@ export const devices = pgTable(
     ),
     index('devices_wallet_idx').on(table.walletId),
     index('devices_wallet_status_idx').on(table.walletId, table.status),
+    // Globe query: located devices, newest fix first. Partial so unlocated
+    // rows (the common case right after link) stay out of the index.
+    index('devices_located_sort_idx')
+      .on(table.lastLocationAt, table.id)
+      .where(
+        sql`${table.lastLatitude} is not null and ${table.lastLongitude} is not null`,
+      ),
   ],
 );
 
@@ -265,6 +270,9 @@ export const outboxEvents = pgTable(
     availableAt: timestamp('available_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Set when a worker claims the row. A `processing` row whose lock is
+    // older than the worker lease is reclaimable after a crash.
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
     processedAt: timestamp('processed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -279,6 +287,9 @@ export const outboxEvents = pgTable(
       table.status,
       table.availableAt,
     ),
+    uniqueIndex('outbox_events_one_active_mint_uidx')
+      .on(table.aggregateType, table.aggregateId, table.eventType)
+      .where(sql`${table.status} in ('pending', 'processing')`),
   ],
 );
 

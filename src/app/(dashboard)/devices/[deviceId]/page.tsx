@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { z } from 'zod';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
@@ -9,6 +10,7 @@ import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { formatTimestamp, mintStatusTone } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
+import { RefreshWhilePending } from '@/features/devices/refresh-while-pending';
 import { getDeviceForWallet } from '@/server/application/dashboard/get-device';
 import { getCurrentPrincipal } from '@/server/infrastructure/auth/current-principal';
 import { getDb } from '@/server/infrastructure/db/client';
@@ -23,6 +25,9 @@ export default async function DeviceDetailPage({
   params: Promise<{ deviceId: string }>;
 }) {
   const { deviceId } = await params;
+  if (!z.string().uuid().safeParse(deviceId).success) {
+    notFound();
+  }
   const principal = await getCurrentPrincipal();
 
   if (principal === null) {
@@ -64,25 +69,25 @@ export default async function DeviceDetailPage({
           </div>
           <dl className="grid grid-cols-1 gap-3 text-sm text-white/80 sm:grid-cols-2">
             <div>
-              <dt className="text-xs font-medium tracking-wide text-white/40 uppercase">
+              <dt className="text-xs font-medium tracking-wide text-white/60 uppercase">
                 External ID
               </dt>
               <dd className="font-mono break-all">{device.externalDeviceId}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium tracking-wide text-white/40 uppercase">
+              <dt className="text-xs font-medium tracking-wide text-white/60 uppercase">
                 Token ID
               </dt>
               <dd>{device.nftTokenId ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium tracking-wide text-white/40 uppercase">
+              <dt className="text-xs font-medium tracking-wide text-white/60 uppercase">
                 Network
               </dt>
               <dd>{device.network ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-xs font-medium tracking-wide text-white/40 uppercase">
+              <dt className="text-xs font-medium tracking-wide text-white/60 uppercase">
                 Last seen
               </dt>
               <dd>
@@ -92,7 +97,7 @@ export default async function DeviceDetailPage({
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium tracking-wide text-white/40 uppercase">
+              <dt className="text-xs font-medium tracking-wide text-white/60 uppercase">
                 Location
               </dt>
               <dd>
@@ -103,6 +108,7 @@ export default async function DeviceDetailPage({
             </div>
           </dl>
         </Card>
+        <RefreshWhilePending active={device.mintStatus === 'pending'} />
         <div className="flex gap-4 text-sm text-primary-500">
           <Link href="/devices" className="underline">
             Back to devices

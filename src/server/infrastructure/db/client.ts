@@ -1,10 +1,22 @@
+import type { ExtractTablesWithRelations } from 'drizzle-orm';
+import type { PgTransaction } from 'drizzle-orm/pg-core';
 import { drizzle } from 'drizzle-orm/postgres-js';
+import type { PostgresJsQueryResultHKT } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
 import { getServerEnv } from '@/server/config/env';
 import * as schema from '@/server/infrastructure/db/schema';
 
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
+
+export type DatabaseTransaction = PgTransaction<
+  PostgresJsQueryResultHKT,
+  typeof schema,
+  ExtractTablesWithRelations<typeof schema>
+>;
+
+/** A request transaction or the process-wide pool. */
+export type DatabaseExecutor = Database | DatabaseTransaction;
 
 let cachedDb: Database | null = null;
 let cachedSql: postgres.Sql | null = null;

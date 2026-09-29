@@ -20,6 +20,7 @@ function EnodeCompleteInner() {
   const searchParams = useSearchParams();
   const pendingId = searchParams.get('pendingId');
   const [nickname, setNickname] = useState('');
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [oauth, setOauth] = useState<OauthState>({ kind: 'loading' });
   const [pending, startTransition] = useTransition();
 
@@ -59,6 +60,7 @@ function EnodeCompleteInner() {
         const api = createOnboardingApi();
         await api.finalize({
           pendingId: currentPendingId,
+          consentAccepted,
           ...(nickname.trim().length > 0 ? { nickname: nickname.trim() } : {}),
         });
         setOauth({ kind: 'redirecting' });
@@ -120,15 +122,34 @@ function EnodeCompleteInner() {
               <span className="font-medium">Nickname</span>
               <input
                 value={nickname}
+                maxLength={80}
                 onChange={(e) => {
                   setNickname(e.target.value);
                 }}
                 placeholder="My EV"
-                className="rounded-md border border-white/15 bg-black px-3 py-2 text-sm text-white placeholder:text-white/30"
+                className="rounded-md border border-white/15 bg-black px-3 py-2 text-sm text-white placeholder:text-white/60"
               />
             </label>
+            <label className="mt-4 flex items-start gap-2 text-sm text-white/80">
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(event) => {
+                  setConsentAccepted(event.target.checked);
+                }}
+                className="mt-1"
+              />
+              <span>
+                I agree to link this vehicle and mint it as a Device NFT on Arc
+                testnet.
+              </span>
+            </label>
             <div className="mt-4">
-              <Button type="button" disabled={pending} onClick={finish}>
+              <Button
+                type="button"
+                disabled={pending || !consentAccepted}
+                onClick={finish}
+              >
                 {pending ? 'Saving…' : 'Save device'}
               </Button>
             </div>

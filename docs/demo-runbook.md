@@ -64,6 +64,14 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
 - A device with no reported location never appears on `/` (home), but still
   shows normally on `/devices`.
 
+## Health
+
+- `GET /api/health` — process liveness, no database call.
+- `GET /api/health/ready` — Postgres is reachable.
+
+Production deploy, migration order, and rollback are in
+[operations.md](./operations.md).
+
 ## Automated coverage
 
 ```bash

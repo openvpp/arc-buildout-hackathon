@@ -25,6 +25,7 @@ export class ApiClient {
       headers?: Record<string, string>;
       searchParams?: Record<string, string>;
       schema: z.ZodType<T>;
+      signal?: AbortSignal;
     },
   ): Promise<{ ok: true; data: T } | { ok: false; error: ApiRequestError }> {
     const url = new URL(path, window.location.origin);
@@ -35,6 +36,7 @@ export class ApiClient {
     const response = await fetch(url.toString(), {
       method: options.method ?? 'GET',
       credentials: 'include',
+      signal: options.signal,
       headers: {
         ...(options.body !== undefined
           ? { 'Content-Type': 'application/json' }

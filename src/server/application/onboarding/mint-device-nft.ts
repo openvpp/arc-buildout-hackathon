@@ -8,7 +8,10 @@ import {
 } from '@/server/infrastructure/blockchain/device-nft';
 import { getProviderDeviceMintTypeId } from '@/server/infrastructure/blockchain/device-types';
 import { arcNetworkLabel } from '@/server/infrastructure/blockchain/network-provider';
-import type { Database } from '@/server/infrastructure/db/client';
+import type {
+  Database,
+  DatabaseExecutor,
+} from '@/server/infrastructure/db/client';
 import { devices, wallets } from '@/server/infrastructure/db/schema';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
@@ -137,7 +140,7 @@ export async function mintDeviceNftIfNeeded(input: {
       to: walletAddress,
       typeId,
     });
-    if (reconciled !== null) {
+    if (reconciled.outcome === 'confirmed') {
       await db
         .update(devices)
         .set({
@@ -157,6 +160,20 @@ export async function mintDeviceNftIfNeeded(input: {
         tokenId: reconciled.tokenId,
         transactionHash: claimed.nftTransactionHash,
       };
+    }
+    if (reconciled.outcome === 'reverted') {
+      await db
+        .update(devices)
+        .set({ nftTransactionHash: null, updatedAt: new Date() })
+        .where(eq(devices.id, deviceId));
+      log.warn('mint.reconcile_reverted', {
+        deviceId,
+        transactionHash: claimed.nftTransactionHash,
+      });
+    } else {
+      throw new Error(
+        `Mint transaction ${claimed.nftTransactionHash} is not confirmed yet (${reconciled.outcome}).`,
+      );
     }
   }
 
@@ -220,13 +237,34 @@ export async function mintDeviceNftIfNeeded(input: {
         errorMessage: error instanceof Error ? error.message : String(error),
       });
     } else {
+      const [current] = await db
+        .select({
+          nftTransactionHash: devices.nftTransactionHash,
+          nftTokenId: devices.nftTokenId,
+        })
+        .from(devices)
+        .where(eq(devices.id, deviceId))
+        .limit(1);
+      const inFlight =
+        current?.nftTransactionHash !== null &&
+        current?.nftTransactionHash !== undefined &&
+        current.nftTransactionHash.length > 0 &&
+        (current.nftTokenId === null || current.nftTokenId.length === 0);
       await db
         .update(devices)
-        .set({
-          mintStatus: 'unminted',
-          mintClaimedAt: null,
-          updatedAt: new Date(),
-        })
+        .set(
+          inFlight
+            ? {
+                mintStatus: 'pending',
+                mintClaimedAt: null,
+                updatedAt: new Date(),
+              }
+            : {
+                mintStatus: 'unminted',
+                mintClaimedAt: null,
+                updatedAt: new Date(),
+              },
+        )
         .where(eq(devices.id, deviceId));
     }
     throw error;
@@ -241,7 +279,7 @@ export async function mintDeviceNftIfNeeded(input: {
  * device-nft / the worker loop), never inside an HTTP request.
  */
 export async function enqueueDeviceMint(
-  db: Database,
+  db: DatabaseExecutor,
   outboxEnqueue: (input: {
     aggregateType: string;
     aggregateId: string;

@@ -1,5 +1,5 @@
 import { getServerEnv } from '@/server/config/env';
-import { getDb } from '@/server/infrastructure/db/client';
+import { closeDb, getDb } from '@/server/infrastructure/db/client';
 import { runWorkerCycle } from '@/server/infrastructure/jobs/worker';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
@@ -19,14 +19,37 @@ async function main(): Promise<void> {
   log.info('worker.started', { workerId: env.WORKER_ID });
 
   while (!stopping) {
-    const didWork = await runWorkerCycle(db);
-    if (!didWork) {
-      await new Promise((resolve) =>
-        setTimeout(resolve, env.WORKER_POLL_INTERVAL_MS),
-      );
+    try {
+      const didWork = await runWorkerCycle(db);
+      if (!didWork) {
+        await sleepUnlessStopping(env.WORKER_POLL_INTERVAL_MS);
+      }
+    } catch (error) {
+      log.error('worker.cycle_failed', {
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      await sleepUnlessStopping(env.WORKER_POLL_INTERVAL_MS);
     }
   }
+  await closeDb();
   log.info('worker.stopped', { workerId: env.WORKER_ID });
+}
+
+function sleepUnlessStopping(ms: number): Promise<void> {
+  const step = 200;
+  return new Promise((resolve) => {
+    let remaining = ms;
+    const tick = () => {
+      if (stopping || remaining <= 0) {
+        resolve();
+        return;
+      }
+      const wait = Math.min(step, remaining);
+      remaining -= wait;
+      setTimeout(tick, wait);
+    };
+    tick();
+  });
 }
 
 main().catch((error: unknown) => {

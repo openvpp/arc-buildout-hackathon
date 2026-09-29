@@ -14,9 +14,10 @@ A small, end-to-end flow on Arc testnet:
 See [CLAUDE.md](./CLAUDE.md) for the engineering contract, architecture
 boundaries, and what is deliberately out of scope for this milestone.
 See [docs/architecture.md](./docs/architecture.md) for the full request
-flow, [docs/database.md](./docs/database.md) for the schema, and
+flow, [docs/database.md](./docs/database.md) for the schema,
 [docs/demo-runbook.md](./docs/demo-runbook.md) to run the whole thing
-end to end.
+end to end, and [docs/operations.md](./docs/operations.md) for deploy,
+migration, and rollback notes.
 
 ## Local setup
 

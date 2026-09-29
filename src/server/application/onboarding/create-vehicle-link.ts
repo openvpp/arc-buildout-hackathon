@@ -7,6 +7,7 @@ import {
   createHttpEnodeVehicleClient,
   ENODE_DEFAULT_VEHICLE_LINK_SCOPES,
 } from '@/server/infrastructure/enode/http-client';
+import { isAllowedEnodeLinkUrl } from '@/server/infrastructure/enode/link-url';
 import {
   appendQueryParam,
   buildEnodeLinkTokenUrl,
@@ -14,6 +15,9 @@ import {
   normalizeBrand,
 } from '@/server/infrastructure/enode/redirect';
 import { encodeEnodeUserId } from '@/server/infrastructure/enode/user-id';
+import { createServerLogger } from '@/server/infrastructure/logging/logger';
+
+const log = createServerLogger({ component: 'create-vehicle-link' });
 
 export type CreateVehicleLinkResult =
   | {
@@ -22,7 +26,7 @@ export type CreateVehicleLinkResult =
       pendingConnectionId: string;
       expiresAt: string;
     }
-  | { supported: false; reason: string; message?: string };
+  | { supported: false; reason: string };
 
 /**
  * Start an Enode Link session for the caller's wallet. `walletId`/
@@ -92,8 +96,8 @@ export async function createVehicleLink(
       (linkSession.linkToken.length > 0
         ? buildEnodeLinkTokenUrl(linkSession.linkToken)
         : '');
-    if (linkUrl.length === 0) {
-      throw new Error('No link URL from Enode');
+    if (linkUrl.length === 0 || !isAllowedEnodeLinkUrl(linkUrl)) {
+      throw new Error('Enode returned an unexpected link URL.');
     }
 
     await db
@@ -108,18 +112,21 @@ export async function createVehicleLink(
       expiresAt: expiresAt.toISOString(),
     };
   } catch (e) {
+    log.warn('enode.link_session_failed', {
+      pendingId: pending.id,
+      errorMessage: e instanceof Error ? e.message : 'link failed',
+    });
     await db
       .update(pendingDeviceConnections)
       .set({
         status: 'failed',
-        error: { message: e instanceof Error ? e.message : 'link failed' },
+        error: { message: 'link failed' },
         updatedAt: new Date(),
       })
       .where(eq(pendingDeviceConnections.id, pending.id));
     return {
       supported: false,
       reason: 'PROVIDER_LINK_CREATION_FAILED',
-      message: e instanceof Error ? e.message : 'link failed',
     };
   }
 }

@@ -51,7 +51,11 @@ Connection` upserts the `devices` row (unique on `(provider,
 external_device_id)`) and enqueues a `MINT_DEVICE_NFT` outbox event.
 6. `src/worker/index.ts` polls `outbox_events` → `mintDeviceNftIfNeeded` →
    claim-before-mint → viem `writeContract` on the already-deployed
-   DeviceNFT contract → `devices.mint_status` `pending` → `minted`.
+   DeviceNFT contract → `devices.mint_status` `pending` → `minted`. A worker
+   crash returns a `processing` job to the queue after the lock lease. If a
+   transaction hash was already stored, the next attempt reconciles that
+   transaction instead of broadcasting another mint. A `busy` or
+   unconfigured attempt stays queued; it is not marked complete.
 7. Enode webhook (`POST /api/webhooks/enode`) → HMAC-SHA1 verify → dedupe on
    `(provider, delivery_id)` → update `devices.last_latitude/longitude`.
 8. `/` (home) → `GET /api/v1/dashboard/devices/locations` (paginated, public

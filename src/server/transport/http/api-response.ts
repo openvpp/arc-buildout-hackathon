@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 export function jsonOk<T>(data: T, requestId: string): NextResponse {
-  return NextResponse.json({ ok: true, data, requestId });
+  const response = NextResponse.json({ ok: true, data, requestId });
+  response.headers.set('x-request-id', requestId);
+  return response;
 }
 
 export function jsonError(
@@ -9,7 +11,7 @@ export function jsonError(
   status: number,
   requestId: string,
 ): NextResponse {
-  return NextResponse.json(
+  const response = NextResponse.json(
     {
       ok: false,
       error: {
@@ -21,4 +23,6 @@ export function jsonError(
     },
     { status },
   );
+  response.headers.set('x-request-id', requestId);
+  return response;
 }

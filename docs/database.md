@@ -17,7 +17,7 @@ migration — add a new one.
 | `enode_connections`          | One connected Enode user per wallet                                               | unique `external_user_id`                                                                                                          |
 | `devices`                    | The vehicle: identity, mint state, last known location                            | unique `(provider, external_device_id)` — this is what makes re-linking the same physical vehicle an upsert, never a duplicate row |
 | `webhook_deliveries`         | Enode webhook dedup                                                               | unique `(provider, delivery_id)`                                                                                                   |
-| `outbox_events`              | Crash-safe async job queue (currently: `MINT_DEVICE_NFT`)                         | polled by `src/worker/index.ts`                                                                                                    |
+| `outbox_events`              | Crash-safe async job queue (currently: `MINT_DEVICE_NFT`)                         | `locked_at` lease; partial unique index allows one active mint job per device                                                      |
 
 ## `devices` mint lifecycle
 
@@ -26,6 +26,17 @@ migration — add a new one.
 - `mint_claimed_at` bounds how long a `pending` claim is honored (10 minutes
   — see `MINT_CLAIM_LEASE_MS` in `mint-device-nft.ts`); a crashed worker's
   claim becomes reclaimable after that window.
+- `outbox_events.locked_at` is the worker's claim on a job. A `processing`
+  row older than 30 minutes is returned to `pending` so a crashed worker
+  does not leave the mint stuck. A broadcast transaction hash still
+  reconciles instead of minting again.
+- `outbox_events_one_active_mint_uidx` allows only one `pending` or
+  `processing` `MINT_DEVICE_NFT` row per device. Apply
+  `0002_outbox_lock_and_location_index` before running the new worker. If
+  that unique index fails to create, delete duplicate active mint rows for
+  the same device and retry the migration. Rolling the app back is safe
+  while the new nullable column and indexes remain; drop them only after
+  the previous app version is what is running.
 - `nft_transaction_hash` is written the instant the mint tx is broadcast —
   before confirmation — so a crash between broadcast and confirmation
   reconciles against the in-flight tx on the next attempt instead of

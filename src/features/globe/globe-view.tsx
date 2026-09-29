@@ -23,24 +23,40 @@ export function GlobeView() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void (async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function load() {
       try {
         const api = createGlobeApi();
-        const locations = await api.listLocations();
-        if (!controller.signal.aborted) {
-          setState({ status: 'loaded', locations });
+        const locations = await api.listLocations(controller.signal);
+        if (controller.signal.aborted) {
+          return;
         }
+        setState({ status: 'loaded', locations });
       } catch (e) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        const message =
+          e instanceof Error ? e.message : 'Failed to load devices';
+        setState((current) =>
+          current.status === 'loaded' ? current : { status: 'error', message },
+        );
+      } finally {
         if (!controller.signal.aborted) {
-          setState({
-            status: 'error',
-            message: e instanceof Error ? e.message : 'Failed to load devices',
-          });
+          timer = setTimeout(() => {
+            void load();
+          }, 60_000);
         }
       }
-    })();
+    }
+
+    void load();
     return () => {
       controller.abort();
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
     };
   }, []);
 

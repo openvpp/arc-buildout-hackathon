@@ -6,8 +6,13 @@ import {
   type DashboardSessionClaims,
   verifyDashboardSessionToken,
 } from '@/server/infrastructure/auth/dashboard-session';
+import { isDashboardSessionActive } from '@/server/infrastructure/auth/session-authorization';
+import { getDb } from '@/server/infrastructure/db/client';
 
-/** Reads and verifies the dashboard session cookie in a Server Component. */
+/**
+ * Reads the dashboard session cookie and confirms the principal still owns
+ * an active wallet. A valid signature for a disabled account returns null.
+ */
 export async function getCurrentPrincipal(): Promise<DashboardSessionClaims | null> {
   const store = await cookies();
   const token = store.get(DASHBOARD_SESSION_COOKIE)?.value;
@@ -16,5 +21,9 @@ export async function getCurrentPrincipal(): Promise<DashboardSessionClaims | nu
     token,
     secret: env.API_KEY_HASH_SECRET,
   });
-  return result.ok ? result.claims : null;
+  if (!result.ok) {
+    return null;
+  }
+  const active = await isDashboardSessionActive(getDb(), result.claims);
+  return active ? result.claims : null;
 }

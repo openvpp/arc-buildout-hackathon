@@ -50,7 +50,11 @@ export function createOnboardingApi(client: ApiClient = new ApiClient()) {
       }
       return result.data;
     },
-    async finalize(input: { pendingId: string; nickname?: string }) {
+    async finalize(input: {
+      pendingId: string;
+      nickname?: string;
+      consentAccepted: boolean;
+    }) {
       const result = await client.request(
         `/api/v1/vehicle-onboarding/pending/${input.pendingId}/complete`,
         {
@@ -59,7 +63,7 @@ export function createOnboardingApi(client: ApiClient = new ApiClient()) {
             ...(input.nickname !== undefined
               ? { nickname: input.nickname }
               : {}),
-            consentAccepted: true,
+            consentAccepted: input.consentAccepted,
           },
           schema: finalizeSchema,
         },

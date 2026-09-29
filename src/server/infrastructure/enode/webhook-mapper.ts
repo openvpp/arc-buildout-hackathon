@@ -28,7 +28,42 @@ export type NormalizedEnodeVehicleEvent = {
   vehicleId: string;
   latitude: number | null;
   longitude: number | null;
+  /** When Enode says the event happened. Null if the payload has no usable time. */
+  occurredAt: Date | null;
 };
+
+function finiteCoordinate(value: number | null | undefined): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  return value;
+}
+
+/** Rejects values that cannot be a WGS84 point, including NaN. */
+export function plausibleCoordinates(
+  latitude: number | null,
+  longitude: number | null,
+): { latitude: number; longitude: number } | null {
+  if (
+    latitude === null ||
+    longitude === null ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+  return { latitude, longitude };
+}
+
+function occurredAtFrom(value: string | undefined): Date | null {
+  if (value === undefined || value.length === 0) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 const VEHICLE_EVENTS = new Set([
   'user:vehicle:updated',
@@ -50,11 +85,16 @@ export function mapEnodeWebhookEvent(
     return null;
   }
   const location = parsed.data.vehicle.location;
+  const coordinates = plausibleCoordinates(
+    finiteCoordinate(location?.latitude),
+    finiteCoordinate(location?.longitude),
+  );
   return {
     eventName: parsed.data.event,
     externalUserId: parsed.data.user?.id ?? null,
     vehicleId: parsed.data.vehicle.id,
-    latitude: location?.latitude ?? null,
-    longitude: location?.longitude ?? null,
+    latitude: coordinates?.latitude ?? null,
+    longitude: coordinates?.longitude ?? null,
+    occurredAt: occurredAtFrom(parsed.data.createdAt),
   };
 }

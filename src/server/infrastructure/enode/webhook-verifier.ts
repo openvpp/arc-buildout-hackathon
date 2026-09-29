@@ -9,8 +9,13 @@ export function verifyEnodeWebhookSignature(input: {
   if (input.signatureHeader === null || input.signatureHeader.length === 0) {
     return false;
   }
-  const [scheme, providedHex] = input.signatureHeader.split('=');
-  if (scheme !== 'sha1' || providedHex === undefined) {
+  const separator = input.signatureHeader.indexOf('=');
+  if (separator <= 0) {
+    return false;
+  }
+  const scheme = input.signatureHeader.slice(0, separator);
+  const providedHex = input.signatureHeader.slice(separator + 1);
+  if (scheme !== 'sha1' || !/^[0-9a-f]{40}$/i.test(providedHex)) {
     return false;
   }
   const expectedHex = createHmac('sha1', input.secret)

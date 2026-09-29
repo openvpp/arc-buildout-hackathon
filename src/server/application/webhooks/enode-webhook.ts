@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, lte, or } from 'drizzle-orm';
 
 import type { Database } from '@/server/infrastructure/db/client';
 import { devices, webhookDeliveries } from '@/server/infrastructure/db/schema';
@@ -83,19 +83,26 @@ export async function processEnodeWebhook(
       handled += 1;
       continue;
     }
+    const observedAt = mapped.occurredAt ?? new Date();
     await db
       .update(devices)
       .set({
         lastLatitude: mapped.latitude.toFixed(6),
         lastLongitude: mapped.longitude.toFixed(6),
-        lastLocationAt: new Date(),
-        lastSeenAt: new Date(),
+        lastLocationAt: observedAt,
+        lastSeenAt: observedAt,
         updatedAt: new Date(),
       })
       .where(
         and(
           eq(devices.provider, 'enode'),
           eq(devices.externalDeviceId, mapped.vehicleId),
+          mapped.occurredAt === null
+            ? undefined
+            : or(
+                isNull(devices.lastLocationAt),
+                lte(devices.lastLocationAt, mapped.occurredAt),
+              ),
         ),
       );
     handled += 1;

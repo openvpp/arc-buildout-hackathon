@@ -3,6 +3,8 @@ import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
 const log = createServerLogger({ component: 'enode-http-client' });
 
+const ENODE_REQUEST_TIMEOUT_MS = 15_000;
+
 export const ENODE_DEFAULT_VEHICLE_LINK_SCOPES = [
   'vehicle:read:data',
   'vehicle:read:location',
@@ -49,6 +51,7 @@ async function getAccessToken(): Promise<string> {
   const config = requireEnodeConfig();
   const response = await fetch(config.tokenUrl, {
     method: 'POST',
+    signal: AbortSignal.timeout(ENODE_REQUEST_TIMEOUT_MS),
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Authorization: `Basic ${Buffer.from(
@@ -83,6 +86,7 @@ async function enodeFetch<T>(
   const token = await getAccessToken();
   const response = await fetch(`${config.apiBaseUrl}${path}`, {
     method: init.method ?? 'GET',
+    signal: AbortSignal.timeout(ENODE_REQUEST_TIMEOUT_MS),
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',

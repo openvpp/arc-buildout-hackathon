@@ -1,0 +1,3 @@
+ALTER TABLE "outbox_events" ADD COLUMN "locked_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "devices_located_sort_idx" ON "devices" USING btree ("last_location_at","id") WHERE "devices"."last_latitude" is not null and "devices"."last_longitude" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "outbox_events_one_active_mint_uidx" ON "outbox_events" USING btree ("aggregate_type","aggregate_id","event_type") WHERE "outbox_events"."status" in ('pending', 'processing');

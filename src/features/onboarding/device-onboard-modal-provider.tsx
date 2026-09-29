@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -37,6 +38,7 @@ export function DeviceOnboardModalProvider({
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   const openModal = useCallback(() => {
     setError(null);
@@ -51,6 +53,10 @@ export function DeviceOnboardModalProvider({
   }, [isSubmitting]);
 
   const submit = useCallback((brand: string) => {
+    if (inFlight.current) {
+      return;
+    }
+    inFlight.current = true;
     setError(null);
     setIsSubmitting(true);
     void (async () => {
@@ -61,6 +67,7 @@ export function DeviceOnboardModalProvider({
         );
         window.location.href = data.linkUrl;
       } catch (e) {
+        inFlight.current = false;
         setIsSubmitting(false);
         setError(e instanceof Error ? e.message : 'Unexpected error');
       }

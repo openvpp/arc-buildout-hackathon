@@ -6,10 +6,12 @@ import {
   buildDashboardSessionCookie,
   clearDashboardSessionCookie,
   createDashboardSessionToken,
+  isSecureSessionCookie,
 } from '@/server/infrastructure/auth/dashboard-session';
 import { getDb } from '@/server/infrastructure/db/client';
-import { ApiError } from '@/server/transport/http/api-error';
 import { jsonOk } from '@/server/transport/http/api-response';
+import { enforceRateLimit } from '@/server/transport/http/rate-limit';
+import { readJsonBody } from '@/server/transport/http/read-body';
 import { createRouteHandler } from '@/server/transport/http/route-handler';
 
 export const runtime = 'nodejs';
@@ -17,13 +19,18 @@ export const dynamic = 'force-dynamic';
 
 const bodySchema = z
   .object({
-    email: z.string().trim().email(),
+    email: z.string().trim().email().max(254),
   })
   .strict();
 
+const SESSION_WINDOW_MS = 10 * 60 * 1000;
+
 function cookieSecureFlag(): boolean {
   const env = getServerEnv();
-  return env.APP_ENV === 'production' || env.APP_ENV === 'staging';
+  return isSecureSessionCookie({
+    appEnv: env.APP_ENV,
+    nodeEnv: process.env.NODE_ENV,
+  });
 }
 
 /**
@@ -34,18 +41,21 @@ function cookieSecureFlag(): boolean {
  * address never comes from the request body.
  */
 export const POST = createRouteHandler(async (request, context) => {
-  const text = await request.text();
-  let body: unknown;
-  try {
-    body = text.trim().length > 0 ? JSON.parse(text) : {};
-  } catch {
-    throw new ApiError({
-      code: 'VALIDATION_FAILED',
-      message: 'Invalid session request body.',
-      status: 400,
-    });
-  }
-  const parsed = bodySchema.parse(body);
+  enforceRateLimit({
+    request,
+    bucket: 'session',
+    limit: 15,
+    windowMs: SESSION_WINDOW_MS,
+  });
+  const parsed = bodySchema.parse(await readJsonBody(request));
+  enforceRateLimit({
+    request,
+    bucket: 'session-email',
+    limit: 8,
+    windowMs: SESSION_WINDOW_MS,
+    scope: 'global',
+    keySuffix: parsed.email.toLowerCase(),
+  });
 
   const db = getDb();
   const bound = await bindDashboardOwner(db, { email: parsed.email });

@@ -60,6 +60,21 @@ function WalletMenu({
     };
   }, [copied]);
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
   return (
     <div className="relative">
       {open ? (
@@ -73,6 +88,8 @@ function WalletMenu({
       <div className="flex h-[50px] items-center gap-1 rounded-md bg-itemground pr-1 text-white/80">
         <button
           type="button"
+          aria-expanded={open}
+          aria-haspopup="menu"
           onClick={() => {
             setOpen((value) => !value);
           }}
@@ -96,7 +113,10 @@ function WalletMenu({
         </button>
       </div>
       {open ? (
-        <div className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 rounded-lg border border-modalborder bg-modalbg p-1 shadow-xl">
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 rounded-lg border border-modalborder bg-modalbg p-1 shadow-xl"
+        >
           <Link
             href="/devices"
             onClick={() => {
@@ -138,8 +158,13 @@ function WalletMenu({
  * (see CircleAuthModal). Connected state shows the wallet chip (see
  * WalletMenu); disconnected shows a "Sign in" trigger.
  */
-export function CircleAuthButton() {
-  const { state, signInWithEmail, signOut } = useCircleSession();
+export function CircleAuthButton({
+  initialWalletAddress = null,
+}: {
+  initialWalletAddress?: string | null;
+}) {
+  const { state, signInWithEmail, signOut } =
+    useCircleSession(initialWalletAddress);
   const [modalOpen, setModalOpen] = useState(false);
 
   // Close the popup once sign-in actually succeeds; on error it stays open

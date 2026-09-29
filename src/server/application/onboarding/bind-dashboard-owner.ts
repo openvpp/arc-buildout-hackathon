@@ -1,10 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 
+import { ApplicationError } from '@/server/application/application-error';
 import { ensureCircleWalletForPrincipal } from '@/server/application/onboarding/ensure-circle-wallet';
 import type { Database } from '@/server/infrastructure/db/client';
 import {
   principalWallets,
   principals,
+  wallets,
 } from '@/server/infrastructure/db/schema';
 
 export type BoundIdentity = {
@@ -37,13 +39,10 @@ export async function bindDashboardOwner(
   input: { email: string },
 ): Promise<BoundIdentity> {
   const normalizedEmail = input.email.trim().toLowerCase();
-  const wallet = await ensureCircleWalletForPrincipal(db, {
-    email: normalizedEmail,
-  });
   const displayName = dashboardPrincipalDisplayName(normalizedEmail);
 
   const [existingPrincipal] = await db
-    .select({ id: principals.id })
+    .select({ id: principals.id, status: principals.status })
     .from(principals)
     .where(
       and(
@@ -52,6 +51,24 @@ export async function bindDashboardOwner(
       ),
     )
     .limit(1);
+  if (existingPrincipal?.status === 'disabled') {
+    throw new ApplicationError(
+      'PRINCIPAL_DISABLED',
+      'This account is disabled.',
+    );
+  }
+
+  const wallet = await ensureCircleWalletForPrincipal(db, {
+    email: normalizedEmail,
+  });
+  const [walletRow] = await db
+    .select({ status: wallets.status })
+    .from(wallets)
+    .where(eq(wallets.id, wallet.walletId))
+    .limit(1);
+  if (walletRow?.status === 'disabled') {
+    throw new ApplicationError('WALLET_DISABLED', 'This wallet is disabled.');
+  }
 
   let principalId = existingPrincipal?.id;
   if (principalId === undefined) {
@@ -65,7 +82,7 @@ export async function bindDashboardOwner(
     principalId = created?.id;
     if (principalId === undefined) {
       const [raced] = await db
-        .select({ id: principals.id })
+        .select({ id: principals.id, status: principals.status })
         .from(principals)
         .where(
           and(
@@ -76,6 +93,12 @@ export async function bindDashboardOwner(
         .limit(1);
       if (raced === undefined) {
         throw new Error('Failed to create dashboard_user principal.');
+      }
+      if (raced.status === 'disabled') {
+        throw new ApplicationError(
+          'PRINCIPAL_DISABLED',
+          'This account is disabled.',
+        );
       }
       principalId = raced.id;
     }

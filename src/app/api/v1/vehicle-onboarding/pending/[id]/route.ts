@@ -15,11 +15,14 @@ const paramsSchema = z.object({ id: z.string().uuid() });
 /** GET /api/v1/vehicle-onboarding/pending/:id — poll the wizard status. */
 export const GET = createRouteHandler<{ id: string }>(
   async (_request, context) => {
-    await requirePrincipal();
+    const principal = await requirePrincipal();
     const { id } = paramsSchema.parse(context.params);
 
     const db = getDb();
-    const pending = await getPendingConnection(db, id);
+    const pending = await getPendingConnection(db, {
+      id,
+      walletId: principal.walletId,
+    });
     if (pending === null) {
       throw new ApiError({
         code: 'RESOURCE_NOT_FOUND',

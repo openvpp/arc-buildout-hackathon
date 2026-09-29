@@ -5,6 +5,9 @@ import { getServerEnv } from '@/server/config/env';
 import { getDb } from '@/server/infrastructure/db/client';
 import { verifyEnodeWebhookSignature } from '@/server/infrastructure/enode/webhook-verifier';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
+import { ApiError } from '@/server/transport/http/api-error';
+import { readWebhookBody } from '@/server/transport/http/read-body';
+import { createRequestContext } from '@/server/transport/http/request-context';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,7 +20,19 @@ const log = createServerLogger({ component: 'enode-webhook-route' });
  * ingestion. Never logs the full raw body.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const rawBody = await request.text();
+  const { requestId } = createRequestContext(request);
+  let rawBody: string;
+  try {
+    rawBody = await readWebhookBody(request);
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return NextResponse.json(
+        { ok: false },
+        { status: error.status, headers: { 'x-request-id': requestId } },
+      );
+    }
+    throw error;
+  }
   const env = getServerEnv();
   const secret = env.ENODE_WEBHOOK_SECRET;
 
@@ -31,8 +46,11 @@ export async function POST(request: Request): Promise<NextResponse> {
     });
 
   if (!signatureValid) {
-    log.warn('enode.webhook.invalid_signature', {});
-    return NextResponse.json({ ok: false }, { status: 401 });
+    log.warn('enode.webhook.invalid_signature', { requestId });
+    return NextResponse.json(
+      { ok: false },
+      { status: 401, headers: { 'x-request-id': requestId } },
+    );
   }
 
   const db = getDb();
@@ -44,6 +62,6 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   return NextResponse.json(
     { ok: true, status: result.status },
-    { status: 202 },
+    { status: 202, headers: { 'x-request-id': requestId } },
   );
 }
