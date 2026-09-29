@@ -28,8 +28,6 @@ test('nav moves between home (globe) and devices', async ({ page }) => {
   await page.goto('/devices');
   await page.getByRole('link', { name: 'Arc EV Fleet' }).click();
   await expect(page).toHaveURL(/\/$/);
-  await page.getByRole('link', { name: 'Devices' }).click();
-  await expect(page).toHaveURL(/\/devices$/);
 });
 
 test('starting onboarding while unauthenticated surfaces a clear error, not a crash', async ({
@@ -40,7 +38,7 @@ test('starting onboarding while unauthenticated surfaces a clear error, not a cr
   await expect(page.getByText('Sign in required.')).toBeVisible();
 });
 
-test('email sign-in creates a session and shows the wallet chip', async ({
+test('email sign-in creates a session and the wallet chip opens Devices/Add vehicle/Log out', async ({
   page,
 }) => {
   await page.goto('/');
@@ -60,10 +58,22 @@ test('email sign-in creates a session and shows the wallet chip', async ({
   ).not.toBeVisible({
     timeout: 15_000,
   });
-  await expect(page.getByRole('button', { name: /^0x/ })).toBeVisible();
+  const walletTrigger = page.getByRole('button', { name: /^0x/ });
+  await expect(walletTrigger).toBeVisible();
 
-  await page.goto('/devices');
+  // Devices/Add vehicle now only exist behind the wallet dropdown.
+  await walletTrigger.click();
+  await page.getByRole('link', { name: 'Devices' }).click();
+  await expect(page).toHaveURL(/\/devices$/);
   await expect(page.getByText('Sign in to continue')).not.toBeVisible();
+
+  await walletTrigger.click();
+  await page.getByRole('link', { name: 'Add vehicle' }).click();
+  await expect(page).toHaveURL(/\/devices\/onboard$/);
+
+  await walletTrigger.click();
+  await page.getByRole('button', { name: 'Log out' }).click();
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 });
 
 test('unsigned Enode webhook deliveries are rejected', async ({ request }) => {
