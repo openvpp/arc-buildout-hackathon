@@ -24,14 +24,13 @@ export function dashboardPrincipalDisplayName(email: string): string {
  * Circle developer-controlled wallet exists, and bind it as owner.
  *
  * Identity here is self-asserted (the email the caller typed), not verified
- * against an external identity provider — this mirrors openvpp-app's actual
- * Circle DCW flow (its Google path fetched a profile client-side rather than
- * verifying an id_token server-side, and its email path never checked the
- * password field at all). That's an intentional product decision for this
- * milestone, not an oversight: the wallet is developer-custodied regardless
- * of who claims the email, so there's no on-chain signing authority being
- * handed out here. Don't read this as a pattern for anything that does hand
- * out signing authority.
+ * against an external identity provider — the Google path fetches a profile
+ * client-side rather than verifying an id_token server-side, and the email
+ * path never checks a password at all. That's an intentional product
+ * decision for this milestone, not an oversight: the wallet is
+ * developer-custodied regardless of who claims the email, so there's no
+ * on-chain signing authority being handed out here. Don't read this as a
+ * pattern for anything that does hand out signing authority.
  */
 export async function bindDashboardOwner(
   db: Database,

@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-/* Dark-only theme, inspired by openvpp-app: near-black canvas, lime accent. */
+/* Dark-only theme: near-black canvas, lime accent. */
 @theme {
   --color-primary-50: #f7fdf0;
   --color-primary-100: #ecfad9;

@@ -33,7 +33,6 @@ export function devicesToGeoJson(
   };
 }
 
-/** Clustering config ported from openvpp-app's EVLayer/DeviceLayer source. */
 export const DEVICE_CLUSTER_OPTIONS = {
   cluster: true,
   clusterRadius: 50,

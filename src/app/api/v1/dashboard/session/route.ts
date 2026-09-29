@@ -29,10 +29,9 @@ function cookieSecureFlag(): boolean {
 /**
  * Establish the httpOnly dashboard session for the Circle developer-
  * controlled wallet flow. Identity is the email the caller typed — see the
- * comment on bindDashboardOwner for why this is intentionally unverified,
- * matching openvpp-app's actual DCW flow. The Circle wallet itself is
- * always created/found server-side; its address never comes from the
- * request body.
+ * comment on bindDashboardOwner for why this is intentionally unverified.
+ * The Circle wallet itself is always created/found server-side; its
+ * address never comes from the request body.
  */
 export const POST = createRouteHandler(async (request, context) => {
   const text = await request.text();

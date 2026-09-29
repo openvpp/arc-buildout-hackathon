@@ -8,10 +8,10 @@ import { useState } from 'react';
  * useGoogleLogin outside a GoogleOAuthProvider throws, so this must not be
  * unconditionally rendered.
  *
- * Fetches the user's email client-side via Google's userinfo endpoint, same
- * as openvpp-app's CircleAuthModal did — not verified server-side. That's
- * the same trust level as the plain-email path (see bind-dashboard-owner.ts):
- * Google here is a convenience for typing your email, not a security proof.
+ * Fetches the user's email client-side via Google's userinfo endpoint — not
+ * verified server-side. That's the same trust level as the plain-email path
+ * (see bind-dashboard-owner.ts): Google here is a convenience for typing
+ * your email, not a security proof.
  */
 export function GoogleContinueButton({
   disabled,

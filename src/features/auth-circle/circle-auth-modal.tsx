@@ -6,11 +6,11 @@ import { GoogleContinueButton } from './google-continue-button';
 import { isGoogleSignInConfigured } from './google-provider';
 
 /**
- * Sign-in popup for the Circle developer-controlled wallet flow — mirrors
- * openvpp-app's CircleAuthModal: a "Continue with Google" option, an "OR"
- * divider, then a direct email path. The wallet-connect tab (MetaMask,
- * Coinbase, WalletConnect, etc.) from the source modal is intentionally
- * left out — those aren't part of this milestone's Circle DCW flow.
+ * Sign-in popup for the Circle developer-controlled wallet flow: a
+ * "Continue with Google" option, an "OR" divider, then a direct email
+ * path. External wallet-connect buttons (MetaMask, Coinbase, WalletConnect,
+ * etc.) are intentionally left out — those aren't part of this milestone's
+ * Circle DCW flow.
  */
 export function CircleAuthModal({
   open,

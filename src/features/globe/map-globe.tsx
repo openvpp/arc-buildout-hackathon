@@ -43,13 +43,11 @@ function deviceTypeLabel(deviceType: string): string {
 }
 
 /**
- * Renders devices as pins on a Mapbox globe, using the same teardrop
- * marker design and clustering behavior as openvpp-app's fleet map
- * (see device-pin-style.ts, ported from its `deviceKindStyle`/`EVLayer`).
- * Devices without coordinates are simply not in `devices` (see
- * list-device-locations.ts) — no fallback pin. Imperative mapbox-gl
- * lifecycle requires useEffect; this is a third-party DOM library, not app
- * state.
+ * Renders devices as clustered pins on a Mapbox globe, using the teardrop
+ * marker design in device-pin-style.ts. Devices without coordinates are
+ * simply not in `devices` (see list-device-locations.ts) — no fallback
+ * pin. Imperative mapbox-gl lifecycle requires useEffect; this is a
+ * third-party DOM library, not app state.
  */
 export function MapGlobe({
   devices,
@@ -119,7 +117,7 @@ export function MapGlobe({
 
       // Layer add-order is z-order (later = on top): cluster bubble, its
       // count label, then per-pin glow, icon, and an invisible larger
-      // click target — same stack as openvpp-app's EVLayer.
+      // click target for an easier tap hitbox.
       map.addLayer({
         id: CLUSTERS_LAYER_ID,
         type: 'circle',

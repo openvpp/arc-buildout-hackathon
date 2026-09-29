@@ -6,10 +6,8 @@ import { CarFront, Sun, Thermometer } from 'lucide-react';
 import { logger } from '@/lib/logger/logger';
 
 /**
- * Per-device-kind teardrop marker, ported from openvpp-app's fleet map
- * marker spec (`deviceKindStyle.ts`) so the globe uses the same pin design
- * and clustering behavior as the source app. Dark-mode teardrop pins:
- * kind-colored border, near-black center disc, white icon glyph.
+ * Per-device-kind teardrop marker for the fleet map: kind-colored border,
+ * near-black center disc, white icon glyph.
  *
  * `DeviceKind` maps 1:1 to the on-chain device-class taxonomy in
  * `device-types.ts` / `devices_device_type_check` — 'vehicle' is the only
@@ -49,8 +47,7 @@ export function deviceKindFromDeviceType(deviceType: string): DeviceKind {
   }
 }
 
-// Teardrop pin geometry, lifted verbatim from openvpp-app's fleet map
-// marker spec (32x39 viewBox, core circle, glyph transform).
+// Teardrop pin geometry: 32x39 viewBox, core circle, glyph transform.
 const PIN_VIEWBOX_W = 32;
 const PIN_VIEWBOX_H = 39;
 const PIN_PATH =

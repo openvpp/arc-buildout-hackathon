@@ -2,7 +2,6 @@ import mapboxgl from 'mapbox-gl';
 
 const FONT = "font-family: 'Plus Jakarta Sans', sans-serif";
 
-/** Ported from openvpp-app's `createStyledMapPopup` — same card, same field-row shape. */
 export const MAP_POPUP_CLASS = 'device-popup';
 
 export function mapPopupRow(

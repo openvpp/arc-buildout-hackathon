@@ -31,8 +31,7 @@ Route Handler → transport → application → domain → infrastructure
    `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is set) or a direct email field.
    Both funnel into the same call: `POST /api/v1/dashboard/session { email }`.
    Neither path is verified against an external provider — see
-   `bind-dashboard-owner.ts` for why that's intentional here (mirrors
-   openvpp-app's actual `CircleAuthModal`).
+   `bind-dashboard-owner.ts` for why that's intentional here.
 2. Route → `bindDashboardOwner` → `ensureCircleWalletForPrincipal` (Circle
    SDK, `refId`-keyed, idempotent) → upsert
    `principals`/`wallets`/`principal_wallets` → sign the dashboard session

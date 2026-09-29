@@ -135,9 +135,8 @@ function WalletMenu({
 
 /**
  * Header trigger for the Circle developer-controlled wallet sign-in popup
- * (see CircleAuthModal) — mirrors openvpp-app's header WalletButton opening
- * CircleAuthModal. Connected state shows the wallet chip (see WalletMenu);
- * disconnected shows a "Sign in" trigger.
+ * (see CircleAuthModal). Connected state shows the wallet chip (see
+ * WalletMenu); disconnected shows a "Sign in" trigger.
  */
 export function CircleAuthButton() {
   const { state, signInWithEmail, signOut } = useCircleSession();

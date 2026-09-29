@@ -14,8 +14,7 @@ Scope (and only this):
 1. A user **registers or logs in** via a **Circle developer-controlled
    wallet**, through a sign-in popup offering "Continue with Google" (an
    optional convenience, hidden when unconfigured) and a direct email path
-   — neither is verified against an external identity provider (this
-   mirrors openvpp-app's actual `CircleAuthModal`; see
+   — neither is verified against an external identity provider (see
    `bind-dashboard-owner.ts` for why that's intentional here, not an
    oversight). The wallet is created and held server-side — no Circle
    secret, entity key, or private key ever reaches the browser.
