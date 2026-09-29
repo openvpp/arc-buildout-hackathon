@@ -14,8 +14,9 @@ Auth: the httpOnly dashboard session cookie (set by
 used for every onboarding call comes from the verified session, never from
 the request body.
 
-Frontend: `/devices/onboard` starts the link; `/enode/complete` is the
-Enode redirect target (nickname form → finalize).
+Frontend: the "Add vehicle" popup (`DeviceOnboardModal`, opened from the
+signed-in wallet dropdown — see `src/features/onboarding/`) starts the link;
+`/enode/complete` is the Enode redirect target (nickname form → finalize).
 
 ## Webhook
 

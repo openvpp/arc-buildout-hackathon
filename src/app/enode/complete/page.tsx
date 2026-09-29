@@ -84,8 +84,8 @@ function EnodeCompleteInner() {
             <CardTitle>Could not finish</CardTitle>
             <CardDescription>
               <span role="alert">
-                Missing pendingId. Restart onboarding from Devices → Add
-                vehicle.
+                Missing pendingId. Restart onboarding from the Add vehicle popup
+                (wallet menu → Add vehicle).
               </span>
             </CardDescription>
           </>
@@ -103,10 +103,10 @@ function EnodeCompleteInner() {
             </CardDescription>
             <div className="mt-4">
               <Link
-                href="/devices/onboard"
+                href="/devices"
                 className="inline-flex items-center justify-center rounded-md border border-primary-500 px-3.5 py-2 text-sm font-medium text-primary-500 hover:bg-primary-500/10"
               >
-                Try again
+                Back to devices
               </Link>
             </div>
           </>

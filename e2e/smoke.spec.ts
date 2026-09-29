@@ -30,12 +30,16 @@ test('nav moves between home (globe) and devices', async ({ page }) => {
   await expect(page).toHaveURL(/\/$/);
 });
 
-test('starting onboarding while unauthenticated surfaces a clear error, not a crash', async ({
-  page,
+test('starting an Enode link session while unauthenticated is rejected server-side', async ({
+  request,
 }) => {
-  await page.goto('/devices/onboard');
-  await page.getByRole('button', { name: 'Connect with Enode' }).click();
-  await expect(page.getByText('Sign in required.')).toBeVisible();
+  // "Add vehicle" is a popup reachable only from the signed-in wallet
+  // dropdown (see DeviceOnboardModal) — there is no page route to visit
+  // while signed out, so the auth boundary is exercised at the API directly.
+  const response = await request.post('/api/v1/vehicle-onboarding/link', {
+    data: {},
+  });
+  expect(response.status()).toBe(401);
 });
 
 test('email sign-in creates a session and the wallet chip opens Devices/Add vehicle/Log out', async ({
@@ -61,15 +65,24 @@ test('email sign-in creates a session and the wallet chip opens Devices/Add vehi
   const walletTrigger = page.getByRole('button', { name: /^0x/ });
   await expect(walletTrigger).toBeVisible();
 
-  // Devices/Add vehicle now only exist behind the wallet dropdown.
+  // Devices now only exists behind the wallet dropdown.
   await walletTrigger.click();
   await page.getByRole('link', { name: 'Devices' }).click();
   await expect(page).toHaveURL(/\/devices$/);
   await expect(page.getByText('Sign in to continue')).not.toBeVisible();
 
+  // Add vehicle is a popup, not a page — it stays on /devices and opens
+  // the DeviceOnboardModal instead of navigating away.
   await walletTrigger.click();
-  await page.getByRole('link', { name: 'Add vehicle' }).click();
-  await expect(page).toHaveURL(/\/devices\/onboard$/);
+  await page.getByRole('button', { name: 'Add vehicle' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Add vehicle' }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/devices$/);
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Add vehicle' }),
+  ).not.toBeVisible();
 
   await walletTrigger.click();
   await page.getByRole('button', { name: 'Log out' }).click();

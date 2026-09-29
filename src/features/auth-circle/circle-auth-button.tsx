@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+import { useDeviceOnboardModal } from '@/features/onboarding';
+
 import { CircleAuthModal } from './circle-auth-modal';
 import { useCircleSession } from './use-circle-session';
 
@@ -44,6 +46,7 @@ function WalletMenu({
 }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const openDeviceOnboardModal = useDeviceOnboardModal();
 
   useEffect(() => {
     if (!copied) {
@@ -103,15 +106,16 @@ function WalletMenu({
           >
             Devices
           </Link>
-          <Link
-            href="/devices/onboard"
+          <button
+            type="button"
             onClick={() => {
               setOpen(false);
+              openDeviceOnboardModal();
             }}
-            className="block rounded-md px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+            className="block w-full rounded-md px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10 hover:text-white"
           >
             Add vehicle
-          </Link>
+          </button>
           <div className="my-1 h-px bg-white/10" />
           <button
             type="button"

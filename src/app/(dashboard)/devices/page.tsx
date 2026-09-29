@@ -11,6 +11,7 @@ import { getCurrentPrincipal } from '@/server/infrastructure/auth/current-princi
 import { getDb } from '@/server/infrastructure/db/client';
 import { mintStatusTone, formatTimestamp } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
+import { AddVehicleButton } from '@/features/onboarding';
 
 export const metadata: Metadata = {
   title: 'Devices',
@@ -53,12 +54,7 @@ export default async function DevicesPage() {
             title="Devices"
             description="Your connected EVs, minted on Arc."
           />
-          <Link
-            href="/devices/onboard"
-            className="inline-flex h-[42px] items-center rounded-md border border-primary-500 px-4 text-sm font-medium text-primary-500 hover:bg-primary-500/10 sm:hidden"
-          >
-            Add vehicle
-          </Link>
+          <AddVehicleButton className="inline-flex h-[42px] items-center rounded-md border border-primary-500 px-4 text-sm font-medium text-primary-500 hover:bg-primary-500/10 sm:hidden" />
         </div>
 
         {deviceList.length === 0 ? (
