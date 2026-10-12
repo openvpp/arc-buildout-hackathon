@@ -1,10 +1,19 @@
 import { and, asc, eq, isNull, lt, lte, or } from 'drizzle-orm';
 
 import { mintDeviceNftIfNeeded } from '@/server/application/onboarding/mint-device-nft';
+import {
+  deviceEventHasInFlightTransaction,
+  markDeviceEventFailed,
+  publishDeviceEvent,
+} from '@/server/application/telemetry/publish-device-event';
+import { RECORD_DEVICE_EVENT_JOB } from '@/server/application/telemetry/queue-device-event';
 import { getServerEnv } from '@/server/config/env';
 import type { Database } from '@/server/infrastructure/db/client';
 import { devices, outboxEvents } from '@/server/infrastructure/db/schema';
-import { decideOutboxFollowUp } from '@/server/infrastructure/jobs/outbox-follow-up';
+import {
+  decideOutboxFollowUp,
+  type OutboxJobOutcome,
+} from '@/server/infrastructure/jobs/outbox-follow-up';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
 const log = createServerLogger({ component: 'worker' });
@@ -77,10 +86,58 @@ async function deviceHasInFlightMint(
   );
 }
 
+type JobHandler = {
+  /** Payload key holding the job's target id. */
+  targetKey: string;
+  run(db: Database, targetId: string): Promise<OutboxJobOutcome>;
+  hasInFlightTransaction(db: Database, targetId: string): Promise<boolean>;
+  markFailed(db: Database, targetId: string): Promise<void>;
+};
+
+const JOB_HANDLERS: Record<string, JobHandler> = {
+  MINT_DEVICE_NFT: {
+    targetKey: 'deviceId',
+    async run(db, deviceId) {
+      const result = await mintDeviceNftIfNeeded({ db, deviceId });
+      return result.status;
+    },
+    hasInFlightTransaction: deviceHasInFlightMint,
+    async markFailed(db, deviceId) {
+      await db
+        .update(devices)
+        .set({
+          mintStatus: 'failed',
+          mintClaimedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(devices.id, deviceId),
+            or(isNull(devices.nftTokenId), eq(devices.nftTokenId, '')),
+            or(
+              isNull(devices.nftTransactionHash),
+              eq(devices.nftTransactionHash, ''),
+            ),
+          ),
+        );
+    },
+  },
+  [RECORD_DEVICE_EVENT_JOB]: {
+    targetKey: 'deviceEventId',
+    async run(db, deviceEventId) {
+      const result = await publishDeviceEvent({ db, deviceEventId });
+      return result.status;
+    },
+    hasInFlightTransaction: deviceEventHasInFlightTransaction,
+    markFailed: markDeviceEventFailed,
+  },
+};
+
 async function applyFollowUp(
   db: Database,
   event: OutboxRow,
-  deviceId: string,
+  handler: JobHandler,
+  targetId: string,
   followUp: ReturnType<typeof decideOutboxFollowUp>,
 ): Promise<void> {
   if (followUp.action === 'complete') {
@@ -101,24 +158,8 @@ async function applyFollowUp(
         processedAt: new Date(),
       })
       .where(eq(outboxEvents.id, event.id));
-    if (followUp.markDeviceFailed) {
-      await db
-        .update(devices)
-        .set({
-          mintStatus: 'failed',
-          mintClaimedAt: null,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(devices.id, deviceId),
-            or(isNull(devices.nftTokenId), eq(devices.nftTokenId, '')),
-            or(
-              isNull(devices.nftTransactionHash),
-              eq(devices.nftTransactionHash, ''),
-            ),
-          ),
-        );
+    if (followUp.markTargetFailed) {
+      await handler.markFailed(db, targetId);
     }
     return;
   }
@@ -135,7 +176,8 @@ async function applyFollowUp(
 }
 
 async function handleEvent(db: Database, event: OutboxRow): Promise<void> {
-  if (event.eventType !== 'MINT_DEVICE_NFT') {
+  const handler = JOB_HANDLERS[event.eventType];
+  if (handler === undefined) {
     log.warn('worker.unknown_event_type', {
       eventType: event.eventType,
       id: event.id,
@@ -146,14 +188,14 @@ async function handleEvent(db: Database, event: OutboxRow): Promise<void> {
       .where(eq(outboxEvents.id, event.id));
     return;
   }
-  const deviceId = event.payload['deviceId'];
-  if (typeof deviceId !== 'string') {
+  const targetId = event.payload[handler.targetKey];
+  if (typeof targetId !== 'string') {
     await db
       .update(outboxEvents)
       .set({
         status: 'failed',
         lockedAt: null,
-        lastError: 'missing deviceId',
+        lastError: `missing ${handler.targetKey}`,
         processedAt: new Date(),
       })
       .where(eq(outboxEvents.id, event.id));
@@ -162,21 +204,29 @@ async function handleEvent(db: Database, event: OutboxRow): Promise<void> {
 
   const env = getServerEnv();
   try {
-    const result = await mintDeviceNftIfNeeded({ db, deviceId });
-    log.info('worker.mint_job_result', { deviceId, status: result.status });
+    const outcome = await handler.run(db, targetId);
+    log.info('worker.job_result', {
+      eventType: event.eventType,
+      targetId,
+      status: outcome,
+    });
     const followUp = decideOutboxFollowUp({
-      outcome: result.status,
+      outcome,
       attempts: event.attempts,
       maxAttempts: env.WORKER_MAX_ATTEMPTS,
       hasInFlightTransaction: false,
       errorMessage: null,
     });
-    await applyFollowUp(db, event, deviceId, followUp);
+    await applyFollowUp(db, event, handler, targetId, followUp);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const hasInFlightTransaction = await deviceHasInFlightMint(db, deviceId);
-    log.error('worker.mint_job_failed', {
-      deviceId,
+    const hasInFlightTransaction = await handler.hasInFlightTransaction(
+      db,
+      targetId,
+    );
+    log.error('worker.job_failed', {
+      eventType: event.eventType,
+      targetId,
       attempts: event.attempts + 1,
       inFlight: hasInFlightTransaction,
       errorMessage: message,
@@ -188,7 +238,7 @@ async function handleEvent(db: Database, event: OutboxRow): Promise<void> {
       hasInFlightTransaction,
       errorMessage: message,
     });
-    await applyFollowUp(db, event, deviceId, followUp);
+    await applyFollowUp(db, event, handler, targetId, followUp);
   }
 }
 

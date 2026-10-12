@@ -60,7 +60,7 @@ describe('decideOutboxFollowUp', () => {
     ).toMatchObject({
       action: 'fail',
       attempts: 5,
-      markDeviceFailed: true,
+      markTargetFailed: true,
     });
   });
 });

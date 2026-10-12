@@ -12,6 +12,10 @@ import {
   utcDateOf,
   type OdometerDay,
 } from '@/server/application/telemetry/odometer-day';
+import {
+  queueChargingSessionEvent,
+  type QueueDeviceEventResult,
+} from '@/server/application/telemetry/queue-device-event';
 import type { DatabaseTransaction } from '@/server/infrastructure/db/client';
 import {
   chargingSessions,
@@ -33,6 +37,8 @@ export type RecordVehicleTelemetryResult = {
   charging: ChargingTransition['kind'];
   /** Set when this event closed a session as `completed`. */
   completedSessionId: string | null;
+  /** On-chain publication of a completed session (null otherwise). */
+  chargingEvent: QueueDeviceEventResult | null;
 };
 
 function numericOrNull(value: string | null): number | null {
@@ -177,7 +183,7 @@ async function advanceChargingSession(
 ): Promise<Omit<RecordVehicleTelemetryResult, 'odometer'>> {
   const chargeState = input.event.chargeState;
   if (chargeState === null) {
-    return { charging: 'none', completedSessionId: null };
+    return { charging: 'none', completedSessionId: null, chargingEvent: null };
   }
   const observedAt =
     chargeState.observedAt ?? input.event.occurredAt ?? input.receivedAt;
@@ -241,7 +247,11 @@ async function advanceChargingSession(
 
   switch (transition.kind) {
     case 'none':
-      return { charging: 'none', completedSessionId: null };
+      return {
+        charging: 'none',
+        completedSessionId: null,
+        chargingEvent: null,
+      };
 
     case 'start':
       await tx
@@ -258,11 +268,19 @@ async function advanceChargingSession(
           ...location,
         })
         .onConflictDoNothing({ target: chargingSessions.sessionId });
-      return { charging: 'start', completedSessionId: null };
+      return {
+        charging: 'start',
+        completedSessionId: null,
+        chargingEvent: null,
+      };
 
     case 'update':
       if (active === undefined) {
-        return { charging: 'none', completedSessionId: null };
+        return {
+          charging: 'none',
+          completedSessionId: null,
+          chargingEvent: null,
+        };
       }
       await tx
         .update(chargingSessions)
@@ -274,11 +292,19 @@ async function advanceChargingSession(
           ...location,
         })
         .where(eq(chargingSessions.id, active.id));
-      return { charging: 'update', completedSessionId: null };
+      return {
+        charging: 'update',
+        completedSessionId: null,
+        chargingEvent: null,
+      };
 
     case 'close':
       if (active === undefined) {
-        return { charging: 'none', completedSessionId: null };
+        return {
+          charging: 'none',
+          completedSessionId: null,
+          chargingEvent: null,
+        };
       }
       await tx
         .update(chargingSessions)
@@ -295,10 +321,19 @@ async function advanceChargingSession(
           updatedAt: new Date(),
         })
         .where(eq(chargingSessions.id, active.id));
+      if (transition.status !== 'completed') {
+        return {
+          charging: 'close',
+          completedSessionId: null,
+          chargingEvent: null,
+        };
+      }
       return {
         charging: 'close',
-        completedSessionId:
-          transition.status === 'completed' ? active.id : null,
+        completedSessionId: active.id,
+        // Same transaction as the close: a completed session always has
+        // its on-chain event queued (or an explicit reason it isn't).
+        chargingEvent: await queueChargingSessionEvent(tx, active.id),
       };
   }
 }

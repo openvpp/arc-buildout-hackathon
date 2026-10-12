@@ -14,8 +14,15 @@ Mapbox) are still required; this app does not replace them.
 - Circle, Enode, and the Arc minter key are set only on the server and the
   worker. `NEXT_PUBLIC_*` values are the Mapbox token, the Arc explorer base
   URL, and the optional Google client id.
-- The mint worker (`pnpm worker:dev` locally, the same `src/worker/index.ts`
-  process in production) is running. Mints do not happen inside HTTP requests.
+- The worker (`pnpm worker:dev` locally, the same `src/worker/index.ts`
+  process in production) is running. It handles both `MINT_DEVICE_NFT` and
+  `RECORD_DEVICE_EVENT` jobs; neither runs inside an HTTP request.
+- The Arc signer (`DEVICE_NFT_MINTER_PRIVATE_KEY`) holds both `MINTER_ROLE`
+  and `UPDATER_ROLE` on `DEVICE_NFT_CONTRACT_ADDRESS`. Without
+  `UPDATER_ROLE`, every `recordDeviceEvent` reverts at gas estimation and
+  device events end up `failed`. Check with `hasRole(UPDATER_ROLE, signer)`.
+- `ELECTRICITY_PRICE_USD_PER_KWH` is the tariff published as
+  `electricityPrice` (default 0.12).
 - Enode's webhook target is a public `POST /api/webhooks/enode`, and
   `ENODE_WEBHOOK_SECRET` matches the Enode console. Unsigned deliveries are
   rejected.
@@ -32,6 +39,9 @@ current extra migration adds:
 - `outbox_events.locked_at` (nullable)
 - a partial unique index so a device has at most one active mint job
 - an index for the public globe location query
+
+`0003_onchain_time_series` adds `charging_sessions`, `odometer_readings`,
+`daily_odometer` and `device_events`. It only creates new tables.
 
 If the unique index fails, two `pending` or `processing` mint jobs exist for
 the same device. Keep one, delete or complete the other, and run migrate
@@ -54,6 +64,21 @@ sign users out.
 | ----------------------- | ----------------------------------------------------- |
 | `GET /api/health`       | Process is up. Does not touch Postgres.               |
 | `GET /api/health/ready` | Postgres answered `select 1`. Use this for readiness. |
+
+## Device events (on-chain time series)
+
+- One worker processes jobs sequentially with a single signer, so mint and
+  event transactions never race for a nonce. Running several workers with
+  the same key can produce `nonce too low` errors; those are retried, but
+  prefer one worker per signer.
+- Each `recordDeviceEvent` costs about 45k gas (~0.001 USDC on Arc).
+- An event for an unminted device waits (`queued`, retried every 5 minutes)
+  until the mint confirms. It is never dropped.
+- `pending` with a `transaction_hash` means broadcast but not yet confirmed;
+  the worker reconciles it from the receipt and never re-broadcasts it.
+- Verify a row on-chain: the tx's `DeviceEvent` log must carry the row's
+  `token_id` and `event_type`, and `keccak256(data)` must equal
+  `payload_hash`.
 
 ## Limits that are in the app
 
