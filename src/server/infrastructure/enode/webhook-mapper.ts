@@ -7,6 +7,26 @@ const locationSchema = z
   })
   .passthrough();
 
+// Enode reports these as nullable when the OEM doesn't expose them.
+const chargeStateSchema = z
+  .object({
+    isCharging: z.boolean().nullable().optional(),
+    isPluggedIn: z.boolean().nullable().optional(),
+    batteryLevel: z.number().nullable().optional(),
+    batteryCapacity: z.number().nullable().optional(),
+    powerDeliveryState: z.string().nullable().optional(),
+    lastUpdated: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+// `distance` is the full odometer reading in kilometers.
+const odometerSchema = z
+  .object({
+    distance: z.number().nullable().optional(),
+    lastUpdated: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 /** Enode `user:vehicle:updated` / `user:vehicle:discovered` webhook event. */
 const enodeVehicleEventSchema = z
   .object({
@@ -17,10 +37,31 @@ const enodeVehicleEventSchema = z
       .object({
         id: z.string().min(1),
         location: locationSchema.optional(),
+        // Malformed telemetry blocks are dropped (`.catch`) rather than
+        // rejecting the whole event, so location still updates.
+        chargeState: chargeStateSchema.nullable().optional().catch(null),
+        odometer: odometerSchema.nullable().optional().catch(null),
       })
       .passthrough(),
   })
   .passthrough();
+
+export type NormalizedChargeState = {
+  /** Null when the OEM doesn't report charging status — never guessed. */
+  isCharging: boolean | null;
+  isPluggedIn: boolean | null;
+  /** State of charge, 0–100. */
+  batteryLevel: number | null;
+  batteryCapacityKwh: number | null;
+  powerDeliveryState: string | null;
+  /** When the OEM last refreshed charge state. */
+  observedAt: Date | null;
+};
+
+export type NormalizedOdometer = {
+  km: number;
+  observedAt: Date | null;
+};
 
 export type NormalizedEnodeVehicleEvent = {
   eventName: string;
@@ -30,7 +71,14 @@ export type NormalizedEnodeVehicleEvent = {
   longitude: number | null;
   /** When Enode says the event happened. Null if the payload has no usable time. */
   occurredAt: Date | null;
+  chargeState: NormalizedChargeState | null;
+  odometer: NormalizedOdometer | null;
 };
+
+// Largest plausible EV pack; anything above is a unit/parse error.
+const MAX_BATTERY_CAPACITY_KWH = 250;
+// Above this an odometer value (km) is not a real vehicle reading.
+const MAX_ODOMETER_KM = 5_000_000;
 
 function finiteCoordinate(value: number | null | undefined): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -57,7 +105,19 @@ export function plausibleCoordinates(
   return { latitude, longitude };
 }
 
-function occurredAtFrom(value: string | undefined): Date | null {
+function inRange(
+  value: number | null | undefined,
+  min: number,
+  max: number,
+): number | null {
+  const finite = finiteCoordinate(value);
+  return finite !== null && finite >= min && finite <= max ? finite : null;
+}
+
+function occurredAtFrom(value: string | null | undefined): Date | null {
+  if (value === null) {
+    return null;
+  }
   if (value === undefined || value.length === 0) {
     return null;
   }
@@ -75,6 +135,33 @@ export function extractEnodeWebhookEvents(payload: unknown): unknown[] {
     return payload;
   }
   return payload !== null && typeof payload === 'object' ? [payload] : [];
+}
+
+function normalizeChargeState(
+  raw: z.infer<typeof chargeStateSchema> | null | undefined,
+): NormalizedChargeState | null {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  const capacity = inRange(raw.batteryCapacity, 0, MAX_BATTERY_CAPACITY_KWH);
+  return {
+    isCharging: raw.isCharging ?? null,
+    isPluggedIn: raw.isPluggedIn ?? null,
+    batteryLevel: inRange(raw.batteryLevel, 0, 100),
+    batteryCapacityKwh: capacity !== null && capacity > 0 ? capacity : null,
+    powerDeliveryState: raw.powerDeliveryState ?? null,
+    observedAt: occurredAtFrom(raw.lastUpdated),
+  };
+}
+
+function normalizeOdometer(
+  raw: z.infer<typeof odometerSchema> | null | undefined,
+): NormalizedOdometer | null {
+  const km = inRange(raw?.distance, 0, MAX_ODOMETER_KM);
+  if (raw === null || raw === undefined || km === null) {
+    return null;
+  }
+  return { km, observedAt: occurredAtFrom(raw.lastUpdated) };
 }
 
 export function mapEnodeWebhookEvent(
@@ -96,5 +183,7 @@ export function mapEnodeWebhookEvent(
     latitude: coordinates?.latitude ?? null,
     longitude: coordinates?.longitude ?? null,
     occurredAt: occurredAtFrom(parsed.data.createdAt),
+    chargeState: normalizeChargeState(parsed.data.vehicle.chargeState),
+    odometer: normalizeOdometer(parsed.data.vehicle.odometer),
   };
 }

@@ -60,8 +60,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     signatureValid: true,
   });
 
+  // A non-2xx makes Enode redeliver; a failed delivery is reprocessed then.
   return NextResponse.json(
-    { ok: true, status: result.status },
-    { status: 202, headers: { 'x-request-id': requestId } },
+    { ok: result.status !== 'failed', status: result.status },
+    {
+      status: result.status === 'failed' ? 500 : 202,
+      headers: { 'x-request-id': requestId },
+    },
   );
 }

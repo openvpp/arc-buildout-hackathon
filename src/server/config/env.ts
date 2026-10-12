@@ -52,6 +52,9 @@ const serverEnvSchema = z.object({
   PRIVATE_KEY: z.string().optional(),
   DEVICE_NFT_MINTER_PRIVATE_KEY: z.string().optional(),
   ARC_REQUIRED_CONFIRMATIONS: z.coerce.number().default(3),
+  // Configured tariff (USD/kWh) used for a charging session's cost. Not a
+  // measured price — no tariff provider is integrated.
+  ELECTRICITY_PRICE_USD_PER_KWH: z.coerce.number().nonnegative().default(0.12),
 
   WORKER_ID: z.string().default('local'),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().default(2000),

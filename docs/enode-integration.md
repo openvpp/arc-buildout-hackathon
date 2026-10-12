@@ -24,13 +24,42 @@ signed-in wallet dropdown — see `src/features/onboarding/`) starts the link;
 POST /api/webhooks/enode
   → verify x-enode-signature (HMAC-SHA1, sha1=<hex>, over the raw body)
   → dedupe on x-enode-delivery (webhook_deliveries, unique per provider)
-  → update devices.last_latitude/last_longitude on user:vehicle:updated /
-    user:vehicle:discovered with a location payload
-  → 202 accepted
+  → per event, in one transaction holding a row lock on the device
+    (looked up by provider + external_device_id):
+      → update devices.last_latitude/last_longitude from `location`
+      → if the device is active:
+          → `odometer.distance` (km) → odometer_readings + daily_odometer
+          → `chargeState` → charging_sessions (start / update / close)
+  → 202 accepted (500 if any event failed, so Enode redelivers)
 ```
 
 Unknown event types are accepted and no-op'd, never treated as an error —
 ingestion must not crash on an event type Enode adds later.
+
+A delivery whose events failed is marked `failed` and is reprocessed when
+Enode redelivers the same id; a `processed` delivery is still deduped. This is
+safe because every per-event write is idempotent: readings are unique per
+`(device, observed_at)`, and charge events older than the session's last
+update (or the device's last closed session) are ignored as stale.
+
+### Charging sessions
+
+`chargeState.isCharging` drives the session: `true` opens one (or updates the
+active one), `false` closes it. `null` (OEM doesn't report it) is ignored —
+never guessed. Enode doesn't report delivered kWh for vehicles, so energy is
+`(end % − start %) × batteryCapacity` and stored as
+`energy_method = 'estimated_from_battery_change'`. A session whose battery
+level didn't rise is `cancelled`; one without a usable capacity/level is
+`completed` with `energy_method = 'unknown'`. Cost uses the configured
+`ELECTRICITY_PRICE_USD_PER_KWH` tariff.
+
+### Daily odometer
+
+Readings are folded into one row per UTC day. A day starts at the previous
+UTC day's end when that's plausible, otherwise at its own first reading
+(`start_estimated`). Readings below the day's start or more than 2,000 km
+above it are counted in `anomaly_count` and ignored. Readings for an already
+finalized day are stored raw only.
 
 ## Known gap this deliberately avoids
 
