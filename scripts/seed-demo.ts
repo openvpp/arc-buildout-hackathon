@@ -11,7 +11,8 @@ import { devices } from '@/server/infrastructure/db/schema';
  * OEM login. Never marks the device 'minted' — no on-chain mint happened
  * for it, and nothing here should be mistaken for a real device.
  *
- * Sign in at http://localhost:3000 with DEMO_EMAIL to see it.
+ * The device shows on the public globe. Opening this wallet in the app
+ * requires Google sign-in as DEMO_EMAIL.
  */
 async function main(): Promise<void> {
   const email = process.env.DEMO_EMAIL ?? 'demo-driver@arc-ev-fleet.dev';
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-console -- CLI script output
   console.log('Demo seed complete.');
   // eslint-disable-next-line no-console -- CLI script output
-  console.log(`  Sign in at http://localhost:3000 with: ${email}`);
+  console.log(`  Owner email (Google sign-in only): ${email}`);
   // eslint-disable-next-line no-console -- CLI script output
   console.log(`  Wallet address: ${owner.walletAddress}`);
   // eslint-disable-next-line no-console -- CLI script output

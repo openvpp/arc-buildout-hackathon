@@ -12,12 +12,12 @@ testnet.
 Scope (and only this):
 
 1. A user **registers or logs in** via a **Circle developer-controlled
-   wallet**, through a sign-in popup offering "Continue with Google" (an
-   optional convenience, hidden when unconfigured) and a direct email path
-   — neither is verified against an external identity provider (see
-   `bind-dashboard-owner.ts` for why that's intentional here, not an
-   oversight). The wallet is created and held server-side — no Circle
-   secret, entity key, or private key ever reaches the browser.
+   wallet**, through a sign-in popup that offers only "Continue with
+   Google". The server verifies the Google ID token (audience is
+   `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`) and uses the email inside that
+   token. A typed email is not accepted. The wallet is created and held
+   server-side — no Circle secret, entity key, or private key ever reaches
+   the browser.
 2. The authenticated user **connects a vehicle via Enode Link**.
 3. The device is **minted as a DeviceNFT on Arc testnet**, and the app tracks
    and displays the mint status and transaction accurately
@@ -120,16 +120,12 @@ Route Handler → transport → application → domain ports → infrastructure
 
 ### Identity & wallets
 
-- Never trust a client-provided wallet **address** for anything privileged —
-  the wallet is always resolved server-side from the email, never read from a
-  request body field that isn't the email itself.
-- The email identity is deliberately self-asserted, not verified against an
-  external provider (see `bind-dashboard-owner.ts`) — this is a known,
-  intentional tradeoff for this milestone (the wallet is developer-custodied
-  regardless of who claims the email), not something to silently "fix" by
-  bolting on a provider later without a product decision to do so.
-- One principal (email) maps to exactly one Circle wallet, found-or-created,
-  never re-created on repeat login.
+- Never trust a client-provided wallet **address** or email for anything
+  privileged. Sign-in accepts a Google ID token; the server verifies it and
+  resolves the wallet from the email in that token. The request body has no
+  wallet-address field.
+- One principal (Google email) maps to exactly one Circle wallet,
+  found-or-created, never re-created on repeat login.
 - Never conflate the Circle wallet address with the Arc DeviceNFT contract's
   address, or with the Arc minter's own signing key.
 

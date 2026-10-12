@@ -15,10 +15,10 @@ const clearSchema = z.object({
 /** Establish / clear the httpOnly dashboard session cookie for the Circle DCW flow. */
 export function createCircleSessionApi(client: ApiClient = new ApiClient()) {
   return {
-    async establish(input: { email: string }) {
+    async establish(input: { idToken: string }) {
       const result = await client.request('/api/v1/dashboard/session', {
         method: 'POST',
-        body: { email: input.email },
+        body: { idToken: input.idToken },
         schema: establishSchema,
       });
       if (!result.ok) {

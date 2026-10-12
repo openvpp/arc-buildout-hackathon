@@ -5,9 +5,9 @@ const publicEnvSchema = z.object({
   NEXT_PUBLIC_ARC_EXPLORER_BASE_URL: z
     .string()
     .default('https://testnet.arcscan.app'),
-  // Optional convenience sign-in method in the Circle DCW modal — see
-  // circle-auth-modal.tsx. Never verified server-side (same trust level as
-  // the plain-email path); if unset, the Google button is simply hidden.
+  // Google OAuth client id for the sign-in button. The server verifies
+  // the ID token audience against this same value. If unset, the button
+  // is hidden and sign-in is unavailable.
   NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID: z.string().default(''),
 });
 

@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto';
+
 import { z } from 'zod';
 
-import { bindDashboardOwner } from '@/server/application/onboarding/bind-dashboard-owner';
+import { signInWithGoogle } from '@/server/application/onboarding/sign-in-with-google';
 import { getServerEnv } from '@/server/config/env';
 import {
   buildDashboardSessionCookie,
@@ -19,7 +21,7 @@ export const dynamic = 'force-dynamic';
 
 const bodySchema = z
   .object({
-    email: z.string().trim().email().max(254),
+    idToken: z.string().trim().min(1).max(8192),
   })
   .strict();
 
@@ -35,10 +37,9 @@ function cookieSecureFlag(): boolean {
 
 /**
  * Establish the httpOnly dashboard session for the Circle developer-
- * controlled wallet flow. Identity is the email the caller typed — see the
- * comment on bindDashboardOwner for why this is intentionally unverified.
- * The Circle wallet itself is always created/found server-side; its
- * address never comes from the request body.
+ * controlled wallet flow. The body is a Google ID token; the email and
+ * wallet are resolved server-side after that token is verified for this
+ * app's OAuth client. A raw email or wallet address is not accepted.
  */
 export const POST = createRouteHandler(async (request, context) => {
   enforceRateLimit({
@@ -50,15 +51,15 @@ export const POST = createRouteHandler(async (request, context) => {
   const parsed = bodySchema.parse(await readJsonBody(request));
   enforceRateLimit({
     request,
-    bucket: 'session-email',
+    bucket: 'session-google',
     limit: 8,
     windowMs: SESSION_WINDOW_MS,
     scope: 'global',
-    keySuffix: parsed.email.toLowerCase(),
+    keySuffix: createHash('sha256').update(parsed.idToken).digest('hex'),
   });
 
   const db = getDb();
-  const bound = await bindDashboardOwner(db, { email: parsed.email });
+  const bound = await signInWithGoogle(db, { idToken: parsed.idToken });
 
   const env = getServerEnv();
   const token = await createDashboardSessionToken({

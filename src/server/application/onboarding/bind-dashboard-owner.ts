@@ -25,14 +25,12 @@ export function dashboardPrincipalDisplayName(email: string): string {
  * Find-or-create the dashboard_user principal for an email, ensure their
  * Circle developer-controlled wallet exists, and bind it as owner.
  *
- * Identity here is self-asserted (the email the caller typed), not verified
- * against an external identity provider — the Google path fetches a profile
- * client-side rather than verifying an id_token server-side, and the email
- * path never checks a password at all. That's an intentional product
- * decision for this milestone, not an oversight: the wallet is
- * developer-custodied regardless of who claims the email, so there's no
- * on-chain signing authority being handed out here. Don't read this as a
- * pattern for anything that does hand out signing authority.
+ * Callers must already know the email belongs to the person signing in.
+ * The dashboard session route only passes an email taken from a verified
+ * Google ID token (`signInWithGoogle`). This function does not check that
+ * token itself. The demo seed calls it directly because it is a local
+ * script, not a login. The wallet stays developer-custodied: no on-chain
+ * signing key is handed to the browser.
  */
 export async function bindDashboardOwner(
   db: Database,

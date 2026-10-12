@@ -37,10 +37,12 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
 ## End-to-end walkthrough
 
 1. Open `http://localhost:3000` — the globe is already visible (it never
-   gates on sign-in). Click **Sign in** (top right) to open the popup, then
-   either **Continue with Google** (if configured) or type an email and
-   **Create Wallet**. Confirm the `ev_dashboard_session` cookie is set and
-   `/devices` shows an empty state for a fresh principal (not "sign in").
+   gates on sign-in). Click **Sign in** (top right) and **Continue with
+   Google**. The server accepts that Google account only. Confirm the
+   `ev_dashboard_session` cookie is set and `/devices` shows an empty state
+   for a fresh principal (not "sign in"). Add
+   `http://localhost:3000` as an authorized JavaScript origin on the Google
+   OAuth client.
 2. **Add vehicle** → optionally set a brand → **Connect with Enode** →
    complete the OEM sandbox login → land back on `/enode/complete` → name
    the vehicle → **Save device**.

@@ -127,6 +127,7 @@ describe('session cookie security', () => {
 
 describe('application errors', () => {
   it('maps ownership failures to 403 or 404 and unknown codes to 400', () => {
+    expect(applicationErrorStatus('GOOGLE_SIGN_IN_FAILED')).toBe(401);
     expect(applicationErrorStatus('PRINCIPAL_DISABLED')).toBe(403);
     expect(applicationErrorStatus('PENDING_CONNECTION_NOT_FOUND')).toBe(404);
     expect(applicationErrorStatus('SOMETHING_NEW')).toBe(400);

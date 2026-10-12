@@ -18,6 +18,10 @@ const serverEnvSchema = z.object({
 
   API_KEY_HASH_SECRET: z.string().min(16),
 
+  // Public OAuth client id. Same value as NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID.
+  // Used as the ID token `aud` check. Empty disables Google sign-in.
+  GOOGLE_OAUTH_CLIENT_ID: z.string().default(''),
+
   CIRCLE_API_KEY: z.string().optional(),
   // Informational only — Circle infers sandbox/production from the
   // CIRCLE_API_KEY prefix (TEST_API_KEY: vs LIVE_API_KEY:) itself; kept here
@@ -63,7 +67,12 @@ export function getServerEnv(): ServerEnv {
   if (cached !== null) {
     return cached;
   }
-  const parsed = serverEnvSchema.safeParse(process.env);
+  const parsed = serverEnvSchema.safeParse({
+    ...process.env,
+    GOOGLE_OAUTH_CLIENT_ID:
+      process.env.GOOGLE_OAUTH_CLIENT_ID ??
+      process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID,
+  });
   if (!parsed.success) {
     throw new Error(
       `Invalid server environment: ${parsed.error.issues

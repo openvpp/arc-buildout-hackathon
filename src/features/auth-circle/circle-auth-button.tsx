@@ -163,7 +163,7 @@ export function CircleAuthButton({
 }: {
   initialWalletAddress?: string | null;
 }) {
-  const { state, signInWithEmail, signOut } =
+  const { state, signInWithGoogle, signOut } =
     useCircleSession(initialWalletAddress);
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -204,8 +204,8 @@ export function CircleAuthButton({
         onClose={() => {
           setModalOpen(false);
         }}
-        onSubmitEmail={(email) => {
-          void signInWithEmail(email);
+        onGoogleCredential={(idToken) => {
+          void signInWithGoogle(idToken);
         }}
       />
     </>

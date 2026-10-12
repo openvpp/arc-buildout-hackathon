@@ -26,16 +26,16 @@ Route Handler → transport → application → domain → infrastructure
 
 ## Request flow (Circle login → Enode link → Arc mint → globe)
 
-1. Browser: sign-in popup (`CircleAuthModal`) — either "Continue with
-   Google" (client-side profile fetch, only shown when
-   `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is set) or a direct email field.
-   Both funnel into the same call: `POST /api/v1/dashboard/session { email }`.
-   Neither path is verified against an external provider — see
-   `bind-dashboard-owner.ts` for why that's intentional here.
-2. Route → `bindDashboardOwner` → `ensureCircleWalletForPrincipal` (Circle
-   SDK, `refId`-keyed, idempotent) → upsert
-   `principals`/`wallets`/`principal_wallets` → sign the dashboard session
-   JWT → set as an httpOnly cookie.
+1. Browser: sign-in popup (`CircleAuthModal`) shows "Continue with Google"
+   when `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` is set. The button returns a
+   Google ID token. `POST /api/v1/dashboard/session { idToken }` is the only
+   sign-in call. A typed email is not accepted. The globe stays public.
+2. Route → `signInWithGoogle` verifies the ID token (`aud` is this app's
+   client id, signature against Google's certs, `email_verified`) →
+   `bindDashboardOwner` → `ensureCircleWalletForPrincipal` (Circle SDK,
+   `refId`-keyed, idempotent) → upsert `principals`/`wallets`/
+   `principal_wallets` → sign the dashboard session JWT → set as an httpOnly
+   cookie.
 3. Every other route that acts on a wallet reads that cookie
    (`requirePrincipal`/`getCurrentPrincipal`) instead of trusting anything
    from the request body — the wallet id/address in the session is the only
