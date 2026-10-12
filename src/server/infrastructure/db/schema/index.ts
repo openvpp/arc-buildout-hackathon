@@ -1,12 +1,15 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   check,
+  date,
   index,
   jsonb,
   numeric,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -293,6 +296,251 @@ export const outboxEvents = pgTable(
   ],
 );
 
+/**
+ * One charging session per plug-in, derived from Enode `chargeState`.
+ * Everything here stays off-chain; only the whitelisted fields in the
+ * device_events payload are published. Location never leaves this table.
+ */
+export const chargingSessions = pgTable(
+  'charging_sessions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => devices.id, { onDelete: 'restrict' }),
+    // Deterministic (`enode_<externalDeviceId>_<startMs>`) so a replayed
+    // webhook can never open a second session for the same start.
+    sessionId: text('session_id').notNull(),
+    // 'active' -> 'completed' | 'cancelled'
+    status: text('status').notNull().default('active'),
+    startTime: timestamp('start_time', { withTimezone: true }).notNull(),
+    endTime: timestamp('end_time', { withTimezone: true }),
+    startBatteryLevel: numeric('start_battery_level', {
+      precision: 5,
+      scale: 2,
+    }),
+    endBatteryLevel: numeric('end_battery_level', { precision: 5, scale: 2 }),
+    batteryCapacityKwh: numeric('battery_capacity_kwh', {
+      precision: 7,
+      scale: 3,
+    }),
+    energyDeliveredKwh: numeric('energy_delivered_kwh', {
+      precision: 10,
+      scale: 4,
+    })
+      .notNull()
+      .default('0'),
+    // How energyDeliveredKwh was obtained. Published as `method` — never
+    // label an estimate as 'direct_kwh'.
+    energyMethod: text('energy_method').notNull().default('unknown'),
+    electricityPrice: numeric('electricity_price', { precision: 10, scale: 4 }),
+    totalCost: numeric('total_cost', { precision: 12, scale: 4 }),
+    currency: text('currency').notNull().default('USD'),
+    latitude: numeric('latitude', { precision: 9, scale: 6 }),
+    longitude: numeric('longitude', { precision: 9, scale: 6 }),
+    lastProviderUpdateAt: timestamp('last_provider_update_at', {
+      withTimezone: true,
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'charging_sessions_status_check',
+      sql`${table.status} in ('active', 'completed', 'cancelled')`,
+    ),
+    check(
+      'charging_sessions_energy_method_check',
+      sql`${table.energyMethod} in ('direct_kwh', 'estimated_from_battery_change', 'unknown')`,
+    ),
+    check(
+      'charging_sessions_battery_range_check',
+      sql`(${table.startBatteryLevel} is null or ${table.startBatteryLevel} between 0 and 100) and (${table.endBatteryLevel} is null or ${table.endBatteryLevel} between 0 and 100)`,
+    ),
+    check(
+      'charging_sessions_non_negative_check',
+      sql`${table.energyDeliveredKwh} >= 0 and (${table.electricityPrice} is null or ${table.electricityPrice} >= 0) and (${table.totalCost} is null or ${table.totalCost} >= 0)`,
+    ),
+    check(
+      'charging_sessions_end_after_start_check',
+      sql`${table.endTime} is null or ${table.endTime} >= ${table.startTime}`,
+    ),
+    check(
+      'charging_sessions_closed_has_end_check',
+      sql`${table.status} = 'active' or ${table.endTime} is not null`,
+    ),
+    uniqueIndex('charging_sessions_session_id_uidx').on(table.sessionId),
+    // At most one live session per device.
+    uniqueIndex('charging_sessions_one_active_uidx')
+      .on(table.deviceId)
+      .where(sql`${table.status} = 'active'`),
+    index('charging_sessions_device_start_idx').on(
+      table.deviceId,
+      table.startTime,
+      table.id,
+    ),
+  ],
+);
+
+/** Raw odometer readings as reported by the provider (off-chain). */
+export const odometerReadings = pgTable(
+  'odometer_readings',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => devices.id, { onDelete: 'restrict' }),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    odometerKm: numeric('odometer_km', { precision: 12, scale: 3 }).notNull(),
+    webhookDeliveryId: uuid('webhook_delivery_id').references(
+      () => webhookDeliveries.id,
+      { onDelete: 'set null' },
+    ),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'odometer_readings_non_negative_check',
+      sql`${table.odometerKm} >= 0`,
+    ),
+    uniqueIndex('odometer_readings_device_observed_uidx').on(
+      table.deviceId,
+      table.observedAt,
+    ),
+  ],
+);
+
+/**
+ * Per-device, per-UTC-day odometer aggregate. Finalized once the day is over
+ * and then published as one daily TRIP_COMPLETED event.
+ */
+export const dailyOdometer = pgTable(
+  'daily_odometer',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => devices.id, { onDelete: 'restrict' }),
+    dateUtc: date('date_utc', { mode: 'string' }).notNull(),
+    startOdometerKm: numeric('start_odometer_km', {
+      precision: 12,
+      scale: 3,
+    }).notNull(),
+    endOdometerKm: numeric('end_odometer_km', {
+      precision: 12,
+      scale: 3,
+    }).notNull(),
+    // True when the day's start came from its own first reading rather than
+    // the previous day's end (no reading the day before).
+    startEstimated: boolean('start_estimated').notNull().default(false),
+    readingCount: bigint('reading_count', { mode: 'number' })
+      .notNull()
+      .default(0),
+    // Readings rejected as implausible (odometer going backwards, etc.).
+    anomalyCount: bigint('anomaly_count', { mode: 'number' })
+      .notNull()
+      .default(0),
+    lastReadingAt: timestamp('last_reading_at', { withTimezone: true }),
+    // 'open' -> 'finalized'
+    status: text('status').notNull().default('open'),
+    finalizedAt: timestamp('finalized_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'daily_odometer_status_check',
+      sql`${table.status} in ('open', 'finalized')`,
+    ),
+    check(
+      'daily_odometer_monotonic_check',
+      sql`${table.startOdometerKm} >= 0 and ${table.endOdometerKm} >= ${table.startOdometerKm}`,
+    ),
+    check(
+      'daily_odometer_finalized_at_check',
+      sql`${table.status} = 'open' or ${table.finalizedAt} is not null`,
+    ),
+    uniqueIndex('daily_odometer_device_date_uidx').on(
+      table.deviceId,
+      table.dateUtc,
+    ),
+    // Finalization sweep: open days older than today.
+    index('daily_odometer_open_date_idx')
+      .on(table.dateUtc)
+      .where(sql`${table.status} = 'open'`),
+  ],
+);
+
+/**
+ * The on-chain time series: one row per `recordDeviceEvent` call on the
+ * DeviceNFT contract. `payloadJson` is the exact UTF-8 string sent as the
+ * event's `data` bytes and is fixed at creation, so `payloadHash` lets anyone
+ * match a DB row to the on-chain log. Not a mint — see devices.nft_*.
+ *
+ * 'queued' (waiting for the device's mint and a worker) -> 'pending'
+ * (claimed; tx hash persisted before confirmation) -> 'confirmed' | 'failed'.
+ */
+export const deviceEvents = pgTable(
+  'device_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => devices.id, { onDelete: 'restrict' }),
+    // On-chain eventType: 2 = CHARGING_COMPLETED, 12 = TRIP_COMPLETED.
+    eventType: smallint('event_type').notNull(),
+    sourceType: text('source_type').notNull(),
+    sourceId: uuid('source_id').notNull(),
+    // When the recorded activity ended (session end / end of UTC day).
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    payloadJson: text('payload_json').notNull(),
+    payloadHash: text('payload_hash').notNull(),
+    status: text('status').notNull().default('queued'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    chainId: bigint('chain_id', { mode: 'bigint' }),
+    contractAddress: text('contract_address'),
+    tokenId: text('token_id'),
+    transactionHash: text('transaction_hash'),
+    blockNumber: bigint('block_number', { mode: 'bigint' }),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    check('device_events_event_type_check', sql`${table.eventType} in (2, 12)`),
+    check(
+      'device_events_source_type_check',
+      sql`${table.sourceType} in ('charging_session', 'daily_odometer')`,
+    ),
+    check(
+      'device_events_source_matches_type_check',
+      sql`(${table.sourceType} = 'charging_session' and ${table.eventType} = 2) or (${table.sourceType} = 'daily_odometer' and ${table.eventType} = 12)`,
+    ),
+    check(
+      'device_events_status_check',
+      sql`${table.status} in ('queued', 'pending', 'confirmed', 'failed')`,
+    ),
+    check(
+      'device_events_confirmed_has_tx_check',
+      sql`${table.status} <> 'confirmed' or (${table.transactionHash} is not null and ${table.tokenId} is not null and ${table.confirmedAt} is not null)`,
+    ),
+    // Idempotency: a session/day is published at most once per event type.
+    uniqueIndex('device_events_source_uidx').on(
+      table.sourceType,
+      table.sourceId,
+      table.eventType,
+    ),
+    uniqueIndex('device_events_transaction_hash_uidx')
+      .on(table.transactionHash)
+      .where(sql`${table.transactionHash} is not null`),
+    // Per-device timeline, newest first, keyset-paginated.
+    index('device_events_device_occurred_idx').on(
+      table.deviceId,
+      table.occurredAt,
+      table.id,
+    ),
+  ],
+);
+
 export const schemaMeta = {
   tables: [
     'principals',
@@ -303,5 +551,9 @@ export const schemaMeta = {
     'devices',
     'webhook_deliveries',
     'outbox_events',
+    'charging_sessions',
+    'odometer_readings',
+    'daily_odometer',
+    'device_events',
   ],
 } as const;

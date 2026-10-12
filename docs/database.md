@@ -18,6 +18,10 @@ migration — add a new one.
 | `devices`                    | The vehicle: identity, mint state, last known location                            | unique `(provider, external_device_id)` — this is what makes re-linking the same physical vehicle an upsert, never a duplicate row |
 | `webhook_deliveries`         | Enode webhook dedup                                                               | unique `(provider, delivery_id)`                                                                                                   |
 | `outbox_events`              | Crash-safe async job queue (currently: `MINT_DEVICE_NFT`)                         | `locked_at` lease; partial unique index allows one active mint job per device                                                      |
+| `charging_sessions`          | Off-chain charging sessions derived from Enode `chargeState` (incl. location)     | unique `session_id`; partial unique index: one `active` session per device; closed sessions must have `end_time`                   |
+| `odometer_readings`          | Raw off-chain odometer readings (km)                                              | unique `(device_id, observed_at)`                                                                                                  |
+| `daily_odometer`             | Per-device, per-UTC-day odometer aggregate (`open → finalized`)                   | unique `(device_id, date_utc)`; `end_odometer_km >= start_odometer_km`                                                             |
+| `device_events`              | The on-chain time series: one row per `recordDeviceEvent` call                    | unique `(source_type, source_id, event_type)`; unique non-null `transaction_hash`; `confirmed` requires tx + token id              |
 
 ## `devices` mint lifecycle
 
@@ -61,8 +65,33 @@ loudly instead of guessing.
 ## `devices` location
 
 `last_latitude`/`last_longitude`/`last_location_at` are denormalized from
-whatever Enode last reported (webhook or finalize-time snapshot). There is
-no telemetry history table — this milestone only needs "where is it right
-now," not a time series. A device with no reported location simply has
+whatever Enode last reported (webhook or finalize-time snapshot). Location
+has no history table: the globe only needs "where is it right now." (The
+charging/odometer time series below is separate and never publishes
+location.) A device with no reported location simply has
 `null` here and is excluded from the globe query
 (`list-device-locations.ts`), not given a fallback pin.
+
+## On-chain time series (`device_events`)
+
+Full device activity is stored off-chain in `charging_sessions`,
+`odometer_readings` and `daily_odometer`. Only a whitelisted, non-sensitive
+subset is published on-chain via the DeviceNFT contract's
+`recordDeviceEvent(tokenId, eventType, data)`:
+
+- `eventType = 2` (CHARGING_COMPLETED), one per completed charging session.
+- `eventType = 12` (TRIP_COMPLETED), one per device per finalized UTC day.
+
+`device_events.payload_json` is the exact UTF-8 JSON sent as `data`, fixed
+when the row is created; `payload_hash` is its keccak256, so any row can be
+matched to its on-chain log. Location is never part of the payload.
+
+`status`: `queued → pending → confirmed | failed`.
+
+- An event for a device that is not minted yet stays `queued` until the mint
+  confirms — it is never dropped.
+- `transaction_hash` is written at broadcast, before confirmation, so a crash
+  reconciles against the in-flight tx instead of recording the event twice.
+- `device_events_source_uidx` makes publishing a session/day idempotent.
+- `confirmed` is only set from a confirmed receipt; the database rejects a
+  `confirmed` row without a transaction hash and token id.

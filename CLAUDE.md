@@ -5,9 +5,11 @@ this repository. Read this file fully before modifying anything.
 
 ## Project purpose
 
-This repository (`accelerator-milestone1` branch) is a **hackathon
-accelerator milestone**: a single, small, end-to-end flow on top of Arc
-testnet.
+This repository (`accelerator-milestone2` branch) is a **hackathon
+accelerator milestone**: a single, small, end-to-end flow on top of Arc.
+Development and automated tests run on Arc testnet; the target network
+(testnet or mainnet) is deployment configuration (`ARC_CHAIN_ID`,
+`ARC_RPC_URL`, `DEVICE_NFT_CONTRACT_ADDRESS`), never hardcoded.
 
 Scope (and only this):
 
@@ -19,7 +21,7 @@ Scope (and only this):
    server-side — no Circle secret, entity key, or private key ever reaches
    the browser.
 2. The authenticated user **connects a vehicle via Enode Link**.
-3. The device is **minted as a DeviceNFT on Arc testnet**, and the app tracks
+3. The device is **minted as a DeviceNFT on Arc**, and the app tracks
    and displays the mint status and transaction accurately
    (`unminted → pending → minted | failed`), never claiming a mint is
    complete before the on-chain transaction is confirmed.
@@ -27,11 +29,20 @@ Scope (and only this):
    pin on a **Mapbox globe**. The globe is a public, fleet-wide view: its
    `GET /api/v1/dashboard/devices/locations` endpoint is deliberately
    unauthenticated, unlike every other route in this app.
+5. **On-chain time series** (milestone 2). Each device's charging sessions
+   and daily odometer are stored in full off-chain (Postgres), and a
+   whitelisted, non-sensitive subset is published on-chain via the
+   DeviceNFT's `recordDeviceEvent`: `CHARGING_COMPLETED` (eventType 2) per
+   completed session and `TRIP_COMPLETED` (eventType 12) per device per UTC
+   day. The owner sees the timeline with each event's on-chain status.
 
 ### Explicitly out of scope
 
 No telemetry-nanopayment marketplace, no Circle Gateway x402 payments, no
-content-hash/provenance anchoring, no demo agent, no admin panel, no ledger,
+content-hash/provenance anchoring of files or content (the device event time
+series in scope item 5 is the only on-chain data besides mints), no points
+or rewards system, no trip detection beyond the daily odometer roll-up, no
+demo agent, no admin panel, no ledger,
 no Smartcar/Chargemap/OpenChargeMap, no Circle Paymaster, no external-wallet
 connect buttons (MetaMask/Coinbase/WalletConnect/etc.), no ScanContent
 screens, no operator/fleet-ops features. Do not reintroduce any of this
@@ -161,6 +172,27 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - Never present `mint_status` as `minted` in the UI before the transaction is
   confirmed on-chain.
 
+### On-chain device events
+
+- Publish only through `device_events` + the outbox worker, never inline in
+  a webhook/request. One row per `(source_type, source_id, event_type)`.
+- The on-chain payload is built by a pure, whitelisted builder with a fixed
+  key order. Store the exact JSON string sent (`payload_json`) and its
+  keccak256 (`payload_hash`); never rebuild a payload after creation.
+- **Never publish location**, user identity, wallet address, or raw
+  provider payloads. `vehicleId` on-chain is our `devices.id`, not the
+  Enode vehicle id.
+- `method` must state how energy was obtained (`direct_kwh` only for a
+  provider-reported kWh, otherwise `estimated_from_battery_change`). Never
+  label an estimate as measured. `electricityPrice` is a configured tariff.
+- Events for an unminted device stay `queued` until the mint confirms; never
+  drop them. Persist the tx hash before confirmation, reconcile on retry.
+- Never show an event as `confirmed` before its receipt is confirmed.
+- `recordDeviceEvent` requires the signer to hold `UPDATER_ROLE` on the
+  contract (minting requires `MINTER_ROLE`).
+- Odometer is stored in km; the published daily payload uses miles to match
+  the existing on-chain series.
+
 ### Security
 
 - No secrets in source control.
@@ -174,7 +206,8 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 ### Testing
 
 - Use PostgreSQL for database integration tests.
-- Add concurrency tests for the claim-before-mint path.
+- Add concurrency tests for the claim-before-mint path and the device-event
+  publish path.
 - Test webhook dedup and vendor-scoped disconnect explicitly.
 - Never use real funds/mainnet in automated tests.
 
