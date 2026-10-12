@@ -8,10 +8,16 @@ import { PageHeader } from '@/components/common/page-header';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { DeviceEventTimeline } from '@/features/devices/device-event-timeline';
 import { formatTimestamp, mintStatusTone } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
 import { RefreshWhilePending } from '@/features/devices/refresh-while-pending';
+import { ApplicationError } from '@/server/application/application-error';
 import { getDeviceForWallet } from '@/server/application/dashboard/get-device';
+import {
+  listDeviceEventsForWallet,
+  type DeviceEventPage,
+} from '@/server/application/dashboard/list-device-events';
 import { getCurrentPrincipal } from '@/server/infrastructure/auth/current-principal';
 import { getDb } from '@/server/infrastructure/db/client';
 
@@ -19,12 +25,20 @@ export const metadata: Metadata = { title: 'Device' };
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const EVENTS_PAGE_SIZE = 20;
+
+const eventsCursorSchema = z.string().min(1).max(512);
+
 export default async function DeviceDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ deviceId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { deviceId } = await params;
+  const cursorParam = eventsCursorSchema.safeParse((await searchParams).events);
+  const eventsCursor = cursorParam.success ? cursorParam.data : undefined;
   if (!z.string().uuid().safeParse(deviceId).success) {
     notFound();
   }
@@ -52,6 +66,34 @@ export default async function DeviceDetailPage({
   if (device === null) {
     notFound();
   }
+
+  let eventsPage: DeviceEventPage | null;
+  try {
+    eventsPage = await listDeviceEventsForWallet(db, {
+      deviceId,
+      walletId: principal.walletId,
+      limit: EVENTS_PAGE_SIZE,
+      ...(eventsCursor !== undefined ? { cursor: eventsCursor } : {}),
+    });
+  } catch (error) {
+    // A malformed cursor in the URL just shows the newest page.
+    if (!(error instanceof ApplicationError)) {
+      throw error;
+    }
+    eventsPage = await listDeviceEventsForWallet(db, {
+      deviceId,
+      walletId: principal.walletId,
+      limit: EVENTS_PAGE_SIZE,
+    });
+  }
+  const events = eventsPage?.events ?? [];
+  const deviceMinted =
+    device.nftTokenId !== null && device.nftTokenId.length > 0;
+  const devicePath = `/devices/${device.id}`;
+  const eventInFlight = events.some(
+    (event) =>
+      event.status === 'pending' || (event.status === 'queued' && deviceMinted),
+  );
 
   return (
     <PageContainer>
@@ -108,7 +150,19 @@ export default async function DeviceDetailPage({
             </div>
           </dl>
         </Card>
-        <RefreshWhilePending active={device.mintStatus === 'pending'} />
+        <DeviceEventTimeline
+          events={events}
+          deviceMinted={deviceMinted}
+          olderHref={
+            eventsPage !== null && eventsPage.nextCursor !== null
+              ? `${devicePath}?events=${encodeURIComponent(eventsPage.nextCursor)}`
+              : null
+          }
+          newestHref={eventsCursor !== undefined ? devicePath : null}
+        />
+        <RefreshWhilePending
+          active={device.mintStatus === 'pending' || eventInFlight}
+        />
         <div className="flex gap-4 text-sm text-primary-500">
           <Link href="/devices" className="underline">
             Back to devices

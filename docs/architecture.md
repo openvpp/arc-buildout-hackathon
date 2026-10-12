@@ -57,16 +57,30 @@ external_device_id)`) and enqueues a `MINT_DEVICE_NFT` outbox event.
    transaction instead of broadcasting another mint. A `busy` or
    unconfigured attempt stays queued; it is not marked complete.
 7. Enode webhook (`POST /api/webhooks/enode`) → HMAC-SHA1 verify → dedupe on
-   `(provider, delivery_id)` → update `devices.last_latitude/longitude`.
-8. `/` (home) → `GET /api/v1/dashboard/devices/locations` (paginated, public
+   `(provider, delivery_id)` → under a device row lock: update
+   `devices.last_latitude/longitude`, fold `odometer` into
+   `odometer_readings`/`daily_odometer`, and advance `charging_sessions`
+   from `chargeState`. A completed session queues a `device_events` row and
+   a `RECORD_DEVICE_EVENT` outbox job in the same transaction.
+8. The worker publishes each `device_events` row with `recordDeviceEvent`
+   (same claim / persist-hash-at-broadcast / reconcile rules as minting) and,
+   once a minute, finalizes finished UTC days (queuing one daily
+   `TRIP_COMPLETED` event each) and closes stale charging sessions.
+9. `/` (home) → `GET /api/v1/dashboard/devices/locations` (paginated, public
    — every device with a known location, not scoped to a wallet) → Mapbox GL
    globe, one pin per device.
+10. `/devices/:id` → the device's on-chain timeline (also
+    `GET /api/v1/dashboard/devices/:id/events`, owner-only, paginated), with
+    each event's status, explorer link, and the exact published payload and
+    hash.
 
 ## Why this data model is smaller than a typical "EV platform"
 
-This milestone is four steps: register/login, connect a device, mint it,
-see it on a map. There is no payment flow, no telemetry history, no
-content-hash provenance chain, no agent, no admin panel — so there's no
-`payment_requirements`/`ledger_entries`/`telemetry_records`/`anchor_batches`
-table set. See [CLAUDE.md](../CLAUDE.md) for what's explicitly out of scope
+This milestone is: register/login, connect a device, mint it, see it on a
+map, and publish its charging sessions and daily mileage as an on-chain time
+series. Telemetry history is limited to what that series needs
+(`charging_sessions`, `odometer_readings`, `daily_odometer`,
+`device_events`). There is no payment flow, no content-hash provenance
+chain, no agent, no admin panel — so there's no
+`payment_requirements`/`ledger_entries`/`anchor_batches` table set. See [CLAUDE.md](../CLAUDE.md) for what's explicitly out of scope
 and why re-adding any of it is a deliberate decision, not a default.
