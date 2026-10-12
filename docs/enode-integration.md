@@ -58,8 +58,20 @@ level didn't rise is `cancelled`; one without a usable capacity/level is
 Readings are folded into one row per UTC day. A day starts at the previous
 UTC day's end when that's plausible, otherwise at its own first reading
 (`start_estimated`). Readings below the day's start or more than 2,000 km
-above it are counted in `anomaly_count` and ignored. Readings for an already
-finalized day are stored raw only.
+above it are counted in `anomaly_count` and ignored. A day is closed to new
+readings once it is finalized **or** a later day has started (that day's
+start is chained to this day's end, so changing it would count kilometres
+twice); late readings for a closed day are stored raw only.
+
+The worker finalizes each day 30 minutes after its UTC midnight and queues
+one `TRIP_COMPLETED` event per day. A day with under 0.1 mi of driving is
+finalized but not published.
+
+### Stale sessions
+
+If Enode never sends the "stopped charging" update, a session with no
+update for 24 hours is closed by the worker at its last update, using the
+last battery level seen. If charging resumes later, a new session opens.
 
 ## Known gap this deliberately avoids
 

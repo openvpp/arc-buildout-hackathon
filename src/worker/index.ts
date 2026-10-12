@@ -1,5 +1,9 @@
 import { getServerEnv } from '@/server/config/env';
 import { closeDb, getDb } from '@/server/infrastructure/db/client';
+import {
+  MAINTENANCE_INTERVAL_MS,
+  runTelemetryMaintenance,
+} from '@/server/infrastructure/jobs/maintenance';
 import { runWorkerCycle } from '@/server/infrastructure/jobs/worker';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
@@ -18,7 +22,18 @@ async function main(): Promise<void> {
   const db = getDb();
   log.info('worker.started', { workerId: env.WORKER_ID });
 
+  let lastMaintenanceAt = 0;
   while (!stopping) {
+    if (Date.now() - lastMaintenanceAt >= MAINTENANCE_INTERVAL_MS) {
+      lastMaintenanceAt = Date.now();
+      try {
+        await runTelemetryMaintenance(db);
+      } catch (error) {
+        log.error('worker.maintenance_failed', {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
     try {
       const didWork = await runWorkerCycle(db);
       if (!didWork) {

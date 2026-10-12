@@ -113,11 +113,33 @@ export function nextChargingTransition(
     };
   }
 
+  return closeChargingSession(active, {
+    endTime: observation.observedAt,
+    endBatteryLevel,
+    batteryCapacityKwh,
+    electricityPricePerKwh: context.electricityPricePerKwh,
+  });
+}
+
+type CloseTransition = Extract<ChargingTransition, { kind: 'close' }>;
+
+/**
+ * Closes a session at `endTime` with the last known battery level. Shared by
+ * the live "stopped charging" path and the stale-session sweep.
+ */
+export function closeChargingSession(
+  active: ActiveChargingSession,
+  input: {
+    endTime: Date;
+    endBatteryLevel: number | null;
+    batteryCapacityKwh: number | null;
+    electricityPricePerKwh: number;
+  },
+): CloseTransition {
   const endTime =
-    observation.observedAt > active.startTime
-      ? observation.observedAt
-      : active.startTime;
+    input.endTime > active.startTime ? input.endTime : active.startTime;
   const start = active.startBatteryLevel;
+  const { endBatteryLevel, batteryCapacityKwh } = input;
 
   if (start !== null && endBatteryLevel !== null && endBatteryLevel <= start) {
     return {
@@ -156,7 +178,7 @@ export function nextChargingTransition(
     ((endBatteryLevel - start) / 100) * batteryCapacityKwh,
     4,
   );
-  const price = context.electricityPricePerKwh;
+  const price = input.electricityPricePerKwh;
   return {
     kind: 'close',
     status: 'completed',

@@ -19,6 +19,12 @@ export const MAX_DEVICE_EVENT_PAYLOAD_BYTES = 4_096;
 
 const KM_PER_MILE = 1.609344;
 
+/**
+ * A day with less driving than this (0.1 mi, the reference's threshold) is
+ * finalized off-chain but not published — it's parked, not a trip.
+ */
+export const MIN_PUBLISHED_DAILY_KM = 0.1 * KM_PER_MILE;
+
 function round(value: number, decimals: number): number {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;

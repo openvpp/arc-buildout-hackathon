@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull } from 'drizzle-orm';
 
 import {
   chargingSessionIdFor,
@@ -29,7 +29,8 @@ export type OdometerOutcome =
   | 'recorded'
   | 'duplicate'
   | 'anomaly'
-  // The reading's day was already finalized and published; kept raw only.
+  // The reading's day is closed (finalized, or a later day has already
+  // started and chained to its end); kept raw only.
   | 'late';
 
 export type RecordVehicleTelemetryResult = {
@@ -105,6 +106,23 @@ async function recordOdometer(
   }
 
   const dateUtc = utcDateOf(reading.observedAt);
+
+  // Once a later day exists its start is chained to this day's end, so
+  // changing this day now would count the same kilometres twice.
+  const [laterDay] = await tx
+    .select({ id: dailyOdometer.id })
+    .from(dailyOdometer)
+    .where(
+      and(
+        eq(dailyOdometer.deviceId, input.deviceId),
+        gt(dailyOdometer.dateUtc, dateUtc),
+      ),
+    )
+    .limit(1);
+  if (laterDay !== undefined) {
+    return 'late';
+  }
+
   const [existing] = await tx
     .select()
     .from(dailyOdometer)

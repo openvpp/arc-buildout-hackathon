@@ -74,6 +74,10 @@ sign users out.
 - Each `recordDeviceEvent` costs about 45k gas (~0.001 USDC on Arc).
 - An event for an unminted device waits (`queued`, retried every 5 minutes)
   until the mint confirms. It is never dropped.
+- Once a minute the worker also finalizes finished UTC days (30 minutes
+  after midnight) and closes charging sessions with no update for 24 hours.
+  Both sweeps take at most 100 rows per run and are safe to run from
+  several workers.
 - `pending` with a `transaction_hash` means broadcast but not yet confirmed;
   the worker reconciles it from the receipt and never re-broadcasts it.
 - Verify a row on-chain: the tx's `DeviceEvent` log must carry the row's

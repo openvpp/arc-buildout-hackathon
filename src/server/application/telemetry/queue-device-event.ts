@@ -4,6 +4,7 @@ import {
   buildChargingCompletedPayload,
   buildDailyOdometerPayload,
   DEVICE_EVENT_TYPES,
+  MIN_PUBLISHED_DAILY_KM,
 } from '@/server/application/telemetry/device-event-payloads';
 import { hashDeviceEventPayload } from '@/server/infrastructure/blockchain/device-event-recorder';
 import type { DatabaseExecutor } from '@/server/infrastructure/db/client';
@@ -130,6 +131,10 @@ export async function queueDailyOdometerEvent(
   }
   if (day.status !== 'finalized') {
     return { status: 'skipped', reason: 'not_finalized' };
+  }
+  const distanceKm = Number(day.endOdometerKm) - Number(day.startOdometerKm);
+  if (distanceKm < MIN_PUBLISHED_DAILY_KM) {
+    return { status: 'skipped', reason: 'no_distance' };
   }
   const end = new Date(`${day.dateUtc}T00:00:00.000Z`);
   end.setUTCDate(end.getUTCDate() + 1);
