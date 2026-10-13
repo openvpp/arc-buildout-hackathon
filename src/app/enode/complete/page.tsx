@@ -7,6 +7,12 @@ import { Suspense, useEffect, useState, useTransition } from 'react';
 import { PageHeader } from '@/components/common/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import { ApiRequestError } from '@/lib/api/client';
+import {
+  AddressFields,
+  toAddressPayload,
+  type AddressValue,
+} from '@/features/location/address-fields';
 import { createOnboardingApi } from '@/features/onboarding/client-api';
 
 type OauthState =
@@ -21,7 +27,10 @@ function EnodeCompleteInner() {
   const pendingId = searchParams.get('pendingId');
   const [nickname, setNickname] = useState('');
   const [consentAccepted, setConsentAccepted] = useState(false);
+  const [address, setAddress] = useState<AddressValue>({ query: '', unit: '' });
+  const addressReady = address.query.trim().length >= 5;
   const [oauth, setOauth] = useState<OauthState>({ kind: 'loading' });
+  const [formError, setFormError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -55,17 +64,24 @@ function EnodeCompleteInner() {
       return;
     }
     const currentPendingId = oauth.pendingId;
+    setFormError(null);
     startTransition(async () => {
       try {
         const api = createOnboardingApi();
         await api.finalize({
           pendingId: currentPendingId,
           consentAccepted,
+          address: toAddressPayload(address),
           ...(nickname.trim().length > 0 ? { nickname: nickname.trim() } : {}),
         });
         setOauth({ kind: 'redirecting' });
         router.replace('/devices');
       } catch (e) {
+        // An address problem is fixable in place; keep the form open.
+        if (e instanceof ApiRequestError && e.code.startsWith('ADDRESS_')) {
+          setFormError(e.message);
+          return;
+        }
         setOauth({
           kind: 'error',
           message: e instanceof Error ? e.message : 'Finalize failed',
@@ -116,8 +132,19 @@ function EnodeCompleteInner() {
 
         {oauth.kind === 'needs_form' ? (
           <>
-            <CardTitle>Name your vehicle</CardTitle>
-            <CardDescription>Optional nickname, then save.</CardDescription>
+            <CardTitle>Finish setting up your vehicle</CardTitle>
+            <CardDescription>
+              Add the address where the vehicle is usually kept and an optional
+              nickname.
+            </CardDescription>
+            <div className="mt-4">
+              <AddressFields
+                value={address}
+                onChange={setAddress}
+                disabled={pending}
+                required
+              />
+            </div>
             <label className="mt-4 flex flex-col gap-1 text-sm">
               <span className="font-medium">Nickname</span>
               <input
@@ -144,10 +171,15 @@ function EnodeCompleteInner() {
                 testnet.
               </span>
             </label>
+            {formError !== null ? (
+              <p role="alert" className="mt-4 text-sm text-red-300">
+                {formError}
+              </p>
+            ) : null}
             <div className="mt-4">
               <Button
                 type="button"
-                disabled={pending || !consentAccepted}
+                disabled={pending || !consentAccepted || !addressReady}
                 onClick={finish}
               >
                 {pending ? 'Saving…' : 'Save device'}

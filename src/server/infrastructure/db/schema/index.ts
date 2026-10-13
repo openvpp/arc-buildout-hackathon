@@ -541,6 +541,63 @@ export const deviceEvents = pgTable(
   ],
 );
 
+/**
+ * The owner-entered address for a device (personal data). One per device.
+ * The exact address and coordinates are owner-only; the public globe only
+ * ever sees `public_latitude/longitude`, a stable point 0.5–2 km from the
+ * real one. Nothing here is ever published on-chain.
+ */
+export const deviceAddresses = pgTable(
+  'device_addresses',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // Cascade: the address goes when the device does.
+    deviceId: uuid('device_id')
+      .notNull()
+      .references(() => devices.id, { onDelete: 'cascade' }),
+    formattedAddress: text('formatted_address').notNull(),
+    unit: text('unit'),
+    city: text('city'),
+    region: text('region'),
+    postalCode: text('postal_code'),
+    countryCode: text('country_code'),
+    latitude: numeric('latitude', { precision: 9, scale: 6 }).notNull(),
+    longitude: numeric('longitude', { precision: 9, scale: 6 }).notNull(),
+    publicLatitude: numeric('public_latitude', {
+      precision: 9,
+      scale: 6,
+    }).notNull(),
+    publicLongitude: numeric('public_longitude', {
+      precision: 9,
+      scale: 6,
+    }).notNull(),
+    geocoder: text('geocoder').notNull().default('mapbox'),
+    geocoderPlaceId: text('geocoder_place_id'),
+    // Whether the geocoder allowed storing this result (Mapbox permanent=true).
+    geocodedPermanent: boolean('geocoded_permanent').notNull().default(false),
+    updatedByPrincipalId: uuid('updated_by_principal_id').references(
+      () => principals.id,
+      { onDelete: 'set null' },
+    ),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'device_addresses_coordinates_check',
+      sql`${table.latitude} between -90 and 90 and ${table.longitude} between -180 and 180 and ${table.publicLatitude} between -90 and 90 and ${table.publicLongitude} between -180 and 180`,
+    ),
+    check(
+      'device_addresses_country_code_check',
+      sql`${table.countryCode} is null or ${table.countryCode} ~ '^[A-Z]{2}$'`,
+    ),
+    check(
+      'device_addresses_lengths_check',
+      sql`char_length(${table.formattedAddress}) between 1 and 300 and (${table.unit} is null or char_length(${table.unit}) <= 40)`,
+    ),
+    uniqueIndex('device_addresses_device_uidx').on(table.deviceId),
+  ],
+);
+
 export const schemaMeta = {
   tables: [
     'principals',
@@ -555,5 +612,6 @@ export const schemaMeta = {
     'odometer_readings',
     'daily_odometer',
     'device_events',
+    'device_addresses',
   ],
 } as const;

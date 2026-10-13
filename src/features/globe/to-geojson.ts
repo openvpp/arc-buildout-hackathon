@@ -9,6 +9,7 @@ export type DevicePinProperties = {
   vendor: string;
   deviceType: string;
   mintStatus: string;
+  locationSource: 'address' | 'live';
 };
 
 export function devicesToGeoJson(
@@ -28,6 +29,7 @@ export function devicesToGeoJson(
         vendor: device.vendor ?? 'Unknown vendor',
         deviceType: device.deviceType,
         mintStatus: device.mintStatus,
+        locationSource: device.locationSource,
       },
     })),
   };

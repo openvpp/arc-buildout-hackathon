@@ -20,13 +20,18 @@ Scope (and only this):
    token. A typed email is not accepted. The wallet is created and held
    server-side — no Circle secret, entity key, or private key ever reaches
    the browser.
-2. The authenticated user **connects a vehicle via Enode Link**.
+2. The authenticated user **connects a vehicle via Enode Link** and enters
+   the **address** where it is usually kept (required at onboarding,
+   editable later by the owner). The address is personal data: only the
+   owner sees it; the public globe shows the device at a stable point
+   0.5–2 km away; it is never published on-chain.
 3. The device is **minted as a DeviceNFT on Arc**, and the app tracks
    and displays the mint status and transaction accurately
    (`unminted → pending → minted | failed`), never claiming a mint is
    complete before the on-chain transaction is confirmed.
-4. Every device with known coordinates — across every wallet — appears as a
-   pin on a **Mapbox globe**. The globe is a public, fleet-wide view: its
+4. Every device with a known location — across every wallet — appears as a
+   pin on a **Mapbox globe**, always at an approximate (0.5–2 km offset)
+   point, never the exact one. The globe is a public, fleet-wide view: its
    `GET /api/v1/dashboard/devices/locations` endpoint is deliberately
    unauthenticated, unlike every other route in this app.
 5. **On-chain time series** (milestone 2). Each device's charging sessions
@@ -171,6 +176,21 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
   duplicate NFT.
 - Never present `mint_status` as `minted` in the UI before the transaction is
   confirmed on-chain.
+
+### Device addresses and public location
+
+- The browser sends address **text** only; the server geocodes it
+  (`mapbox-geocoder.ts`). Never accept client-supplied coordinates.
+- Exact coordinates and address text never leave owner-only reads. The
+  public globe gets `device_addresses.public_*` or, for a device without an
+  address, its live location passed through `obfuscateCoordinates`. Never
+  return `devices.last_latitude/longitude` from a public endpoint.
+- The offset is keyed (HMAC) and stable per device/address so repeated
+  requests can't be averaged back to the real point. Don't randomize per
+  request and don't shrink the 0.5 km minimum.
+- Never log addresses or geocoder URLs (they carry the token).
+- Storing Mapbox results requires `MAPBOX_PERMANENT_GEOCODING=true` (a
+  billed Mapbox option); `geocoded_permanent` records which mode was used.
 
 ### On-chain device events
 

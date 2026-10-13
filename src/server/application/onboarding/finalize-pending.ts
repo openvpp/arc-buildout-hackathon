@@ -1,6 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 
 import { ApplicationError } from '@/server/application/application-error';
+import {
+  resolveDeviceAddress,
+  saveDeviceAddress,
+  type DeviceAddressInput,
+} from '@/server/application/location/device-address';
 import { enqueueDeviceMint } from '@/server/application/onboarding/mint-device-nft';
 import type { Database } from '@/server/infrastructure/db/client';
 import { enqueueOutboxEvent } from '@/server/infrastructure/db/repositories/outbox-repository';
@@ -15,6 +20,7 @@ import {
   mapEnodeVehicle,
   pickEnodeVehicleIdFromList,
 } from '@/server/infrastructure/enode/vehicle-mapper';
+import type { AddressGeocoder } from '@/server/infrastructure/geocoding/mapbox-geocoder';
 
 function fail(code: string, message: string): never {
   throw new ApplicationError(code, message);
@@ -36,8 +42,12 @@ export async function finalizePendingVehicleConnection(
   input: {
     pendingConnectionId: string;
     walletId: string;
+    principalId: string;
     nickname?: string;
     consentAccepted: boolean;
+    /** Required: the owner-entered address (shown publicly only ~2 km off). */
+    address: DeviceAddressInput;
+    geocoderOverride?: AddressGeocoder | null;
   },
 ) {
   const [pending] = await db
@@ -73,6 +83,13 @@ export async function finalizePendingVehicleConnection(
   if (!input.consentAccepted) {
     fail('CONSENT_REQUIRED', 'Consent is required to complete.');
   }
+
+  // Geocode before any write: a bad address leaves the wizard in
+  // pending_form so the user can correct it and retry.
+  const geocodedAddress = await resolveDeviceAddress(
+    input.address,
+    input.geocoderOverride,
+  );
 
   const enodeUserId = encodeEnodeUserId(pending.walletId);
   const client = createHttpEnodeVehicleClient();
@@ -197,6 +214,14 @@ export async function finalizePendingVehicleConnection(
       }
       device = created;
     }
+
+    // Upsert by device: a relink by a new owner replaces the old address.
+    await saveDeviceAddress(tx, {
+      deviceId: device.id,
+      principalId: input.principalId,
+      address: geocodedAddress,
+      unit: input.address.unit ?? null,
+    });
 
     const needsMint =
       device.nftTokenId === null || device.nftTokenId.length === 0;

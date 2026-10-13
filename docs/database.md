@@ -21,6 +21,7 @@ migration — add a new one.
 | `charging_sessions`          | Off-chain charging sessions derived from Enode `chargeState` (incl. location)     | unique `session_id`; partial unique index: one `active` session per device; closed sessions must have `end_time`                   |
 | `odometer_readings`          | Raw off-chain odometer readings (km)                                              | unique `(device_id, observed_at)`                                                                                                  |
 | `daily_odometer`             | Per-device, per-UTC-day odometer aggregate (`open → finalized`)                   | unique `(device_id, date_utc)`; `end_odometer_km >= start_odometer_km`                                                             |
+| `device_addresses`           | Owner-entered device address (personal data), one per device                      | unique `device_id`; coordinate ranges; ISO country code; cascade-deleted with the device                                           |
 | `device_events`              | The on-chain time series: one row per `recordDeviceEvent` call                    | unique `(source_type, source_id, event_type)`; unique non-null `transaction_hash`; `confirmed` requires tx + token id              |
 
 ## `devices` mint lifecycle
@@ -95,3 +96,21 @@ matched to its on-chain log. Location is never part of the payload.
 - `device_events_source_uidx` makes publishing a session/day idempotent.
 - `confirmed` is only set from a confirmed receipt; the database rejects a
   `confirmed` row without a transaction hash and token id.
+
+## Device addresses (`device_addresses`)
+
+The address the owner enters at onboarding (required) or later on the device
+page. The browser sends only the address text; the server geocodes it with
+Mapbox and stores the canonical address and coordinates.
+
+- `latitude`/`longitude` and the address text are owner-only.
+- `public_latitude`/`public_longitude` are what the public globe shows: a
+  stable point 0.5–2 km from the real one, derived from an HMAC of the
+  device + place (secret: `LOCATION_OBFUSCATION_SECRET`, falling back to
+  `API_KEY_HASH_SECRET`). It is fixed when the address is saved, so rotating
+  the secret does not move existing address pins.
+- A device without an address falls back to its live Enode location with
+  the same kind of offset, computed at query time.
+- `geocoded_permanent` records whether Mapbox was asked for a storable
+  (`permanent=true`) result.
+- Nothing in this table is ever published on-chain.

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { deviceAddressInputSchema } from '@/server/application/location/device-address';
 import { finalizePendingVehicleConnection } from '@/server/application/onboarding/finalize-pending';
 import { getDb } from '@/server/infrastructure/db/client';
 import { jsonOk } from '@/server/transport/http/api-response';
@@ -16,6 +17,7 @@ const bodySchema = z
   .object({
     nickname: z.string().trim().min(1).max(80).optional(),
     consentAccepted: z.boolean(),
+    address: deviceAddressInputSchema,
   })
   .strict();
 
@@ -36,8 +38,10 @@ export const POST = createRouteHandler<{ id: string }>(
     const result = await finalizePendingVehicleConnection(db, {
       pendingConnectionId: id,
       walletId: principal.walletId,
+      principalId: principal.principalId,
       ...(body.nickname !== undefined ? { nickname: body.nickname } : {}),
       consentAccepted: body.consentAccepted,
+      address: body.address,
     });
     return jsonOk(
       {

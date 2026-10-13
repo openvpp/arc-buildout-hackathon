@@ -29,6 +29,13 @@
       "when": 1791827860489,
       "tag": "0003_onchain_time_series",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791912530021,
+      "tag": "0004_device_addresses",
+      "breakpoints": true
     }
   ]
 }

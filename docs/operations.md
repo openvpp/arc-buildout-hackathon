@@ -23,6 +23,12 @@ Mapbox) are still required; this app does not replace them.
   device events end up `failed`. Check with `hasRole(UPDATER_ROLE, signer)`.
 - `ELECTRICITY_PRICE_USD_PER_KWH` is the tariff published as
   `electricityPrice` (default 0.12).
+- Address geocoding works: `MAPBOX_GEOCODING_TOKEN` (or the public token)
+  is set, and `MAPBOX_PERMANENT_GEOCODING=true` on a Mapbox account that
+  allows storing results. Onboarding requires an address, so if geocoding
+  is down, new vehicles can't be finished (the wizard stays open to retry).
+- Set `LOCATION_OBFUSCATION_SECRET` (or keep `API_KEY_HASH_SECRET` stable).
+  Changing it moves live-location pins on the public globe.
 - Enode's webhook target is a public `POST /api/webhooks/enode`, and
   `ENODE_WEBHOOK_SECRET` matches the Enode console. Unsigned deliveries are
   rejected.

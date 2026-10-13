@@ -56,6 +56,16 @@ const serverEnvSchema = z.object({
   // measured price — no tariff provider is integrated.
   ELECTRICITY_PRICE_USD_PER_KWH: z.coerce.number().nonnegative().default(0.12),
 
+  // Server-side address geocoding. Falls back to NEXT_PUBLIC_MAPBOX_TOKEN.
+  MAPBOX_GEOCODING_TOKEN: z.string().default(''),
+  // Mapbox only allows storing geocoding results requested with
+  // permanent=true (a billed account option). Must be true wherever
+  // device addresses are stored for real.
+  MAPBOX_PERMANENT_GEOCODING: boolFromString,
+  // Seeds the stable 0.5–2 km offset applied to every public globe pin.
+  // Falls back to API_KEY_HASH_SECRET when unset.
+  LOCATION_OBFUSCATION_SECRET: z.string().default(''),
+
   WORKER_ID: z.string().default('local'),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().default(2000),
   WORKER_MAX_ATTEMPTS: z.coerce.number().default(5),
@@ -75,6 +85,10 @@ export function getServerEnv(): ServerEnv {
     GOOGLE_OAUTH_CLIENT_ID:
       process.env.GOOGLE_OAUTH_CLIENT_ID ??
       process.env.NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID,
+    MAPBOX_GEOCODING_TOKEN:
+      // `||`, not `??`: an empty MAPBOX_GEOCODING_TOKEN= line should fall back.
+      process.env.MAPBOX_GEOCODING_TOKEN ||
+      process.env.NEXT_PUBLIC_MAPBOX_TOKEN,
   });
   if (!parsed.success) {
     throw new Error(

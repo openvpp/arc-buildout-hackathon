@@ -27,6 +27,10 @@ const STATUS_BY_CODE: Record<string, number> = {
   CONSENT_REQUIRED: 400,
   INVALID_CURSOR: 400,
   DEVICE_PERSIST_FAILED: 500,
+  ADDRESS_REQUIRED: 400,
+  ADDRESS_NOT_FOUND: 422,
+  ADDRESS_NOT_PRECISE: 422,
+  ADDRESS_LOOKUP_UNAVAILABLE: 503,
 };
 
 export function applicationErrorStatus(code: string): number {

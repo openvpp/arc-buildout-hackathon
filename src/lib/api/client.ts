@@ -20,7 +20,7 @@ export class ApiClient {
   async request<T>(
     path: string,
     options: {
-      method?: 'GET' | 'POST' | 'DELETE' | 'PATCH';
+      method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
       body?: unknown;
       headers?: Record<string, string>;
       searchParams?: Record<string, string>;

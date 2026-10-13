@@ -13,6 +13,7 @@ const locationsSchema = z.object({
       mintStatus: z.string(),
       latitude: z.number(),
       longitude: z.number(),
+      locationSource: z.enum(['address', 'live']),
     }),
   ),
   nextCursor: z.string().nullable(),

@@ -12,8 +12,11 @@ import { DeviceEventTimeline } from '@/features/devices/device-event-timeline';
 import { formatTimestamp, mintStatusTone } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
 import { RefreshWhilePending } from '@/features/devices/refresh-while-pending';
+import { AddressPrivacyNote } from '@/features/location/address-fields';
+import { DeviceAddressEditor } from '@/features/location/device-address-editor';
 import { ApplicationError } from '@/server/application/application-error';
 import { getDeviceForWallet } from '@/server/application/dashboard/get-device';
+import { getDeviceAddressForOwner } from '@/server/application/location/device-address';
 import {
   listDeviceEventsForWallet,
   type DeviceEventPage,
@@ -66,6 +69,11 @@ export default async function DeviceDetailPage({
   if (device === null) {
     notFound();
   }
+
+  const address = await getDeviceAddressForOwner(db, {
+    deviceId,
+    walletId: principal.walletId,
+  });
 
   let eventsPage: DeviceEventPage | null;
   try {
@@ -149,6 +157,29 @@ export default async function DeviceDetailPage({
               </dd>
             </div>
           </dl>
+        </Card>
+        <Card className="flex flex-col gap-3" aria-labelledby="device-address">
+          <h2 id="device-address" className="text-sm font-semibold text-white">
+            Address
+          </h2>
+          {address !== null ? (
+            <>
+              <p className="text-sm text-white/90">
+                {address.formattedAddress}
+                {address.unit !== null ? ` · ${address.unit}` : ''}
+              </p>
+              <AddressPrivacyNote />
+            </>
+          ) : (
+            <p className="text-sm text-white/70">
+              Add the address where this vehicle is usually kept.
+            </p>
+          )}
+          <DeviceAddressEditor
+            deviceId={device.id}
+            hasAddress={address !== null}
+            currentUnit={address?.unit ?? null}
+          />
         </Card>
         <DeviceEventTimeline
           events={events}

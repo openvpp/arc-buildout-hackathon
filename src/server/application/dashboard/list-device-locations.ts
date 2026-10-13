@@ -1,8 +1,11 @@
-import { and, desc, isNotNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, or, sql } from 'drizzle-orm';
 
 import { ApplicationError } from '@/server/application/application-error';
+import { locationObfuscationSecret } from '@/server/application/location/device-address';
+import { obfuscateCoordinates } from '@/server/application/location/obfuscate-location';
+import { getServerEnv } from '@/server/config/env';
 import type { Database } from '@/server/infrastructure/db/client';
-import { devices } from '@/server/infrastructure/db/schema';
+import { deviceAddresses, devices } from '@/server/infrastructure/db/schema';
 
 export type DeviceLocation = {
   id: string;
@@ -11,8 +14,11 @@ export type DeviceLocation = {
   vendor: string | null;
   deviceType: string;
   mintStatus: string;
+  /** Approximate: always 0.5–2 km from the real point, never exact. */
   latitude: number;
   longitude: number;
+  /** 'address' = owner-entered address; 'live' = last vehicle location. */
+  locationSource: 'address' | 'live';
 };
 
 export type DeviceLocationPage = {
@@ -58,7 +64,11 @@ export function decodeLocationCursor(
 /**
  * Every device with a known location, across every wallet — the globe is a
  * public view of the whole connected fleet, not scoped to who (if anyone)
- * is signed in. Devices without coordinates are omitted. Pages are ordered
+ * is signed in. Devices without coordinates are omitted.
+ *
+ * Privacy: no exact location ever leaves this function. A device with an
+ * address is shown at its stored public point; otherwise its live location
+ * is shown with a stable 0.5–2 km offset. Address text is never returned. Pages are ordered
  * by the location timestamp (falling back to created_at) so a later page
  * cannot skip or repeat a row when two fixes share a timestamp.
  */
@@ -86,12 +96,20 @@ export async function listAllDeviceLocations(
       lastLongitude: devices.lastLongitude,
       lastLocationAt: devices.lastLocationAt,
       createdAt: devices.createdAt,
+      publicLatitude: deviceAddresses.publicLatitude,
+      publicLongitude: deviceAddresses.publicLongitude,
     })
     .from(devices)
+    .leftJoin(deviceAddresses, eq(deviceAddresses.deviceId, devices.id))
     .where(
       and(
-        isNotNull(devices.lastLatitude),
-        isNotNull(devices.lastLongitude),
+        or(
+          isNotNull(deviceAddresses.id),
+          and(
+            isNotNull(devices.lastLatitude),
+            isNotNull(devices.lastLongitude),
+          ),
+        ),
         cursor === null
           ? undefined
           : sql`(${sortAt}, ${devices.id}) < (${cursor.at.toISOString()}::timestamptz, ${cursor.id}::uuid)`,
@@ -101,18 +119,35 @@ export async function listAllDeviceLocations(
     .limit(limit + 1);
 
   const pageRows = rows.slice(0, limit);
-  const locations = pageRows
-    .filter((row) => row.lastLatitude !== null && row.lastLongitude !== null)
-    .map((row) => ({
+  const secret = locationObfuscationSecret(getServerEnv());
+  const locations: DeviceLocation[] = [];
+  for (const row of pageRows) {
+    const base = {
       id: row.id,
       displayName: row.displayName,
       externalDeviceId: row.externalDeviceId,
       vendor: row.vendor,
       deviceType: row.deviceType,
       mintStatus: row.mintStatus,
-      latitude: Number(row.lastLatitude),
-      longitude: Number(row.lastLongitude),
-    }));
+    };
+    if (row.publicLatitude !== null && row.publicLongitude !== null) {
+      locations.push({
+        ...base,
+        latitude: Number(row.publicLatitude),
+        longitude: Number(row.publicLongitude),
+        locationSource: 'address',
+      });
+    } else if (row.lastLatitude !== null && row.lastLongitude !== null) {
+      const point = obfuscateCoordinates(
+        {
+          latitude: Number(row.lastLatitude),
+          longitude: Number(row.lastLongitude),
+        },
+        { secret, key: `live:${row.id}` },
+      );
+      locations.push({ ...base, ...point, locationSource: 'live' });
+    }
+  }
 
   const last = pageRows.at(-1);
   const nextCursor =
