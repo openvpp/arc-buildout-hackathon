@@ -53,6 +53,11 @@ export function DeviceOnboardModalProvider({
   }, [isSubmitting]);
 
   const submit = useCallback((brand: string) => {
+    const trimmed = brand.trim();
+    if (trimmed.length === 0) {
+      setError('Select a vehicle brand.');
+      return;
+    }
     if (inFlight.current) {
       return;
     }
@@ -62,9 +67,7 @@ export function DeviceOnboardModalProvider({
     void (async () => {
       try {
         const api = createOnboardingApi();
-        const data = await api.startLink(
-          brand.trim().length > 0 ? { brand: brand.trim() } : {},
-        );
+        const data = await api.startLink({ brand: trimmed });
         window.location.href = data.linkUrl;
       } catch (e) {
         inFlight.current = false;

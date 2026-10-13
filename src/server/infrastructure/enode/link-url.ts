@@ -2,7 +2,7 @@
  * Enode Link UI hosts. The browser navigates to whatever URL we return
  * from the link endpoint, so a surprising host must never leave the server.
  */
-const EXACT_HOSTS = new Set(['link.enode.com']);
+const EXACT_HOSTS = new Set(['link.enode.com', 'sandbox.link.enode.com']);
 
 export function isAllowedEnodeLinkUrl(value: string): boolean {
   let parsed: URL;

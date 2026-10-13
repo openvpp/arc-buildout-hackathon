@@ -36,6 +36,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   ADDRESS_NOT_FOUND: 422,
   ADDRESS_NOT_PRECISE: 422,
   ADDRESS_LOOKUP_UNAVAILABLE: 503,
+  VENDOR_NOT_SUPPORTED: 400,
 };
 
 export function applicationErrorStatus(code: string): number {
