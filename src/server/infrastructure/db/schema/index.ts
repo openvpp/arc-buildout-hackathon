@@ -25,7 +25,7 @@ const timestamps = {
     .defaultNow(),
 };
 
-/** Dashboard user identity. Registration/login is Circle DCW (email-keyed). */
+/** Dashboard user identity. One row per email, whether the person signed in with a password or Google. */
 export const principals = pgTable(
   'principals',
   {
@@ -98,6 +98,34 @@ export const principalWallets = pgTable(
       sql`${table.role} in ('owner', 'viewer')`,
     ),
     index('principal_wallets_wallet_idx').on(table.walletId),
+  ],
+);
+
+/**
+ * Password for a dashboard principal. The email is the lookup key; the
+ * hash is the proof. A row is created only by password registration, never
+ * by attaching a password to an existing Google-only principal.
+ */
+export const dashboardPasswordCredentials = pgTable(
+  'dashboard_password_credentials',
+  {
+    principalId: uuid('principal_id')
+      .primaryKey()
+      .references(() => principals.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex('dashboard_password_credentials_email_uidx').on(table.email),
+    check(
+      'dashboard_password_credentials_email_check',
+      sql`${table.email} = lower(${table.email}) and char_length(${table.email}) between 3 and 320 and position('@' in ${table.email}) > 1`,
+    ),
+    check(
+      'dashboard_password_credentials_hash_check',
+      sql`char_length(${table.passwordHash}) between 20 and 500`,
+    ),
   ],
 );
 
@@ -603,6 +631,7 @@ export const schemaMeta = {
     'principals',
     'wallets',
     'principal_wallets',
+    'dashboard_password_credentials',
     'pending_device_connections',
     'enode_connections',
     'devices',

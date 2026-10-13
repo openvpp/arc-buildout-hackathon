@@ -2,6 +2,11 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
+import {
+  PASSWORD_MAX_LENGTH,
+  registerWithPassword,
+  signInWithPassword,
+} from '@/server/application/onboarding/password-sign-in';
 import { signInWithGoogle } from '@/server/application/onboarding/sign-in-with-google';
 import { getServerEnv } from '@/server/config/env';
 import {
@@ -19,11 +24,21 @@ import { createRouteHandler } from '@/server/transport/http/route-handler';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const bodySchema = z
+const googleBodySchema = z
   .object({
     idToken: z.string().trim().min(1).max(8192),
   })
   .strict();
+
+const passwordBodySchema = z
+  .object({
+    email: z.string().trim().min(1).max(320),
+    password: z.string().min(1).max(PASSWORD_MAX_LENGTH),
+    intent: z.enum(['register', 'login']),
+  })
+  .strict();
+
+const bodySchema = z.union([googleBodySchema, passwordBodySchema]);
 
 const SESSION_WINDOW_MS = 10 * 60 * 1000;
 
@@ -37,9 +52,10 @@ function cookieSecureFlag(): boolean {
 
 /**
  * Establish the httpOnly dashboard session for the Circle developer-
- * controlled wallet flow. The body is a Google ID token; the email and
- * wallet are resolved server-side after that token is verified for this
- * app's OAuth client. A raw email or wallet address is not accepted.
+ * controlled wallet flow. Google sends an ID token. Password sign-in sends
+ * an email plus password; the email is only the account key, and the
+ * password hash is checked before any wallet is opened. A wallet address
+ * is never accepted.
  */
 export const POST = createRouteHandler(async (request, context) => {
   enforceRateLimit({
@@ -49,17 +65,41 @@ export const POST = createRouteHandler(async (request, context) => {
     windowMs: SESSION_WINDOW_MS,
   });
   const parsed = bodySchema.parse(await readJsonBody(request));
-  enforceRateLimit({
-    request,
-    bucket: 'session-google',
-    limit: 8,
-    windowMs: SESSION_WINDOW_MS,
-    scope: 'global',
-    keySuffix: createHash('sha256').update(parsed.idToken).digest('hex'),
-  });
+  if ('idToken' in parsed) {
+    enforceRateLimit({
+      request,
+      bucket: 'session-google',
+      limit: 8,
+      windowMs: SESSION_WINDOW_MS,
+      scope: 'global',
+      keySuffix: createHash('sha256').update(parsed.idToken).digest('hex'),
+    });
+  } else {
+    enforceRateLimit({
+      request,
+      bucket: 'session-password',
+      limit: 8,
+      windowMs: SESSION_WINDOW_MS,
+      scope: 'global',
+      keySuffix: createHash('sha256')
+        .update(parsed.email.trim().toLowerCase())
+        .digest('hex'),
+    });
+  }
 
   const db = getDb();
-  const bound = await signInWithGoogle(db, { idToken: parsed.idToken });
+  const bound =
+    'idToken' in parsed
+      ? await signInWithGoogle(db, { idToken: parsed.idToken })
+      : parsed.intent === 'register'
+        ? await registerWithPassword(db, {
+            email: parsed.email,
+            password: parsed.password,
+          })
+        : await signInWithPassword(db, {
+            email: parsed.email,
+            password: parsed.password,
+          });
 
   const env = getServerEnv();
   const token = await createDashboardSessionToken({

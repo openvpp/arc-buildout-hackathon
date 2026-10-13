@@ -5,7 +5,10 @@ import { useCallback, useRef, useState } from 'react';
 
 import { logger } from '@/lib/logger/logger';
 
-import { createCircleSessionApi } from './session-api';
+import {
+  createCircleSessionApi,
+  type PasswordSignInIntent,
+} from './session-api';
 
 export type CircleSessionState =
   | { status: 'idle'; error: string | null }
@@ -16,9 +19,9 @@ const sessionApi = createCircleSessionApi();
 
 /**
  * Drives the dashboard session lifecycle for Circle developer-controlled
- * wallet login: sends the Google ID token, establishes the httpOnly
- * session cookie server-side (creating/finding the Circle wallet for the
- * verified Google email), and refreshes RSCs so wallet-scoped data loads.
+ * wallet login. Email and password are sent for the server to check. The
+ * httpOnly session cookie is set only after the server has found or
+ * created the Circle wallet.
  */
 export function useCircleSession(initialWalletAddress: string | null = null) {
   const router = useRouter();
@@ -29,15 +32,15 @@ export function useCircleSession(initialWalletAddress: string | null = null) {
       : { status: 'idle', error: null },
   );
 
-  const signInWithGoogle = useCallback(
-    async (idToken: string) => {
+  const finishSignIn = useCallback(
+    async (run: () => Promise<{ walletAddress: string }>) => {
       if (inFlight.current) {
         return;
       }
       inFlight.current = true;
       setState({ status: 'signing_in' });
       try {
-        const result = await sessionApi.establish({ idToken });
+        const result = await run();
         setState({ status: 'signed_in', walletAddress: result.walletAddress });
         router.refresh();
       } catch (error) {
@@ -55,6 +58,17 @@ export function useCircleSession(initialWalletAddress: string | null = null) {
     [router],
   );
 
+  const signInWithPassword = useCallback(
+    async (input: {
+      email: string;
+      password: string;
+      intent: PasswordSignInIntent;
+    }) => {
+      await finishSignIn(() => sessionApi.establishWithPassword(input));
+    },
+    [finishSignIn],
+  );
+
   const signOut = useCallback(async () => {
     try {
       await sessionApi.clear();
@@ -64,5 +78,5 @@ export function useCircleSession(initialWalletAddress: string | null = null) {
     }
   }, [router]);
 
-  return { state, signInWithGoogle, signOut };
+  return { state, signInWithPassword, signOut };
 }

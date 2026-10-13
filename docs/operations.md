@@ -110,5 +110,4 @@ sign users out.
 Circle wallet creation, Enode Link, Arc RPC, Mapbox, and Google sign-in are
 live dependencies. A missing Circle or Enode credential fails that action
 with a client-safe error; it does not fall back to a fake wallet or a fake
-mint. Sign-in accepts only a Google ID token verified for
-`NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`. The globe does not require sign-in.
+mint. Sign-in accepts an email and password. The globe does not require sign-in.

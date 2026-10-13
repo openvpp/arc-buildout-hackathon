@@ -12,13 +12,19 @@ const clearSchema = z.object({
   ok: z.literal(true),
 });
 
+export type PasswordSignInIntent = 'register' | 'login';
+
 /** Establish / clear the httpOnly dashboard session cookie for the Circle DCW flow. */
 export function createCircleSessionApi(client: ApiClient = new ApiClient()) {
   return {
-    async establish(input: { idToken: string }) {
+    async establishWithPassword(input: {
+      email: string;
+      password: string;
+      intent: PasswordSignInIntent;
+    }) {
       const result = await client.request('/api/v1/dashboard/session', {
         method: 'POST',
-        body: { idToken: input.idToken },
+        body: input,
         schema: establishSchema,
       });
       if (!result.ok) {

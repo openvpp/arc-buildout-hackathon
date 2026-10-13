@@ -9,10 +9,6 @@ Fill in `.env.local` (copy from `.env.example`):
 - **Circle**: `CIRCLE_API_KEY`, `CIRCLE_ENTITY_SECRET` (Web3 Services
   Console — Developer-Controlled Wallets). `CIRCLE_WALLET_SET_ID` is
   optional; one is found-or-created automatically if unset.
-- **Google (optional)**: `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID` shows a
-  "Continue with Google" button in the sign-in popup as a convenience;
-  leave unset and the popup just shows the email field, no loss of
-  functionality.
 - **Enode**: sandbox `ENODE_CLIENT_ID`/`ENODE_CLIENT_SECRET`, and register
   `ENODE_REDIRECT_URI=http://localhost:3000/enode/complete` in the Enode
   developer console. `ENODE_WEBHOOK_SECRET` if testing the webhook (Enode
@@ -37,12 +33,10 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
 ## End-to-end walkthrough
 
 1. Open `http://localhost:3000` — the globe is already visible (it never
-   gates on sign-in). Click **Sign in** (top right) and **Continue with
-   Google**. The server accepts that Google account only. Confirm the
+   gates on sign-in). Click **Sign in** (top right), then **Create
+   account** with an email and password (8+ characters). Confirm the
    `ev_dashboard_session` cookie is set and `/devices` shows an empty state
-   for a fresh principal (not "sign in"). Add
-   `http://localhost:3000` as an authorized JavaScript origin on the Google
-   OAuth client.
+   for a fresh principal (not "sign in").
 2. **Add vehicle** → optionally set a brand → **Connect with Enode** →
    complete the OEM sandbox login → land back on `/enode/complete` → name
    the vehicle → **Save device**.

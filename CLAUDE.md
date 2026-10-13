@@ -13,13 +13,13 @@ Development and automated tests run on Arc testnet; the target network
 
 Scope (and only this):
 
-1. A user **registers or logs in** via a **Circle developer-controlled
-   wallet**, through a sign-in popup that offers only "Continue with
-   Google". The server verifies the Google ID token (audience is
-   `NEXT_PUBLIC_GOOGLE_OAUTH_CLIENT_ID`) and uses the email inside that
-   token. A typed email is not accepted. The wallet is created and held
-   server-side — no Circle secret, entity key, or private key ever reaches
-   the browser.
+1. A user **registers or logs in** and the server creates or reopens a
+   **Circle developer-controlled wallet**. Email and password is the
+   sign-in path: the password is hashed on the server, and the email is
+   only the account key. Creating an account and signing in are separate,
+   and a password cannot be added to an account that already exists. The
+   wallet is created and held server-side — no Circle secret, entity key,
+   or private key ever reaches the browser.
 2. The authenticated user **connects a vehicle via Enode Link** and enters
    the **address** where it is usually kept (required at onboarding,
    editable later by the owner). The address is personal data: only the
@@ -136,12 +136,12 @@ Route Handler → transport → application → domain ports → infrastructure
 
 ### Identity & wallets
 
-- Never trust a client-provided wallet **address** or email for anything
-  privileged. Sign-in accepts a Google ID token; the server verifies it and
-  resolves the wallet from the email in that token. The request body has no
-  wallet-address field.
-- One principal (Google email) maps to exactly one Circle wallet,
-  found-or-created, never re-created on repeat login.
+- Never trust a client-provided wallet **address** for anything privileged.
+  Password sign-in checks a server-side password hash. Google sign-in
+  verifies the ID token and uses the email inside it. The request body has
+  no wallet-address field.
+- One principal (email) maps to exactly one Circle wallet, found-or-created,
+  never re-created on repeat login.
 - Never conflate the Circle wallet address with the Arc DeviceNFT contract's
   address, or with the Arc minter's own signing key.
 

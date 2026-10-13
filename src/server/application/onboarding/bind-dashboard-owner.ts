@@ -25,12 +25,12 @@ export function dashboardPrincipalDisplayName(email: string): string {
  * Find-or-create the dashboard_user principal for an email, ensure their
  * Circle developer-controlled wallet exists, and bind it as owner.
  *
- * Callers must already know the email belongs to the person signing in.
- * The dashboard session route only passes an email taken from a verified
- * Google ID token (`signInWithGoogle`). This function does not check that
- * token itself. The demo seed calls it directly because it is a local
- * script, not a login. The wallet stays developer-custodied: no on-chain
- * signing key is handed to the browser.
+ * Callers must already know the email belongs to the person signing in:
+ * a verified Google ID token (`signInWithGoogle`) or a matching password
+ * hash (`signInWithPassword` / `registerWithPassword`). This function does
+ * not check that proof itself. The demo seed calls it directly because it
+ * is a local script, not a login. The wallet stays developer-custodied:
+ * no on-chain signing key is handed to the browser.
  */
 export async function bindDashboardOwner(
   db: Database,
