@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { ApplicationError } from '@/server/application/application-error';
@@ -74,6 +75,35 @@ describe('listAllDeviceLocations', () => {
     );
     // The provider's vehicle id is never exposed publicly.
     expect(JSON.stringify(everything)).not.toContain(newerId);
+  });
+
+  it('shows a legacy Arc mint as minted without changing the mint column', async () => {
+    const { wallet } = await insertTestWallet(db, {
+      address: `0x${randomUUID().replace(/-/g, '').slice(0, 40)}`,
+      circleWalletId: randomUUID(),
+    });
+    const externalDeviceId = randomUUID();
+    await db.insert(devices).values({
+      walletId: wallet.id,
+      provider: 'smartcar',
+      externalDeviceId,
+      deviceType: 'electric_vehicle',
+      mintStatus: 'unminted',
+      metadata: { legacyArcMintStatus: 'minted', legacyArcNftTokenId: '50' },
+      lastLatitude: '10.000000',
+      lastLongitude: '20.000000',
+      lastLocationAt: new Date('2000-01-01T00:00:00.000Z'),
+    });
+    const [device] = await db
+      .select({ id: devices.id, mintStatus: devices.mintStatus })
+      .from(devices)
+      .where(eq(devices.externalDeviceId, externalDeviceId));
+
+    const page = await listAllDeviceLocations(db, { limit: 200 });
+    const pin = page.locations.find((row) => row.id === device?.id);
+    expect(pin?.mintStatus).toBe('minted');
+    expect(device?.mintStatus).toBe('unminted');
+    expect(JSON.stringify(pin)).not.toContain('50');
   });
 
   it('rejects a malformed cursor', async () => {

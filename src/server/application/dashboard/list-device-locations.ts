@@ -1,6 +1,7 @@
 import { and, desc, eq, isNotNull, or, sql } from 'drizzle-orm';
 
 import { ApplicationError } from '@/server/application/application-error';
+import { displayMintStatus } from '@/server/application/dashboard/display-mint-status';
 import { locationObfuscationSecret } from '@/server/application/location/device-address';
 import { obfuscateCoordinates } from '@/server/application/location/obfuscate-location';
 import { getServerEnv } from '@/server/config/env';
@@ -93,6 +94,7 @@ export async function listAllDeviceLocations(
       model: devices.model,
       deviceType: devices.deviceType,
       mintStatus: devices.mintStatus,
+      metadata: devices.metadata,
       lastLatitude: devices.lastLatitude,
       lastLongitude: devices.lastLongitude,
       lastLocationAt: devices.lastLocationAt,
@@ -129,7 +131,7 @@ export async function listAllDeviceLocations(
       vendor: row.vendor,
       model: row.model,
       deviceType: row.deviceType,
-      mintStatus: row.mintStatus,
+      mintStatus: displayMintStatus(row.mintStatus, row.metadata),
     };
     if (row.publicLatitude !== null && row.publicLongitude !== null) {
       locations.push({

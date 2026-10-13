@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import type { ReactNode } from 'react';
 import { z } from 'zod';
 
-import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card } from '@/components/ui/card';
@@ -11,24 +11,28 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { DeviceEventTimeline } from '@/features/devices/device-event-timeline';
 import { formatTimestamp, mintStatusTone } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
+import { PublicDeviceDetails } from '@/features/devices/public-device-details';
 import { RefreshWhilePending } from '@/features/devices/refresh-while-pending';
 import { AddressPrivacyNote } from '@/features/location/address-fields';
 import { DeviceAddressEditor } from '@/features/location/device-address-editor';
 import { ApplicationError } from '@/server/application/application-error';
 import { getDeviceForWallet } from '@/server/application/dashboard/get-device';
+import { getPublicDevice } from '@/server/application/dashboard/get-public-device';
+import { listPublicChargingSessions } from '@/server/application/dashboard/list-public-charging-sessions';
 import { getDeviceAddressForOwner } from '@/server/application/location/device-address';
 import {
   listDeviceEventsForWallet,
   type DeviceEventPage,
 } from '@/server/application/dashboard/list-device-events';
 import { getCurrentPrincipal } from '@/server/infrastructure/auth/current-principal';
-import { getDb } from '@/server/infrastructure/db/client';
+import { getDb, type Database } from '@/server/infrastructure/db/client';
 
 export const metadata: Metadata = { title: 'Device' };
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const EVENTS_PAGE_SIZE = 20;
+const SESSIONS_PAGE_SIZE = 20;
 
 const eventsCursorSchema = z.string().min(1).max(512);
 
@@ -40,34 +44,28 @@ export default async function DeviceDetailPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { deviceId } = await params;
-  const cursorParam = eventsCursorSchema.safeParse((await searchParams).events);
+  const query = await searchParams;
+  const cursorParam = eventsCursorSchema.safeParse(query.events);
   const eventsCursor = cursorParam.success ? cursorParam.data : undefined;
+  const sessionsCursorParam = eventsCursorSchema.safeParse(query.sessions);
+  const sessionsCursor = sessionsCursorParam.success
+    ? sessionsCursorParam.data
+    : undefined;
   if (!z.string().uuid().safeParse(deviceId).success) {
     notFound();
   }
   const principal = await getCurrentPrincipal();
-
+  const db = getDb();
   if (principal === null) {
-    return (
-      <PageContainer>
-        <div className="flex flex-col gap-6">
-          <PageHeader title="Device" />
-          <EmptyState
-            title="Sign in to continue"
-            description="Sign in to view this device."
-          />
-        </div>
-      </PageContainer>
-    );
+    return publicDevicePage(db, deviceId, sessionsCursor);
   }
 
-  const db = getDb();
   const device = await getDeviceForWallet(db, {
     deviceId,
     walletId: principal.walletId,
   });
   if (device === null) {
-    notFound();
+    return publicDevicePage(db, deviceId, sessionsCursor);
   }
 
   const address = await getDeviceAddressForOwner(db, {
@@ -205,4 +203,54 @@ export default async function DeviceDetailPage({
       </div>
     </PageContainer>
   );
+}
+
+async function publicDevicePage(
+  db: Database,
+  deviceId: string,
+  sessionsCursor: string | undefined,
+): Promise<ReactNode> {
+  const device = await getPublicDevice(db, deviceId);
+  if (device === null) {
+    notFound();
+  }
+  const devicePath = `/devices/${device.id}`;
+  let sessionsCursorToUse = sessionsCursor;
+  let sessionsPage = await loadSessions(db, deviceId, sessionsCursorToUse);
+  if (sessionsPage === null) {
+    sessionsCursorToUse = undefined;
+    sessionsPage = await loadSessions(db, deviceId, undefined);
+  }
+  const sessions = sessionsPage?.sessions ?? [];
+  return (
+    <PublicDeviceDetails
+      device={device}
+      sessions={sessions}
+      olderHref={
+        sessionsPage !== null && sessionsPage.nextCursor !== null
+          ? `${devicePath}?sessions=${encodeURIComponent(sessionsPage.nextCursor)}`
+          : null
+      }
+      newestHref={sessionsCursorToUse !== undefined ? devicePath : null}
+    />
+  );
+}
+
+async function loadSessions(
+  db: Database,
+  deviceId: string,
+  cursor: string | undefined,
+) {
+  try {
+    return await listPublicChargingSessions(db, {
+      deviceId,
+      limit: SESSIONS_PAGE_SIZE,
+      ...(cursor !== undefined ? { cursor } : {}),
+    });
+  } catch (error) {
+    if (error instanceof ApplicationError) {
+      return null;
+    }
+    throw error;
+  }
 }

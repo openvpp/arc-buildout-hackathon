@@ -221,7 +221,6 @@ export function MapGlobe({
         const vendor = feature?.properties?.['vendor'];
         const deviceType = feature?.properties?.['deviceType'];
         const mintStatus = feature?.properties?.['mintStatus'];
-        const locationSource = feature?.properties?.['locationSource'];
         if (typeof id !== 'string' || feature?.geometry.type !== 'Point') {
           return;
         }
@@ -236,14 +235,6 @@ export function MapGlobe({
               label: 'Status',
               value: String(mintStatus),
               valueColor: pinColorForMintStatus(String(mintStatus)),
-            },
-            {
-              // Pins are never exact (server offsets them 0.5–2 km).
-              label: 'Location',
-              value:
-                locationSource === 'address'
-                  ? 'Approximate area (within 2 km)'
-                  : 'Approximate, last seen (within 2 km)',
             },
           ],
           linkHref: `/devices/${id}`,
