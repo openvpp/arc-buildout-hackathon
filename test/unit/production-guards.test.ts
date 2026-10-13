@@ -75,6 +75,10 @@ describe('isAllowedEnodeLinkUrl', () => {
     expect(
       isAllowedEnodeLinkUrl('https://link.sandbox.enode.io/?linkToken=abc'),
     ).toBe(true);
+    expect(
+      isAllowedEnodeLinkUrl('https://sandbox.link.enode.com/?linkToken=abc'),
+    ).toBe(true);
+    expect(isAllowedEnodeLinkUrl('https://evil.link.enode.com/')).toBe(false);
     expect(isAllowedEnodeLinkUrl('https://evil.example/link.enode.com')).toBe(
       false,
     );

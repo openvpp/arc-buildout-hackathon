@@ -108,6 +108,30 @@ async function enodeFetch<T>(
   return (await response.json()) as T;
 }
 
+/** Enode Link requires `language` on API version 2024-10-01. The UI is English. */
+export const ENODE_LINK_LANGUAGE = 'en-US';
+
+export function buildEnodeLinkSessionBody(input: {
+  vendorType: string;
+  scopes: readonly string[];
+  redirectUri: string;
+  vendor?: string;
+}): {
+  vendorType: string;
+  language: string;
+  scopes: string[];
+  redirectUri: string;
+  vendor?: string;
+} {
+  return {
+    vendorType: input.vendorType,
+    language: ENODE_LINK_LANGUAGE,
+    scopes: [...input.scopes],
+    redirectUri: input.redirectUri,
+    ...(input.vendor !== undefined ? { vendor: input.vendor } : {}),
+  };
+}
+
 export type EnodeVehicleClient = {
   createLinkSession(input: {
     userId: string;
@@ -126,12 +150,7 @@ export function createHttpEnodeVehicleClient(): EnodeVehicleClient {
     async createLinkSession(input) {
       return enodeFetch<EnodeLinkSession>(`/users/${input.userId}/link`, {
         method: 'POST',
-        body: {
-          vendorType: input.vendorType,
-          scopes: input.scopes,
-          redirectUri: input.redirectUri,
-          ...(input.vendor !== undefined ? { vendor: input.vendor } : {}),
-        },
+        body: buildEnodeLinkSessionBody(input),
       });
     },
     async getUserVehicles(userId) {

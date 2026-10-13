@@ -1,5 +1,7 @@
 import { eq } from 'drizzle-orm';
 
+import { isEnodeVehicleVendor } from '@/lib/enode-vehicle-vendors';
+import { ApplicationError } from '@/server/application/application-error';
 import { getServerEnv } from '@/server/config/env';
 import type { Database } from '@/server/infrastructure/db/client';
 import { pendingDeviceConnections } from '@/server/infrastructure/db/schema';
@@ -39,7 +41,7 @@ export async function createVehicleLink(
     walletId: string;
     walletAddress: string;
     normalizedWalletAddress: string;
-    brand?: string;
+    brand: string;
   },
 ): Promise<CreateVehicleLinkResult> {
   const env = getServerEnv();
@@ -52,7 +54,13 @@ export async function createVehicleLink(
     return { supported: false, reason: 'PROVIDER_UNAVAILABLE' };
   }
 
-  const brand = (input.brand ?? 'UNKNOWN').trim();
+  const brand = input.brand.trim();
+  if (!isEnodeVehicleVendor(brand)) {
+    throw new ApplicationError(
+      'VENDOR_NOT_SUPPORTED',
+      'Choose a vehicle brand from the list.',
+    );
+  }
   const normalizedBrand = normalizeBrand(brand);
   const enodeUserId = encodeEnodeUserId(input.walletId);
   const expiresAt = new Date(
@@ -89,14 +97,25 @@ export async function createVehicleLink(
       vendorType: 'vehicle',
       scopes: [...ENODE_DEFAULT_VEHICLE_LINK_SCOPES],
       redirectUri: redirectWithPending,
-      ...(brand !== 'UNKNOWN' ? { vendor: brand } : {}),
+      vendor: brand,
     });
+    const linkToken =
+      typeof linkSession.linkToken === 'string' ? linkSession.linkToken : '';
     const linkUrl =
       linkSession.linkUrl ??
-      (linkSession.linkToken.length > 0
-        ? buildEnodeLinkTokenUrl(linkSession.linkToken)
-        : '');
+      (linkToken.length > 0 ? buildEnodeLinkTokenUrl(linkToken) : '');
     if (linkUrl.length === 0 || !isAllowedEnodeLinkUrl(linkUrl)) {
+      let linkHost = 'empty';
+      try {
+        linkHost = new URL(linkUrl).hostname;
+      } catch {
+        linkHost = linkUrl.length === 0 ? 'empty' : 'unparseable';
+      }
+      log.warn('enode.link_url_rejected', {
+        pendingId: pending.id,
+        linkHost,
+        linkTokenPresent: linkToken.length > 0,
+      });
       throw new Error('Enode returned an unexpected link URL.');
     }
 

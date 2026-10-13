@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { Modal } from '@/components/ui/modal';
+import { ENODE_VEHICLE_VENDORS } from '@/lib/enode-vehicle-vendors';
 
 /**
  * "Add vehicle" popup — starts an Enode Link session for the current
@@ -54,19 +55,23 @@ export function DeviceOnboardModal({
         className="flex flex-col gap-4"
       >
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-white/80">
-            Brand / vendor (optional)
-          </span>
-          <input
+          <span className="font-medium text-white/80">Brand</span>
+          <select
+            required
             value={brand}
-            maxLength={64}
             onChange={(e) => {
               setBrand(e.target.value);
             }}
-            placeholder="TESLA"
             disabled={isSubmitting}
-            className="rounded-lg border border-white/15 bg-black px-4 py-3 text-white placeholder:text-white/60 focus:border-primary-500 focus:outline-none"
-          />
+            className="rounded-lg border border-white/15 bg-black px-4 py-3 text-white focus:border-primary-500 focus:outline-none"
+          >
+            <option value="">Select a brand</option>
+            {ENODE_VEHICLE_VENDORS.map((vendor) => (
+              <option key={vendor.code} value={vendor.code}>
+                {vendor.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         <button

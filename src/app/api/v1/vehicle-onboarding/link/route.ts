@@ -16,7 +16,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const bodySchema = z
-  .object({ brand: z.string().trim().min(1).max(64).optional() })
+  .object({ brand: z.string().trim().min(1).max(32) })
   .strict();
 
 /** POST /api/v1/vehicle-onboarding/link — start an Enode Link session for the signed-in wallet. */
@@ -35,7 +35,7 @@ export const POST = createRouteHandler(async (request, context) => {
     walletId: principal.walletId,
     walletAddress: principal.walletAddress,
     normalizedWalletAddress: principal.walletAddress,
-    ...(parsed.brand !== undefined ? { brand: parsed.brand } : {}),
+    brand: parsed.brand,
   });
 
   if (!result.supported) {

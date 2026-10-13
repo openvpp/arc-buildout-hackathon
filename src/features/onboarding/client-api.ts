@@ -25,10 +25,10 @@ const finalizeSchema = z.object({
 /** Onboarding calls. Auth is the httpOnly dashboard session cookie — no bearer needed. */
 export function createOnboardingApi(client: ApiClient = new ApiClient()) {
   return {
-    async startLink(input: { brand?: string }) {
+    async startLink(input: { brand: string }) {
       const result = await client.request('/api/v1/vehicle-onboarding/link', {
         method: 'POST',
-        body: input.brand !== undefined ? { brand: input.brand } : {},
+        body: { brand: input.brand },
         schema: linkResponseSchema,
       });
       if (!result.ok) {

@@ -38,6 +38,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   ADDRESS_LOOKUP_UNAVAILABLE: 503,
   VERIFICATION_UNAVAILABLE: 503,
   BLOCK_NUMBER_REQUIRED: 422,
+  VENDOR_NOT_SUPPORTED: 400,
 };
 
 export function applicationErrorStatus(code: string): number {
