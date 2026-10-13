@@ -354,6 +354,51 @@ describe('publishDeviceEvent', () => {
     expect(row?.status).toBe('pending');
   });
 
+  it('fails an unrecognized receipt and does not send another transaction', async () => {
+    const { event } = await queuedEventFor(true);
+    const broadcastHash = fakeTxHash();
+    const crashing = makeFakeRecorder({
+      record: async (input) => {
+        await input.onBroadcast(broadcastHash);
+        throw new Error('receipt timeout');
+      },
+    });
+    await expect(
+      publishDeviceEvent({
+        db,
+        deviceEventId: event.id,
+        recorderOverride: crashing,
+      }),
+    ).rejects.toThrow('receipt timeout');
+
+    const unrecognized = makeFakeRecorder({
+      reconcile: async () => ({ outcome: 'unrecognized' }),
+    });
+    const result = await publishDeviceEvent({
+      db,
+      deviceEventId: event.id,
+      recorderOverride: unrecognized,
+    });
+    expect(result).toEqual({ status: 'unrecognized' });
+    expect(unrecognized.calls).toHaveLength(0);
+
+    const [row] = await eventsFor(event.deviceId);
+    expect(row).toMatchObject({
+      status: 'failed',
+      transactionHash: broadcastHash,
+      claimedAt: null,
+    });
+
+    const again = makeFakeRecorder();
+    const second = await publishDeviceEvent({
+      db,
+      deviceEventId: event.id,
+      recorderOverride: again,
+    });
+    expect(second).toEqual({ status: 'already_failed' });
+    expect(again.calls).toHaveLength(0);
+  });
+
   it('clears a reverted tx so the next attempt sends afresh', async () => {
     const { event } = await queuedEventFor(true);
     const reverting = makeFakeRecorder({

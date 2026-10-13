@@ -6,9 +6,10 @@
  *   active     + not charging  -> close (completed | cancelled)
  *   anything   + unknown       -> none (never guess charging status)
  *
- * Energy is estimated from the battery-level rise times pack capacity and is
- * labelled `estimated_from_battery_change` — Enode does not report delivered
- * kWh for vehicles, so nothing here is ever labelled `direct_kwh`.
+ * Energy is estimated from the rise between the start level and the highest
+ * level seen, times pack capacity, and is labelled
+ * `estimated_from_battery_change` — Enode does not report delivered kWh for
+ * vehicles, so nothing here is ever labelled `direct_kwh`.
  */
 
 export type EnergyMethod = 'estimated_from_battery_change' | 'unknown';
@@ -38,6 +39,9 @@ export type ChargingTransition =
     }
   | {
       kind: 'update';
+      /** First non-null sample, once one has been seen. */
+      startBatteryLevel: number | null;
+      /** High-water mark while the session is active. */
       endBatteryLevel: number | null;
       batteryCapacityKwh: number | null;
       observedAt: Date;
@@ -58,6 +62,19 @@ export type ChargingTransition =
 function round(value: number, decimals: number): number {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
+}
+
+function higherBatteryLevel(
+  current: number | null,
+  sample: number | null,
+): number | null {
+  if (current === null) {
+    return sample;
+  }
+  if (sample === null) {
+    return current;
+  }
+  return Math.max(current, sample);
 }
 
 export function nextChargingTransition(
@@ -102,12 +119,13 @@ export function nextChargingTransition(
 
   const batteryCapacityKwh =
     observation.batteryCapacityKwh ?? active.batteryCapacityKwh;
-  const endBatteryLevel = observation.batteryLevel ?? active.endBatteryLevel;
+  const sample = observation.batteryLevel;
 
   if (observation.isCharging) {
     return {
       kind: 'update',
-      endBatteryLevel,
+      startBatteryLevel: active.startBatteryLevel ?? sample,
+      endBatteryLevel: higherBatteryLevel(active.endBatteryLevel, sample),
       batteryCapacityKwh,
       observedAt: observation.observedAt,
     };
@@ -115,7 +133,7 @@ export function nextChargingTransition(
 
   return closeChargingSession(active, {
     endTime: observation.observedAt,
-    endBatteryLevel,
+    endBatteryLevel: sample ?? active.endBatteryLevel,
     batteryCapacityKwh,
     electricityPricePerKwh: context.electricityPricePerKwh,
   });
@@ -124,8 +142,10 @@ export function nextChargingTransition(
 type CloseTransition = Extract<ChargingTransition, { kind: 'close' }>;
 
 /**
- * Closes a session at `endTime` with the last known battery level. Shared by
- * the live "stopped charging" path and the stale-session sweep.
+ * Closes a session at `endTime`. Energy uses the high-water mark (the stored
+ * peak, or the closing sample when it is higher). The published end level is
+ * the closing sample when one was reported. Shared by the live "stopped
+ * charging" path and the stale-session sweep.
  */
 export function closeChargingSession(
   active: ActiveChargingSession,
@@ -139,9 +159,14 @@ export function closeChargingSession(
   const endTime =
     input.endTime > active.startTime ? input.endTime : active.startTime;
   const start = active.startBatteryLevel;
-  const { endBatteryLevel, batteryCapacityKwh } = input;
+  const { batteryCapacityKwh } = input;
+  const peak = higherBatteryLevel(
+    active.endBatteryLevel,
+    input.endBatteryLevel,
+  );
+  const endBatteryLevel = input.endBatteryLevel ?? active.endBatteryLevel;
 
-  if (start !== null && endBatteryLevel !== null && endBatteryLevel <= start) {
+  if (start !== null && peak !== null && peak <= start) {
     return {
       kind: 'close',
       status: 'cancelled',
@@ -155,11 +180,7 @@ export function closeChargingSession(
     };
   }
 
-  if (
-    start === null ||
-    endBatteryLevel === null ||
-    batteryCapacityKwh === null
-  ) {
+  if (start === null || peak === null || batteryCapacityKwh === null) {
     // Charging happened but cannot be measured; recorded off-chain only.
     return {
       kind: 'close',
@@ -175,7 +196,7 @@ export function closeChargingSession(
   }
 
   const energyDeliveredKwh = round(
-    ((endBatteryLevel - start) / 100) * batteryCapacityKwh,
+    ((peak - start) / 100) * batteryCapacityKwh,
     4,
   );
   const price = input.electricityPricePerKwh;

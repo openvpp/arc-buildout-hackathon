@@ -10,6 +10,7 @@ export type OutboxJobOutcome =
   // both
   | 'busy'
   | 'unconfigured'
+  | 'unrecognized'
   | 'error';
 
 export type OutboxFollowUp =
@@ -83,6 +84,14 @@ export function decideOutboxFollowUp(input: {
       attempts: input.attempts,
       delayMs: UNCONFIGURED_DELAY_MS,
       lastError: null,
+    };
+  }
+  if (input.outcome === 'unrecognized') {
+    return {
+      action: 'fail',
+      attempts: input.attempts + 1,
+      lastError: input.errorMessage ?? 'receipt did not match the device event',
+      markTargetFailed: false,
     };
   }
 

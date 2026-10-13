@@ -183,6 +183,23 @@ describe('decideOutboxFollowUp for device events', () => {
     ).toMatchObject({ action: 'reschedule', attempts: 3, lastError: null });
   });
 
+  it('fails an unrecognized receipt without marking the row again', () => {
+    expect(
+      decideOutboxFollowUp({
+        outcome: 'unrecognized',
+        attempts: 1,
+        maxAttempts: 5,
+        hasInFlightTransaction: true,
+        errorMessage: null,
+      }),
+    ).toEqual({
+      action: 'fail',
+      attempts: 2,
+      lastError: 'receipt did not match the device event',
+      markTargetFailed: false,
+    });
+  });
+
   it('completes on confirmation or a terminal row', () => {
     for (const outcome of [
       'confirmed',

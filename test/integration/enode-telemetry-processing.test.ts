@@ -128,6 +128,67 @@ describe('Enode telemetry → charging sessions', () => {
     expect(sessions[0]?.endTime).toEqual(new Date('2026-10-12T11:00:00Z'));
   });
 
+  it('estimates energy from the peak when the closing sample falls back', async () => {
+    const device = await seedDevice();
+    const ext = device.externalDeviceId;
+    await deliver(ext, {
+      at: '2026-10-12T10:00:00Z',
+      isCharging: true,
+      batteryLevel: 20,
+    });
+    await deliver(ext, {
+      at: '2026-10-12T10:30:00Z',
+      isCharging: true,
+      batteryLevel: 80,
+    });
+    await deliver(ext, {
+      at: '2026-10-12T11:00:00Z',
+      isCharging: false,
+      batteryLevel: 20,
+    });
+
+    const [session] = await sessionsFor(device.id);
+    expect(session).toMatchObject({
+      status: 'completed',
+      startBatteryLevel: '20.00',
+      endBatteryLevel: '20.00',
+      // (80 - 20)% of 75 kWh
+      energyDeliveredKwh: '45.0000',
+      energyMethod: 'estimated_from_battery_change',
+    });
+  });
+
+  it('backfills a missing opening battery level from the first sample', async () => {
+    const device = await seedDevice();
+    const ext = device.externalDeviceId;
+    await deliver(ext, { at: '2026-10-12T10:00:00Z', isCharging: true });
+    await deliver(ext, {
+      at: '2026-10-12T10:20:00Z',
+      isCharging: true,
+      batteryLevel: 40,
+    });
+    await deliver(ext, {
+      at: '2026-10-12T10:40:00Z',
+      isCharging: true,
+      batteryLevel: 80,
+    });
+    await deliver(ext, {
+      at: '2026-10-12T11:00:00Z',
+      isCharging: false,
+      batteryLevel: 80,
+    });
+
+    const [session] = await sessionsFor(device.id);
+    expect(session).toMatchObject({
+      status: 'completed',
+      startBatteryLevel: '40.00',
+      endBatteryLevel: '80.00',
+      // (80 - 40)% of 75 kWh
+      energyDeliveredKwh: '30.0000',
+      energyMethod: 'estimated_from_battery_change',
+    });
+  });
+
   it('does not reopen a session from a late, replayed charging event', async () => {
     const device = await seedDevice();
     const ext = device.externalDeviceId;
@@ -253,6 +314,38 @@ describe('Enode telemetry → daily odometer', () => {
     expect(readings).toHaveLength(1);
     const [day] = await daysFor(device.id);
     expect(day?.readingCount).toBe(1);
+  });
+
+  it('chains across a silent weekend to the latest prior day', async () => {
+    const device = await seedDevice();
+    const ext = device.externalDeviceId;
+    await deliver(ext, { at: '2026-10-09T18:00:00Z', odometerKm: 1000 });
+    await deliver(ext, { at: '2026-10-12T08:00:00Z', odometerKm: 1400 });
+
+    const days = await daysFor(device.id);
+    expect(days).toHaveLength(2);
+    expect(days[1]).toMatchObject({
+      dateUtc: '2026-10-12',
+      startOdometerKm: '1000.000',
+      endOdometerKm: '1400.000',
+      startEstimated: false,
+    });
+  });
+
+  it('rebuilds the first day when an earlier lower reading arrives late', async () => {
+    const device = await seedDevice();
+    const ext = device.externalDeviceId;
+    await deliver(ext, { at: '2026-10-12T18:00:00Z', odometerKm: 1100 });
+    await deliver(ext, { at: '2026-10-12T08:00:00Z', odometerKm: 1000 });
+
+    const [day] = await daysFor(device.id);
+    expect(day).toMatchObject({
+      startOdometerKm: '1000.000',
+      endOdometerKm: '1100.000',
+      startEstimated: true,
+      readingCount: 2,
+      anomalyCount: 0,
+    });
   });
 
   it('does not change a finalized day', async () => {

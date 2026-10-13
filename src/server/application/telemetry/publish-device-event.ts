@@ -21,7 +21,10 @@ export type PublishDeviceEventResult =
   // The device has no confirmed DeviceNFT yet — retry later, never drop.
   | { status: 'waiting_for_mint' }
   | { status: 'busy' }
-  | { status: 'unconfigured' };
+  | { status: 'unconfigured' }
+  // The stored receipt succeeded but is not this event. Terminal: the hash
+  // is kept and nothing is broadcast again.
+  | { status: 'unrecognized' };
 
 type DeviceEventRow = typeof deviceEvents.$inferSelect;
 
@@ -180,6 +183,30 @@ export async function publishDeviceEvent(input: {
         deviceEventId,
         transactionHash: claimed.transactionHash,
       });
+    } else if (reconciled.outcome === 'unrecognized') {
+      // The receipt is final and is not our event. Keep the hash so a retry
+      // cannot broadcast a second recordDeviceEvent for the same row.
+      await db
+        .update(deviceEvents)
+        .set({
+          status: 'failed',
+          claimedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(deviceEvents.id, claimed.id),
+            or(
+              eq(deviceEvents.status, 'pending'),
+              eq(deviceEvents.status, 'queued'),
+            ),
+          ),
+        );
+      log.warn('device_event.reconcile_unrecognized', {
+        deviceEventId,
+        transactionHash: claimed.transactionHash,
+      });
+      return { status: 'unrecognized' };
     } else {
       await db
         .update(deviceEvents)
@@ -272,7 +299,7 @@ export async function deviceEventHasInFlightTransaction(
     .limit(1);
   return (
     row !== undefined &&
-    row.status !== 'confirmed' &&
+    (row.status === 'queued' || row.status === 'pending') &&
     row.transactionHash !== null
   );
 }

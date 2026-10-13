@@ -431,8 +431,8 @@ export const dailyOdometer = pgTable(
       precision: 12,
       scale: 3,
     }).notNull(),
-    // True when the day's start came from its own first reading rather than
-    // the previous day's end (no reading the day before).
+    // True when the day's start is its own first reading. False when the
+    // start is a prior day's end, including across silent days.
     startEstimated: boolean('start_estimated').notNull().default(false),
     readingCount: bigint('reading_count', { mode: 'number' })
       .notNull()

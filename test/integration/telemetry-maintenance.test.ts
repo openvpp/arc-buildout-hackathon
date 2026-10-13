@@ -4,6 +4,7 @@ import { asc, eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { closeStaleChargingSessions } from '@/server/application/telemetry/close-stale-charging-sessions';
+import { buildDailyOdometerPayload } from '@/server/application/telemetry/device-event-payloads';
 import { finalizeDueOdometerDays } from '@/server/application/telemetry/finalize-odometer-days';
 import { processEnodeWebhook } from '@/server/application/webhooks/enode-webhook';
 import {
@@ -180,6 +181,37 @@ describe('finalizeDueOdometerDays', () => {
     const [first, second] = await daysFor(device.id);
     expect(first?.endOdometerKm).toBe('1000.000');
     expect(second?.startOdometerKm).toBe('1000.000');
+  });
+
+  it('publishes kilometres driven across a day with no readings', async () => {
+    const device = await seedDevice();
+    await deliver(device.externalDeviceId, '2030-06-05T18:00:00Z', {
+      odometerKm: 1000,
+    });
+    await deliver(device.externalDeviceId, '2030-06-08T08:00:00Z', {
+      odometerKm: 1400,
+    });
+
+    await finalizeDueOdometerDays(db, new Date('2030-06-09T01:00:00Z'));
+
+    const days = await daysFor(device.id);
+    const monday = days.find((day) => day.dateUtc === '2030-06-08');
+    expect(monday).toMatchObject({
+      status: 'finalized',
+      startOdometerKm: '1000.000',
+      endOdometerKm: '1400.000',
+      startEstimated: false,
+    });
+    const [event] = await eventsFor(device.id);
+    expect(event?.payloadJson).toBe(
+      buildDailyOdometerPayload({
+        deviceId: device.id,
+        dateUtc: '2030-06-08',
+        startOdometerKm: 1000,
+        endOdometerKm: 1400,
+        startEstimated: false,
+      }),
+    );
   });
 });
 

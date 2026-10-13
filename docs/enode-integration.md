@@ -47,21 +47,27 @@ update (or the device's last closed session) are ignored as stale.
 `chargeState.isCharging` drives the session: `true` opens one (or updates the
 active one), `false` closes it. `null` (OEM doesn't report it) is ignored —
 never guessed. Enode doesn't report delivered kWh for vehicles, so energy is
-`(end % − start %) × batteryCapacity` and stored as
-`energy_method = 'estimated_from_battery_change'`. A session whose battery
-level didn't rise is `cancelled`; one without a usable capacity/level is
-`completed` with `energy_method = 'unknown'`. Cost uses the configured
+`(peak % − start %) × batteryCapacity`, where the peak is the highest level
+seen during the session, and stored as
+`energy_method = 'estimated_from_battery_change'`. The published end level is
+the closing sample. A missing level on the opening update is filled from the
+first sample that has one. A session whose battery level never rose is
+`cancelled`; one without a usable capacity or level is `completed` with
+`energy_method = 'unknown'`. Cost uses the configured
 `ELECTRICITY_PRICE_USD_PER_KWH` tariff.
 
 ### Daily odometer
 
-Readings are folded into one row per UTC day. A day starts at the previous
-UTC day's end when that's plausible, otherwise at its own first reading
-(`start_estimated`). Readings below the day's start or more than 2,000 km
-above it are counted in `anomaly_count` and ignored. A day is closed to new
+Readings are folded into one row per UTC day, rebuilt in time order so an
+earlier reading that arrives late still becomes the start. A day chains to
+the latest prior day's end, including across silent days, when the jump is
+within 2,000 km per missing calendar day; otherwise it starts at its own
+first reading (`start_estimated`). Readings below the day's start or past
+that cap are counted in `anomaly_count` and ignored. A day is closed to new
 readings once it is finalized **or** a later day has started (that day's
 start is chained to this day's end, so changing it would count kilometres
-twice); late readings for a closed day are stored raw only.
+twice); late readings for a closed day are stored raw only. Finalizing a day
+rebuilds it once more before the on-chain payload is frozen.
 
 The worker finalizes each day 30 minutes after its UTC midnight and queues
 one `TRIP_COMPLETED` event per day. A day with under 0.1 mi of driving is
@@ -71,7 +77,7 @@ finalized but not published.
 
 If Enode never sends the "stopped charging" update, a session with no
 update for 24 hours is closed by the worker at its last update, using the
-last battery level seen. If charging resumes later, a new session opens.
+highest battery level stored. If charging resumes later, a new session opens.
 
 ## Known gap this deliberately avoids
 

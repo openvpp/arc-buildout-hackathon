@@ -22,10 +22,11 @@ function numericOrNull(value: string | null): number | null {
 }
 
 /**
- * Closes stale active sessions at their last observation, using the last
- * battery level seen — energy up to then was really delivered; anything
- * after is unknown and not claimed. A later "charging" update opens a new
- * session (it is newer than this one's end).
+ * Closes stale active sessions at their last observation. The stored end
+ * level is the high-water mark, so energy up to that peak was really
+ * delivered; anything after the last update is unknown and not claimed. A
+ * later "charging" update opens a new session (it is newer than this one's
+ * end).
  */
 export async function closeStaleChargingSessions(
   db: Database,

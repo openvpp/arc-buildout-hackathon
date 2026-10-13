@@ -1,16 +1,17 @@
-import { and, desc, eq, gt, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 
+import {
+  aggregateOdometerDay,
+  odometerDayColumns,
+} from '@/server/application/telemetry/aggregate-odometer-day';
 import {
   chargingSessionIdFor,
   nextChargingTransition,
   type ChargingTransition,
 } from '@/server/application/telemetry/charging-session-transition';
 import {
-  applyOdometerReading,
-  openOdometerDay,
-  previousUtcDate,
+  odometerReadingFits,
   utcDateOf,
-  type OdometerDay,
 } from '@/server/application/telemetry/odometer-day';
 import {
   queueChargingSessionEvent,
@@ -106,25 +107,8 @@ async function recordOdometer(
   }
 
   const dateUtc = utcDateOf(reading.observedAt);
-
-  // Once a later day exists its start is chained to this day's end, so
-  // changing this day now would count the same kilometres twice.
-  const [laterDay] = await tx
-    .select({ id: dailyOdometer.id })
-    .from(dailyOdometer)
-    .where(
-      and(
-        eq(dailyOdometer.deviceId, input.deviceId),
-        gt(dailyOdometer.dateUtc, dateUtc),
-      ),
-    )
-    .limit(1);
-  if (laterDay !== undefined) {
-    return 'late';
-  }
-
   const [existing] = await tx
-    .select()
+    .select({ id: dailyOdometer.id, status: dailyOdometer.status })
     .from(dailyOdometer)
     .where(
       and(
@@ -133,61 +117,40 @@ async function recordOdometer(
       ),
     )
     .limit(1);
-
-  if (existing === undefined) {
-    const [previous] = await tx
-      .select({ endOdometerKm: dailyOdometer.endOdometerKm })
-      .from(dailyOdometer)
-      .where(
-        and(
-          eq(dailyOdometer.deviceId, input.deviceId),
-          eq(dailyOdometer.dateUtc, previousUtcDate(dateUtc)),
-        ),
-      )
-      .limit(1);
-    const day = openOdometerDay(
-      previous === undefined ? null : Number(previous.endOdometerKm),
-      reading,
-    );
-    await tx.insert(dailyOdometer).values({
-      deviceId: input.deviceId,
-      dateUtc,
-      ...dayColumns(day),
-    });
-    return 'recorded';
-  }
-
-  if (existing.status !== 'open') {
+  if (existing !== undefined && existing.status !== 'open') {
     return 'late';
   }
 
-  const { day, outcome } = applyOdometerReading(
-    {
-      startKm: Number(existing.startOdometerKm),
-      endKm: Number(existing.endOdometerKm),
-      startEstimated: existing.startEstimated,
-      readingCount: existing.readingCount,
-      anomalyCount: existing.anomalyCount,
-      lastReadingAt: existing.lastReadingAt,
-    },
-    reading,
-  );
-  await tx
-    .update(dailyOdometer)
-    .set({ ...dayColumns(day), updatedAt: new Date() })
-    .where(eq(dailyOdometer.id, existing.id));
-  return outcome === 'applied' ? 'recorded' : 'anomaly';
-}
+  const aggregate = await aggregateOdometerDay(tx, {
+    deviceId: input.deviceId,
+    dateUtc,
+  });
+  // A later day already chained to this end. Keep the raw reading and leave
+  // the aggregate alone.
+  if (aggregate.status === 'frozen') {
+    return 'late';
+  }
+  if (aggregate.status === 'empty') {
+    throw new Error(
+      `Odometer reading for device ${input.deviceId} on ${dateUtc} was not stored`,
+    );
+  }
 
-function dayColumns(day: OdometerDay) {
-  return {
-    startOdometerKm: day.startKm.toFixed(3),
-    endOdometerKm: day.endKm.toFixed(3),
-    startEstimated: day.startEstimated,
-    readingCount: day.readingCount,
-    anomalyCount: day.anomalyCount,
-    lastReadingAt: day.lastReadingAt,
-  };
+  if (existing === undefined) {
+    await tx.insert(dailyOdometer).values({
+      deviceId: input.deviceId,
+      dateUtc,
+      ...odometerDayColumns(aggregate.day),
+    });
+  } else {
+    await tx
+      .update(dailyOdometer)
+      .set({ ...odometerDayColumns(aggregate.day), updatedAt: new Date() })
+      .where(eq(dailyOdometer.id, existing.id));
+  }
+  return odometerReadingFits(aggregate.day, reading, aggregate.gapDays)
+    ? 'recorded'
+    : 'anomaly';
 }
 
 async function advanceChargingSession(
@@ -303,6 +266,7 @@ async function advanceChargingSession(
       await tx
         .update(chargingSessions)
         .set({
+          startBatteryLevel: fixedOrNull(transition.startBatteryLevel, 2),
           endBatteryLevel: fixedOrNull(transition.endBatteryLevel, 2),
           batteryCapacityKwh: fixedOrNull(transition.batteryCapacityKwh, 3),
           lastProviderUpdateAt: transition.observedAt,

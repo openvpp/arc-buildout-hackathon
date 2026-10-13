@@ -82,9 +82,29 @@ describe('nextChargingTransition', () => {
       ),
     ).toEqual({
       kind: 'update',
+      startBatteryLevel: 40,
       endBatteryLevel: 62,
       batteryCapacityKwh: 75,
       observedAt: at('2026-10-12T10:45:00Z'),
+    });
+  });
+
+  it('keeps the high-water mark when a later sample dips', () => {
+    expect(
+      nextChargingTransition(
+        active,
+        {
+          isCharging: true,
+          batteryLevel: 30,
+          batteryCapacityKwh: 75,
+          observedAt: at('2026-10-12T10:45:00Z'),
+        },
+        context,
+      ),
+    ).toMatchObject({
+      kind: 'update',
+      startBatteryLevel: 40,
+      endBatteryLevel: 55,
     });
   });
 
@@ -146,7 +166,7 @@ describe('nextChargingTransition', () => {
 
   it('cancels a session whose battery level did not rise', () => {
     const result = nextChargingTransition(
-      active,
+      { ...active, startBatteryLevel: 50, endBatteryLevel: 50 },
       {
         isCharging: false,
         batteryLevel: 40,
@@ -158,7 +178,82 @@ describe('nextChargingTransition', () => {
     expect(result).toMatchObject({
       kind: 'close',
       status: 'cancelled',
+      endBatteryLevel: 40,
       energyDeliveredKwh: 0,
+    });
+  });
+
+  it('charges from the peak when the closing sample falls back to the start', () => {
+    const risen: ActiveChargingSession = {
+      ...active,
+      startBatteryLevel: 20,
+      endBatteryLevel: 80,
+    };
+    expect(
+      nextChargingTransition(
+        risen,
+        {
+          isCharging: false,
+          batteryLevel: 20,
+          batteryCapacityKwh: 75,
+          observedAt: at('2026-10-12T11:00:00Z'),
+        },
+        context,
+      ),
+    ).toMatchObject({
+      kind: 'close',
+      status: 'completed',
+      endBatteryLevel: 20,
+      // (80 - 20)% of 75 kWh
+      energyDeliveredKwh: 45,
+      energyMethod: 'estimated_from_battery_change',
+    });
+  });
+
+  it('backfills a missing start level from the first sample that has one', () => {
+    const unmeasured: ActiveChargingSession = {
+      ...active,
+      startBatteryLevel: null,
+      endBatteryLevel: null,
+      lastProviderUpdateAt: at('2026-10-12T10:00:00Z'),
+    };
+    const first = nextChargingTransition(
+      unmeasured,
+      {
+        isCharging: true,
+        batteryLevel: 40,
+        batteryCapacityKwh: 75,
+        observedAt: at('2026-10-12T10:20:00Z'),
+      },
+      context,
+    );
+    expect(first).toMatchObject({
+      kind: 'update',
+      startBatteryLevel: 40,
+      endBatteryLevel: 40,
+    });
+    if (first.kind !== 'update') {
+      throw new Error('expected an update');
+    }
+    const second = nextChargingTransition(
+      {
+        ...unmeasured,
+        startBatteryLevel: first.startBatteryLevel,
+        endBatteryLevel: first.endBatteryLevel,
+        lastProviderUpdateAt: at('2026-10-12T10:20:00Z'),
+      },
+      {
+        isCharging: true,
+        batteryLevel: 80,
+        batteryCapacityKwh: 75,
+        observedAt: at('2026-10-12T10:40:00Z'),
+      },
+      context,
+    );
+    expect(second).toMatchObject({
+      kind: 'update',
+      startBatteryLevel: 40,
+      endBatteryLevel: 80,
     });
   });
 

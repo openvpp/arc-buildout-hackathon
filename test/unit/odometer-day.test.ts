@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyOdometerReading,
+  chainCapKm,
   MAX_PLAUSIBLE_DAILY_KM,
   openOdometerDay,
   previousUtcDate,
+  rebuildOdometerDay,
   utcDateOf,
+  utcDayGap,
 } from '@/server/application/telemetry/odometer-day';
 
 const at = (iso: string) => new Date(iso);
@@ -19,6 +22,11 @@ describe('utc day helpers', () => {
   it('steps back across month and year boundaries', () => {
     expect(previousUtcDate('2026-03-01')).toBe('2026-02-28');
     expect(previousUtcDate('2027-01-01')).toBe('2026-12-31');
+  });
+
+  it('counts a silent weekend as three days and scales the chain cap', () => {
+    expect(utcDayGap('2026-10-09', '2026-10-12')).toBe(3);
+    expect(chainCapKm(3)).toBe(3 * MAX_PLAUSIBLE_DAILY_KM);
   });
 });
 
@@ -58,6 +66,39 @@ describe('openOdometerDay', () => {
     expect(openOdometerDay(1000, far)).toMatchObject({
       startKm: far.km,
       startEstimated: true,
+    });
+  });
+
+  it('chains a weekend of driving and rejects a jump past the scaled cap', () => {
+    const monday = { km: 1400, observedAt: at('2026-10-12T08:00:00Z') };
+    expect(openOdometerDay(1000, monday, 3)).toMatchObject({
+      startKm: 1000,
+      endKm: 1400,
+      startEstimated: false,
+    });
+    const tooFar = {
+      km: 1000 + chainCapKm(3) + 1,
+      observedAt: monday.observedAt,
+    };
+    expect(openOdometerDay(1000, tooFar, 3)).toMatchObject({
+      startKm: tooFar.km,
+      startEstimated: true,
+    });
+  });
+});
+
+describe('rebuildOdometerDay', () => {
+  it('keeps an earlier lower reading as the start when it arrives last', () => {
+    const day = rebuildOdometerDay(null, 1, [
+      { km: 1100, observedAt: at('2026-10-12T18:00:00Z') },
+      { km: 1000, observedAt: at('2026-10-12T08:00:00Z') },
+    ]);
+    expect(day).toMatchObject({
+      startKm: 1000,
+      endKm: 1100,
+      startEstimated: true,
+      readingCount: 2,
+      anomalyCount: 0,
     });
   });
 });

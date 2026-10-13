@@ -1,5 +1,9 @@
 import { and, asc, eq, lt } from 'drizzle-orm';
 
+import {
+  aggregateOdometerDay,
+  odometerDayColumns,
+} from '@/server/application/telemetry/aggregate-odometer-day';
 import { utcDateOf } from '@/server/application/telemetry/odometer-day';
 import {
   queueDailyOdometerEvent,
@@ -42,7 +46,11 @@ export async function finalizeDueOdometerDays(
 ): Promise<FinalizeOdometerDaysResult> {
   const firstUnfinished = firstUnfinishedUtcDate(now);
   const due = await db
-    .select({ id: dailyOdometer.id, deviceId: dailyOdometer.deviceId })
+    .select({
+      id: dailyOdometer.id,
+      deviceId: dailyOdometer.deviceId,
+      dateUtc: dailyOdometer.dateUtc,
+    })
     .from(dailyOdometer)
     .where(
       and(
@@ -63,9 +71,22 @@ export async function finalizeDueOdometerDays(
         .where(eq(devices.id, row.deviceId))
         .limit(1)
         .for('update');
+      // Correct a day that was opened before a silent gap was visible.
+      // Skip the rewrite when a later day already chained to this end.
+      const aggregate = await aggregateOdometerDay(tx, {
+        deviceId: row.deviceId,
+        dateUtc: row.dateUtc,
+      });
+      const rebuilt =
+        aggregate.status === 'ready' ? odometerDayColumns(aggregate.day) : {};
       const [closed] = await tx
         .update(dailyOdometer)
-        .set({ status: 'finalized', finalizedAt: now, updatedAt: now })
+        .set({
+          ...rebuilt,
+          status: 'finalized',
+          finalizedAt: now,
+          updatedAt: now,
+        })
         .where(
           and(eq(dailyOdometer.id, row.id), eq(dailyOdometer.status, 'open')),
         )

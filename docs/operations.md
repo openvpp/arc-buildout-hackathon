@@ -91,6 +91,8 @@ sign users out.
   several workers.
 - `pending` with a `transaction_hash` means broadcast but not yet confirmed;
   the worker reconciles it from the receipt and never re-broadcasts it.
+- A receipt that succeeded but whose `DeviceEvent` log does not match the
+  row fails the event, keeps that transaction hash, and is not sent again.
 - Verify a row on-chain: the tx's `DeviceEvent` log must carry the row's
   `token_id` and `event_type`, and `keccak256(data)` must equal
   `payload_hash`.
