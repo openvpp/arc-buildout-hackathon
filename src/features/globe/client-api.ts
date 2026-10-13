@@ -7,8 +7,8 @@ const locationsSchema = z.object({
     z.object({
       id: z.string(),
       displayName: z.string().nullable(),
-      externalDeviceId: z.string(),
       vendor: z.string().nullable(),
+      model: z.string().nullable(),
       deviceType: z.string(),
       mintStatus: z.string(),
       latitude: z.number(),

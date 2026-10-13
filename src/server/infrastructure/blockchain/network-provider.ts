@@ -1,24 +1,45 @@
 import { type Chain, http } from 'viem';
 
+import {
+  arcNetworkDisplayName,
+  arcNetworkLabel as arcNetworkLabelFor,
+  defaultArcRpcUrl,
+} from '@/config/arc-network';
 import type { ServerEnv } from '@/server/config/env';
 
+/** Stored on `devices.network`, e.g. `arc-mainnet-5042`. */
 export function arcNetworkLabel(env: ServerEnv): string {
-  return `arc-testnet-${env.ARC_CHAIN_ID}`;
+  return arcNetworkLabelFor(env.ARC_CHAIN_ID);
+}
+
+/** ARC_RPC_URL, or the public testnet RPC; never a silent cross-network fallback. */
+export function resolveArcRpcUrl(env: ServerEnv): string {
+  if (env.ARC_RPC_URL !== undefined && env.ARC_RPC_URL.length > 0) {
+    return env.ARC_RPC_URL;
+  }
+  const fallback = defaultArcRpcUrl(env.ARC_CHAIN_ID);
+  if (fallback === null) {
+    throw new Error(
+      `ARC_RPC_URL is required for ARC_CHAIN_ID ${env.ARC_CHAIN_ID}.`,
+    );
+  }
+  return fallback;
 }
 
 export function createArcMintChain(env: ServerEnv): Chain {
   return {
     id: Number(env.ARC_CHAIN_ID),
-    name: 'Arc Testnet',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    name: arcNetworkDisplayName(env.ARC_CHAIN_ID),
+    // Arc's gas token is USDC, 18 decimals at the native level.
+    nativeCurrency: { name: 'USD Coin', symbol: 'USDC', decimals: 18 },
     rpcUrls: {
-      default: { http: [env.ARC_RPC_URL ?? 'https://rpc.testnet.arc.network'] },
+      default: { http: [resolveArcRpcUrl(env)] },
     },
   };
 }
 
 export function createArcHttpTransport(env: ServerEnv) {
-  const url = env.ARC_RPC_URL ?? 'https://rpc.testnet.arc.network';
+  const url = resolveArcRpcUrl(env);
   const authToken = env.ARC_AUTH_TOKEN;
   return http(url, {
     fetchOptions:

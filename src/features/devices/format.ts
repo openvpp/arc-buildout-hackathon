@@ -20,9 +20,17 @@ export function truncateHash(hash: string, head = 8, tail = 6): string {
   return `${hash.slice(0, head)}…${hash.slice(-tail)}`;
 }
 
+/**
+ * Rendered on the server, so the time zone is the server's (UTC in
+ * production). Always label it rather than imply the viewer's local time.
+ */
 export function formatTimestamp(date: Date): string {
   return date.toLocaleString(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
   });
 }

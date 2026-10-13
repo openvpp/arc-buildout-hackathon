@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { arcNetworkFor, defaultArcRpcUrl } from '@/config/arc-network';
+
 const boolFromString = z
   .string()
   .optional()
@@ -98,8 +100,53 @@ export function getServerEnv(): ServerEnv {
     );
   }
   assertProductionSafe(parsed.data);
+  assertArcNetworkConfig(parsed.data, process.env.NEXT_PUBLIC_ARC_CHAIN_ID);
   cached = parsed.data;
   return cached;
+}
+
+/**
+ * Network settings that must agree, checked at startup in every
+ * environment: a mismatch here would otherwise surface as a confusing RPC
+ * error, a wallet on the wrong chain, or UI naming the wrong network.
+ */
+export function assertArcNetworkConfig(
+  env: Pick<
+    ServerEnv,
+    | 'ARC_CHAIN_ID'
+    | 'ARC_RPC_URL'
+    | 'USE_ARC_NETWORK'
+    | 'CIRCLE_WALLET_BLOCKCHAIN'
+  >,
+  publicChainId: string | undefined,
+): void {
+  if (
+    publicChainId !== undefined &&
+    publicChainId.length > 0 &&
+    publicChainId !== env.ARC_CHAIN_ID
+  ) {
+    throw new Error(
+      `NEXT_PUBLIC_ARC_CHAIN_ID (${publicChainId}) must equal ARC_CHAIN_ID (${env.ARC_CHAIN_ID}).`,
+    );
+  }
+  const hasRpc = env.ARC_RPC_URL !== undefined && env.ARC_RPC_URL.length > 0;
+  if (
+    env.USE_ARC_NETWORK &&
+    !hasRpc &&
+    defaultArcRpcUrl(env.ARC_CHAIN_ID) === null
+  ) {
+    throw new Error(
+      `ARC_RPC_URL is required for ARC_CHAIN_ID ${env.ARC_CHAIN_ID} (only testnet has a default RPC).`,
+    );
+  }
+  if (
+    arcNetworkFor(env.ARC_CHAIN_ID) === 'mainnet' &&
+    env.CIRCLE_WALLET_BLOCKCHAIN.toUpperCase().includes('TESTNET')
+  ) {
+    throw new Error(
+      `CIRCLE_WALLET_BLOCKCHAIN (${env.CIRCLE_WALLET_BLOCKCHAIN}) is a testnet chain but ARC_CHAIN_ID is Arc mainnet.`,
+    );
+  }
 }
 
 function assertProductionSafe(env: ServerEnv): void {

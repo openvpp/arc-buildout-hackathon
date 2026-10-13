@@ -49,25 +49,31 @@ describe('listAllDeviceLocations', () => {
         deviceType: 'electric_vehicle',
       },
     ]);
+    const seeded = await db
+      .select({ id: devices.id, externalDeviceId: devices.externalDeviceId })
+      .from(devices);
+    const byExternal = (externalId: string) =>
+      seeded.find((row) => row.externalDeviceId === externalId);
+    const older = byExternal(olderId);
+    const newer = byExternal(newerId);
+    const unlocated = byExternal(unlocatedId);
 
     const first = await listAllDeviceLocations(db, { limit: 1 });
-    expect(first.locations.map((row) => row.externalDeviceId)).toEqual([
-      newerId,
-    ]);
+    expect(first.locations.map((row) => row.id)).toEqual([newer?.id]);
     expect(first.nextCursor).not.toBeNull();
 
     const second = await listAllDeviceLocations(db, {
       limit: 1,
       cursor: first.nextCursor ?? '',
     });
-    expect(second.locations.map((row) => row.externalDeviceId)).toEqual([
-      olderId,
-    ]);
+    expect(second.locations.map((row) => row.id)).toEqual([older?.id]);
 
     const everything = await listAllDeviceLocations(db, { limit: 200 });
-    expect(
-      everything.locations.some((row) => row.externalDeviceId === unlocatedId),
-    ).toBe(false);
+    expect(everything.locations.some((row) => row.id === unlocated?.id)).toBe(
+      false,
+    );
+    // The provider's vehicle id is never exposed publicly.
+    expect(JSON.stringify(everything)).not.toContain(newerId);
   });
 
   it('rejects a malformed cursor', async () => {

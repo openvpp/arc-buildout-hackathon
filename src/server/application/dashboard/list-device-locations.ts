@@ -10,8 +10,8 @@ import { deviceAddresses, devices } from '@/server/infrastructure/db/schema';
 export type DeviceLocation = {
   id: string;
   displayName: string | null;
-  externalDeviceId: string;
   vendor: string | null;
+  model: string | null;
   deviceType: string;
   mintStatus: string;
   /** Approximate: always 0.5–2 km from the real point, never exact. */
@@ -68,7 +68,8 @@ export function decodeLocationCursor(
  *
  * Privacy: no exact location ever leaves this function. A device with an
  * address is shown at its stored public point; otherwise its live location
- * is shown with a stable 0.5–2 km offset. Address text is never returned. Pages are ordered
+ * is shown with a stable 0.5–2 km offset. Address text is never returned,
+ * and neither is the provider's (Enode) vehicle id. Pages are ordered
  * by the location timestamp (falling back to created_at) so a later page
  * cannot skip or repeat a row when two fixes share a timestamp.
  */
@@ -88,8 +89,8 @@ export async function listAllDeviceLocations(
     .select({
       id: devices.id,
       displayName: devices.displayName,
-      externalDeviceId: devices.externalDeviceId,
       vendor: devices.vendor,
+      model: devices.model,
       deviceType: devices.deviceType,
       mintStatus: devices.mintStatus,
       lastLatitude: devices.lastLatitude,
@@ -125,8 +126,8 @@ export async function listAllDeviceLocations(
     const base = {
       id: row.id,
       displayName: row.displayName,
-      externalDeviceId: row.externalDeviceId,
       vendor: row.vendor,
+      model: row.model,
       deviceType: row.deviceType,
       mintStatus: row.mintStatus,
     };

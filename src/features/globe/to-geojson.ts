@@ -25,7 +25,12 @@ export function devicesToGeoJson(
       },
       properties: {
         id: device.id,
-        displayName: device.displayName ?? device.externalDeviceId,
+        displayName:
+          device.displayName ??
+          ([device.vendor, device.model]
+            .filter((part): part is string => part !== null)
+            .join(' ') ||
+            'Vehicle'),
         vendor: device.vendor ?? 'Unknown vendor',
         deviceType: device.deviceType,
         mintStatus: device.mintStatus,

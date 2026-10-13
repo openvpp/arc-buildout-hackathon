@@ -11,6 +11,11 @@ Mapbox) are still required; this app does not replace them.
   `ev_dashboard_session` cookie. Rotating it signs every current session out.
 - `DATABASE_URL` points at Postgres with `DATABASE_SSL_MODE=require` when the
   database is not on localhost.
+- Arc network settings agree: `ARC_CHAIN_ID` and `NEXT_PUBLIC_ARC_CHAIN_ID`
+  are equal (5042 = mainnet, 5042002 = testnet), `ARC_RPC_URL` is set for
+  mainnet, and `CIRCLE_WALLET_BLOCKCHAIN` is not a testnet chain on mainnet.
+  The server refuses to start if any of these disagree. The explorer URL,
+  device network label and consent copy follow the chain id.
 - Circle, Enode, and the Arc minter key are set only on the server and the
   worker. `NEXT_PUBLIC_*` values are the Mapbox token, the Arc explorer base
   URL, and the optional Google client id.

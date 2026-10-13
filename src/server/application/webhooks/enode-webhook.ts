@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { and, eq, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, isNull, lte, or, sql } from 'drizzle-orm';
 
 import { recordVehicleTelemetry } from '@/server/application/telemetry/record-vehicle-telemetry';
 import { getServerEnv } from '@/server/config/env';
@@ -109,6 +109,16 @@ export async function processEnodeWebhook(
           return;
         }
 
+        // Any vehicle event means the vehicle reported in; never move
+        // last_seen_at backwards for a late, out-of-order delivery.
+        const seenAt = (mapped.occurredAt ?? receivedAt).toISOString();
+        await tx
+          .update(devices)
+          .set({
+            lastSeenAt: sql`greatest(coalesce(${devices.lastSeenAt}, ${seenAt}::timestamptz), ${seenAt}::timestamptz)`,
+          })
+          .where(eq(devices.id, device.id));
+
         if (mapped.latitude !== null && mapped.longitude !== null) {
           const observedAt = mapped.occurredAt ?? receivedAt;
           await tx
@@ -117,7 +127,6 @@ export async function processEnodeWebhook(
               lastLatitude: mapped.latitude.toFixed(6),
               lastLongitude: mapped.longitude.toFixed(6),
               lastLocationAt: observedAt,
-              lastSeenAt: observedAt,
               updatedAt: new Date(),
             })
             .where(

@@ -7,6 +7,8 @@ import { Suspense, useEffect, useState, useTransition } from 'react';
 import { PageHeader } from '@/components/common/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
+import { arcNetworkDisplayName } from '@/config/arc-network';
+import { env } from '@/config/env';
 import { ApiRequestError } from '@/lib/api/client';
 import {
   AddressFields,
@@ -167,8 +169,8 @@ function EnodeCompleteInner() {
                 className="mt-1"
               />
               <span>
-                I agree to link this vehicle and mint it as a Device NFT on Arc
-                testnet.
+                I agree to link this vehicle and mint it as a Device NFT on{' '}
+                {arcNetworkDisplayName(env.NEXT_PUBLIC_ARC_CHAIN_ID)}.
               </span>
             </label>
             {formError !== null ? (

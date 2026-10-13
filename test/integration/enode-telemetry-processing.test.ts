@@ -271,6 +271,27 @@ describe('Enode telemetry → daily odometer', () => {
   });
 });
 
+describe('device last seen', () => {
+  it('advances on telemetry-only events and never moves backwards', async () => {
+    const device = await seedDevice();
+    const ext = device.externalDeviceId;
+    await deliver(ext, { at: '2026-10-12T10:00:00Z', odometerKm: 1000 });
+    await deliver(ext, {
+      at: '2026-10-12T12:00:00Z',
+      isCharging: true,
+      batteryLevel: 50,
+    });
+    // An older delivery arriving late.
+    await deliver(ext, { at: '2026-10-12T09:00:00Z', odometerKm: 999 });
+
+    const [row] = await db
+      .select({ lastSeenAt: devices.lastSeenAt })
+      .from(devices)
+      .where(eq(devices.id, device.id));
+    expect(row?.lastSeenAt).toEqual(new Date('2026-10-12T12:00:00Z'));
+  });
+});
+
 describe('webhook delivery retry', () => {
   it('reprocesses a delivery that previously failed', async () => {
     const device = await seedDevice();
