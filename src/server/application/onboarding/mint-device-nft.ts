@@ -26,16 +26,6 @@ export type MintDeviceNftResult =
   | { status: 'busy' }
   | { status: 'unconfigured' };
 
-function readYear(metadata: unknown): number | null {
-  if (metadata !== null && typeof metadata === 'object') {
-    const year = (metadata as Record<string, unknown>)['year'];
-    if (typeof year === 'number' && Number.isFinite(year)) {
-      return year;
-    }
-  }
-  return null;
-}
-
 /**
  * Mint a DeviceNFT for a `devices` row when it is not already on-chain.
  * Idempotent by `nft_token_id`; claim-before-mint reserves the row so only
@@ -177,14 +167,7 @@ export async function mintDeviceNftIfNeeded(input: {
     }
   }
 
-  const deviceURI = buildSimpleDeviceMetadataUri({
-    vehicleId: device.externalDeviceId,
-    displayName: device.displayName ?? device.externalDeviceId,
-    make: device.vendor,
-    model: device.model,
-    year: readYear(device.metadata),
-    walletAddress,
-  });
+  const deviceURI = buildSimpleDeviceMetadataUri(device.id);
 
   const broadcast: { hash: string | null } = { hash: null };
   try {

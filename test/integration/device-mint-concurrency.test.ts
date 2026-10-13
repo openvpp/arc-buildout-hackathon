@@ -4,8 +4,11 @@ import { eq } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { mintDeviceNftIfNeeded } from '@/server/application/onboarding/mint-device-nft';
+import {
+  buildSimpleDeviceMetadataUri,
+  type DeviceNftMinter,
+} from '@/server/infrastructure/blockchain/device-nft';
 import { devices } from '@/server/infrastructure/db/schema';
-import type { DeviceNftMinter } from '@/server/infrastructure/blockchain/device-nft';
 
 import { createTestDb, insertTestWallet } from './test-helpers';
 
@@ -88,6 +91,8 @@ describe('mintDeviceNftIfNeeded concurrency (claim-before-mint)', () => {
       .limit(1);
     expect(row?.mintStatus).toBe('minted');
     expect(row?.nftTokenId).toBe('42');
+    expect(row?.nftMetadataUri).toBe(buildSimpleDeviceMetadataUri(device.id));
+    expect(row?.nftMetadataUri).not.toContain(device.externalDeviceId);
   });
 
   it('is idempotent when called again after a successful mint', async () => {

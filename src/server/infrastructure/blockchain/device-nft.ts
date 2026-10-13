@@ -162,21 +162,12 @@ export function createDeviceNftMinter(): DeviceNftMinter | null {
   };
 }
 
-export function buildSimpleDeviceMetadataUri(input: {
-  vehicleId: string;
-  displayName: string;
-  make: string | null;
-  model: string | null;
-  year: number | null;
-  walletAddress: string;
-}): string {
-  const json = JSON.stringify({
-    vehicleId: input.vehicleId,
-    name: input.displayName,
-    make: input.make,
-    model: input.model,
-    year: input.year,
-    owner: input.walletAddress,
-  });
+/**
+ * Public mint calldata. `vehicleId` is our `devices.id`, the same id the
+ * time series uses. The Enode vehicle id, display name, make, model, year,
+ * and wallet address stay off-chain.
+ */
+export function buildSimpleDeviceMetadataUri(deviceId: string): string {
+  const json = JSON.stringify({ vehicleId: deviceId });
   return `data:application/json;base64,${Buffer.from(json).toString('base64')}`;
 }
