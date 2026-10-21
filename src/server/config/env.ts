@@ -51,6 +51,12 @@ const serverEnvSchema = z.object({
   VERIFIER_RPC_URL: z.string().optional(),
   // Optional explorer API (Blockscout) used only to discover past events.
   ARC_EXPLORER_API_URL: z.string().optional(),
+  // Comma-separated writer addresses whose anchors verification accepts
+  // (the contract lets any UPDATER_ROLE holder write). Defaults to this
+  // app's own signer.
+  ARC_TRUSTED_WRITER_ADDRESSES: z.string().default(''),
+  // Anchors later than this after the activity are flagged (warning).
+  VERIFICATION_MAX_ANCHOR_DELAY_HOURS: z.coerce.number().positive().default(24),
   ARC_AUTH_TOKEN: z.string().optional(),
   ARC_CHAIN_ID: z.string().default('5042002'),
   DEVICE_NFT_CONTRACT_ADDRESS: z

@@ -1,5 +1,6 @@
 import { and, eq, isNull, lt, or } from 'drizzle-orm';
 
+import { enqueueEventVerification } from '@/server/application/verification/verify-stored-event';
 import {
   createDeviceEventRecorder,
   type DeviceEventRecorder,
@@ -45,6 +46,9 @@ async function markConfirmed(
       updatedAt: new Date(),
     })
     .where(eq(deviceEvents.id, eventId));
+  // Our own receipt check is not the verification: queue an independent,
+  // block-based re-check of the anchor.
+  await enqueueEventVerification(db, eventId);
 }
 
 /** Drop a reverted tx hash so the next attempt broadcasts afresh. */

@@ -7,6 +7,9 @@ export type OutboxJobOutcome =
   | 'already_confirmed'
   | 'already_failed'
   | 'waiting_for_mint'
+  // VERIFY_DEVICE_EVENT
+  | 'checked'
+  | 'not_final'
   // both
   | 'busy'
   | 'unconfigured'
@@ -33,6 +36,8 @@ const BUSY_DELAY_MS = 15_000;
 const UNCONFIGURED_DELAY_MS = 60_000;
 // A device event waits for its device's mint; that is not a failure.
 const WAITING_FOR_MINT_DELAY_MS = 5 * 60_000;
+// An anchor that is not final yet is re-checked shortly.
+const NOT_FINAL_DELAY_MS = 30_000;
 const MAX_BACKOFF_MS = 60_000;
 
 function errorBackoffMs(attempts: number): number {
@@ -58,9 +63,18 @@ export function decideOutboxFollowUp(input: {
     input.outcome === 'already_minted' ||
     input.outcome === 'confirmed' ||
     input.outcome === 'already_confirmed' ||
-    input.outcome === 'already_failed'
+    input.outcome === 'already_failed' ||
+    input.outcome === 'checked'
   ) {
     return { action: 'complete' };
+  }
+  if (input.outcome === 'not_final') {
+    return {
+      action: 'reschedule',
+      attempts: input.attempts,
+      delayMs: NOT_FINAL_DELAY_MS,
+      lastError: null,
+    };
   }
   if (input.outcome === 'waiting_for_mint') {
     return {

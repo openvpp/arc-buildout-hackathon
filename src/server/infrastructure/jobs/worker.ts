@@ -7,6 +7,10 @@ import {
   publishDeviceEvent,
 } from '@/server/application/telemetry/publish-device-event';
 import { RECORD_DEVICE_EVENT_JOB } from '@/server/application/telemetry/queue-device-event';
+import {
+  verifyStoredDeviceEvent,
+  VERIFY_DEVICE_EVENT_JOB,
+} from '@/server/application/verification/verify-stored-event';
 import { getServerEnv } from '@/server/config/env';
 import type { Database } from '@/server/infrastructure/db/client';
 import { devices, outboxEvents } from '@/server/infrastructure/db/schema';
@@ -121,6 +125,22 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
           ),
         );
     },
+  },
+  [VERIFY_DEVICE_EVENT_JOB]: {
+    targetKey: 'deviceEventId',
+    async run(db, deviceEventId) {
+      const result = await verifyStoredDeviceEvent({
+        db,
+        deviceEventId,
+        checkedBy: 'worker',
+      });
+      // 'pending' = not final / not anchored yet: check again shortly.
+      return result.verdict === 'pending' ? 'not_final' : 'checked';
+    },
+    // Verification only reads the chain; nothing can be in flight.
+    hasInFlightTransaction: async () => false,
+    // A verification that keeps erroring leaves the event 'unchecked'.
+    markFailed: async () => undefined,
   },
   [RECORD_DEVICE_EVENT_JOB]: {
     targetKey: 'deviceEventId',

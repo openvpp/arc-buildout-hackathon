@@ -15,6 +15,7 @@
     "db:migrate": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/migrate.ts",
     "db:seed": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/seed-demo.ts",
     "db:import-vehicles": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/import-ovpp-vehicles.ts",
+    "verify:event": "node --env-file-if-exists=.env.local ./node_modules/tsx/dist/cli.mjs scripts/verify-stored-event.ts",
     "db:generate": "drizzle-kit generate",
     "build": "next build",
     "start": "next start",

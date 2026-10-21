@@ -530,6 +530,11 @@ export const deviceEvents = pgTable(
     recordJson: text('record_json'),
     recordSalt: text('record_salt'),
     recordHash: text('record_hash'),
+    // Latest independent verification (history in event_verifications).
+    verificationStatus: text('verification_status')
+      .notNull()
+      .default('unchecked'),
+    lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true }),
     status: text('status').notNull().default('queued'),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
     chainId: bigint('chain_id', { mode: 'bigint' }),
@@ -553,6 +558,10 @@ export const deviceEvents = pgTable(
     check(
       'device_events_status_check',
       sql`${table.status} in ('queued', 'pending', 'confirmed', 'failed')`,
+    ),
+    check(
+      'device_events_verification_status_check',
+      sql`${table.verificationStatus} in ('unchecked', 'pending', 'verified', 'verified_with_warnings', 'unverified')`,
     ),
     check(
       'device_events_record_commitment_check',
@@ -637,6 +646,40 @@ export const deviceAddresses = pgTable(
   ],
 );
 
+/**
+ * Every independent verification run of a device event: the verdict, each
+ * check with its detail, and the chain evidence it was based on. Append-only
+ * history; device_events.verification_status mirrors the latest row.
+ */
+export const eventVerifications = pgTable(
+  'event_verifications',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    deviceEventId: uuid('device_event_id')
+      .notNull()
+      .references(() => deviceEvents.id, { onDelete: 'cascade' }),
+    verdict: text('verdict').notNull(),
+    checks: jsonb('checks').$type<unknown[]>().notNull(),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull(),
+    // 'worker', 'public', or 'admin:<username>'.
+    checkedBy: text('checked_by').notNull(),
+    rpcHost: text('rpc_host'),
+    checkedAt: timestamp('checked_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'event_verifications_verdict_check',
+      sql`${table.verdict} in ('pending', 'verified', 'verified_with_warnings', 'unverified')`,
+    ),
+    index('event_verifications_event_checked_idx').on(
+      table.deviceEventId,
+      table.checkedAt,
+    ),
+  ],
+);
+
 export const schemaMeta = {
   tables: [
     'principals',
@@ -653,5 +696,6 @@ export const schemaMeta = {
     'daily_odometer',
     'device_events',
     'device_addresses',
+    'event_verifications',
   ],
 } as const;

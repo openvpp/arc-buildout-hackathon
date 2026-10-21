@@ -8,6 +8,8 @@ export async function enqueueOutboxEvent(
     aggregateId: string;
     eventType: string;
     payload: Record<string, unknown>;
+    /** Earliest time a worker may pick the job up (default: now). */
+    availableAt?: Date;
   },
 ): Promise<void> {
   await db
@@ -17,6 +19,9 @@ export async function enqueueOutboxEvent(
       aggregateId: input.aggregateId,
       eventType: input.eventType,
       payload: input.payload,
+      ...(input.availableAt !== undefined
+        ? { availableAt: input.availableAt }
+        : {}),
     })
     .onConflictDoNothing();
 }

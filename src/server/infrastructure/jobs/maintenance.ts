@@ -1,5 +1,6 @@
 import { closeStaleChargingSessions } from '@/server/application/telemetry/close-stale-charging-sessions';
 import { finalizeDueOdometerDays } from '@/server/application/telemetry/finalize-odometer-days';
+import { enqueueUncheckedVerifications } from '@/server/application/verification/verify-stored-event';
 import { getServerEnv } from '@/server/config/env';
 import type { Database } from '@/server/infrastructure/db/client';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
@@ -23,12 +24,15 @@ export async function runTelemetryMaintenance(
     now,
     electricityPricePerKwh: getServerEnv().ELECTRICITY_PRICE_USD_PER_KWH,
   });
-  if (days.finalized > 0 || sessions.closed > 0) {
+  // Confirmed events never independently checked (e.g. from before M3).
+  const verificationsQueued = await enqueueUncheckedVerifications(db);
+  if (days.finalized > 0 || sessions.closed > 0 || verificationsQueued > 0) {
     log.info('maintenance.ran', {
       daysFinalized: days.finalized,
       dayEventsQueued: days.queued,
       staleSessionsClosed: sessions.closed,
       sessionEventsQueued: sessions.queued,
+      verificationsQueued,
     });
   }
 }
