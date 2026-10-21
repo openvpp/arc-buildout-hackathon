@@ -28,15 +28,29 @@ export function arcNetworkLabel(chainId: string): string {
     : `arc-${network}-${chainId}`;
 }
 
-/** Public RPC used only when ARC_RPC_URL is unset — testnet only. */
+/**
+ * Arc's public shared RPC, used when ARC_RPC_URL is unset. It is
+ * rate-limited; heavy readers should set a provider URL. Null for unknown
+ * chains, which must configure ARC_RPC_URL.
+ */
 export function defaultArcRpcUrl(chainId: string): string | null {
-  return arcNetworkFor(chainId) === 'testnet'
-    ? 'https://rpc.testnet.arc.network'
-    : null;
+  switch (arcNetworkFor(chainId)) {
+    case 'mainnet':
+      return 'https://rpc.mainnet.arc.io';
+    case 'testnet':
+      return 'https://rpc.testnet.arc.io';
+    case 'unknown':
+      return null;
+  }
 }
 
 export function defaultArcExplorerUrl(chainId: string): string {
   return arcNetworkFor(chainId) === 'mainnet'
     ? 'https://explorer.arc.io'
-    : 'https://testnet.arcscan.app';
+    : 'https://explorer.testnet.arc.io';
+}
+
+/** Blockscout's Etherscan-compatible API, used only to discover events. */
+export function defaultArcExplorerApiUrl(chainId: string): string {
+  return `${defaultArcExplorerUrl(chainId)}/api`;
 }

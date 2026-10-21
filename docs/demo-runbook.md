@@ -43,7 +43,7 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
 3. `/devices` should show the new device with `mint_status: pending`.
 4. With the worker running, watch it pick up the `MINT_DEVICE_NFT` job;
    `/devices` should move to `mint_status: minted` with a transaction link
-   that resolves on `testnet.arcscan.app`.
+   that resolves on `explorer.testnet.arc.io`.
 5. Send (or wait for) an Enode webhook with a `location` payload for that
    vehicle; `/` (home) should show a pin at that location. Click it → popup →
    **View device** → lands on the same device detail page.

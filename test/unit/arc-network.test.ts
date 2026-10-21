@@ -17,15 +17,16 @@ describe('arc network naming', () => {
     expect(arcNetworkDisplayName('5042002')).toBe('Arc testnet');
   });
 
-  it('only falls back to a public RPC on testnet', () => {
-    expect(defaultArcRpcUrl('5042002')).toBe('https://rpc.testnet.arc.network');
-    expect(defaultArcRpcUrl('5042')).toBeNull();
+  it("falls back to Arc's public RPC per network, never across networks", () => {
+    expect(defaultArcRpcUrl('5042002')).toBe('https://rpc.testnet.arc.io');
+    expect(defaultArcRpcUrl('5042')).toBe('https://rpc.mainnet.arc.io');
+    expect(defaultArcRpcUrl('77')).toBeNull();
   });
 
   it('defaults the explorer to the matching network', () => {
     expect(defaultArcExplorerUrl('5042')).toBe('https://explorer.arc.io');
     expect(defaultArcExplorerUrl('5042002')).toBe(
-      'https://testnet.arcscan.app',
+      'https://explorer.testnet.arc.io',
     );
   });
 });
@@ -49,9 +50,15 @@ describe('assertArcNetworkConfig', () => {
     );
   });
 
-  it('requires ARC_RPC_URL off testnet instead of silently using testnet', () => {
+  it('uses the public RPC on known chains and requires one on unknown chains', () => {
     expect(() =>
       assertArcNetworkConfig({ ...mainnet, ARC_RPC_URL: undefined }, '5042'),
+    ).not.toThrow();
+    expect(() =>
+      assertArcNetworkConfig(
+        { ...mainnet, ARC_CHAIN_ID: '77', ARC_RPC_URL: undefined },
+        undefined,
+      ),
     ).toThrow(/ARC_RPC_URL is required/);
     expect(() =>
       assertArcNetworkConfig(

@@ -44,7 +44,13 @@ const serverEnvSchema = z.object({
   PENDING_DEVICE_OAUTH_TTL_HOURS: z.coerce.number().default(1),
 
   USE_ARC_NETWORK: boolFromString,
+  // Optional: Arc's public RPC for the chain is used when unset.
   ARC_RPC_URL: z.string().optional(),
+  // Optional separate RPC for independent verification reads, so checking
+  // an event does not rely on the provider that wrote it.
+  VERIFIER_RPC_URL: z.string().optional(),
+  // Optional explorer API (Blockscout) used only to discover past events.
+  ARC_EXPLORER_API_URL: z.string().optional(),
   ARC_AUTH_TOKEN: z.string().optional(),
   ARC_CHAIN_ID: z.string().default('5042002'),
   DEVICE_NFT_CONTRACT_ADDRESS: z
@@ -136,7 +142,7 @@ export function assertArcNetworkConfig(
     defaultArcRpcUrl(env.ARC_CHAIN_ID) === null
   ) {
     throw new Error(
-      `ARC_RPC_URL is required for ARC_CHAIN_ID ${env.ARC_CHAIN_ID} (only testnet has a default RPC).`,
+      `ARC_RPC_URL is required for ARC_CHAIN_ID ${env.ARC_CHAIN_ID} (no public Arc RPC is known for it).`,
     );
   }
   if (

@@ -12,7 +12,7 @@ export function arcNetworkLabel(env: ServerEnv): string {
   return arcNetworkLabelFor(env.ARC_CHAIN_ID);
 }
 
-/** ARC_RPC_URL, or the public testnet RPC; never a silent cross-network fallback. */
+/** ARC_RPC_URL, or Arc's public RPC for this chain; never another chain's RPC. */
 export function resolveArcRpcUrl(env: ServerEnv): string {
   if (env.ARC_RPC_URL !== undefined && env.ARC_RPC_URL.length > 0) {
     return env.ARC_RPC_URL;
@@ -67,4 +67,11 @@ export function isDeviceNftMintConfigured(env: ServerEnv): boolean {
     env.DEVICE_NFT_CONTRACT_ADDRESS.length > 0 &&
     resolveDeviceNftMinterPrivateKey(env) !== null
   );
+}
+
+/** RPC for verification reads: VERIFIER_RPC_URL, else the main Arc RPC. */
+export function resolveVerifierRpcUrl(env: ServerEnv): string {
+  return env.VERIFIER_RPC_URL !== undefined && env.VERIFIER_RPC_URL.length > 0
+    ? env.VERIFIER_RPC_URL
+    : resolveArcRpcUrl(env);
 }
