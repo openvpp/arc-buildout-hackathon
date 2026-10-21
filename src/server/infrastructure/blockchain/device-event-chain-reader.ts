@@ -64,6 +64,24 @@ export type DeviceEventChainReader = {
   findTransactionBlock(transactionHash: string): Promise<bigint | null>;
 };
 
+/**
+ * Arc's public RPCs load-balance over nodes with different history
+ * retention: an old-block read can fail with "requested data not available"
+ * on one node and succeed on the next. Retry those reads a few times.
+ */
+async function withHistoryRetry<T>(read: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await read();
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
 function utf8OrNull(hex: `0x${string}`): string | null {
   try {
     return hexToString(hex);
@@ -95,10 +113,9 @@ export function createDeviceEventChainReader(
 
     async readBlock(blockNumber) {
       try {
-        const block = await client.getBlock({
-          blockNumber,
-          includeTransactions: true,
-        });
+        const block = await withHistoryRetry(() =>
+          client.getBlock({ blockNumber, includeTransactions: true }),
+        );
         const senders = new Map(
           block.transactions.map((tx) => [tx.hash.toLowerCase(), tx.from]),
         );
@@ -118,14 +135,18 @@ export function createDeviceEventChainReader(
           `Log range exceeds ${MAX_LOG_RANGE_BLOCKS} blocks; page the request.`,
         );
       }
-      const logs = await client.getLogs({
-        address: input.contractAddress as `0x${string}`,
-        event: DEVICE_EVENT,
-        args:
-          input.tokenId === undefined ? undefined : { tokenId: input.tokenId },
-        fromBlock: input.fromBlock,
-        toBlock: input.toBlock,
-      });
+      const logs = await withHistoryRetry(() =>
+        client.getLogs({
+          address: input.contractAddress as `0x${string}`,
+          event: DEVICE_EVENT,
+          args:
+            input.tokenId === undefined
+              ? undefined
+              : { tokenId: input.tokenId },
+          fromBlock: input.fromBlock,
+          toBlock: input.toBlock,
+        }),
+      );
       return logs.flatMap((entry) => {
         const { tokenId, eventType, data, timestamp } = entry.args;
         if (

@@ -4,6 +4,8 @@ import { EmptyState } from '@/components/common/empty-state';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 
+import { VerdictBadge } from '@/features/verification/verification-report';
+
 import { formatTimestamp } from './format';
 import { TransactionLink } from './transaction-link';
 
@@ -33,6 +35,7 @@ export type TimelineEvent = {
   payloadJson: string;
   payloadHash: string;
   summary: TimelineEventSummary | null;
+  verificationStatus: string;
 };
 
 const STATUS_TONE = {
@@ -156,6 +159,16 @@ export function DeviceEventTimeline({
                       {statusLabel(event, deviceMinted)}
                     </StatusBadge>
                     <TransactionLink transactionHash={event.transactionHash} />
+                    {event.status === 'confirmed' &&
+                    event.transactionHash !== null ? (
+                      <Link
+                        href={`/verify/${event.transactionHash}`}
+                        className="no-underline"
+                        aria-label="Open the independent verification"
+                      >
+                        <VerdictBadge verdict={event.verificationStatus} />
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
                 <details className="text-xs text-white/60">

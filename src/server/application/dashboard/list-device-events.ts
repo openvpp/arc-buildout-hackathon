@@ -43,6 +43,8 @@ export type DeviceTimelineEvent = {
   payloadJson: string;
   payloadHash: string;
   summary: DeviceEventSummary | null;
+  /** Latest independent verification verdict ('unchecked' before any). */
+  verificationStatus: string;
 };
 
 export type DeviceEventPage = {
@@ -175,6 +177,7 @@ export async function listDeviceEventsForWallet(
       payloadJson: row.payloadJson,
       payloadHash: row.payloadHash,
       summary: summarizeDeviceEvent(row.sourceType, row.payloadJson),
+      verificationStatus: row.verificationStatus,
     })),
     nextCursor:
       rows.length > limit && last !== undefined
