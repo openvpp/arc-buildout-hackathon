@@ -43,6 +43,13 @@
       "when": 1791921941950,
       "tag": "0005_password_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792602244370,
+      "tag": "0006_event_record_commitment",
+      "breakpoints": true
     }
   ]
 }

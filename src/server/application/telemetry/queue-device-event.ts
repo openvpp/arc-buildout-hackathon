@@ -6,6 +6,13 @@ import {
   DEVICE_EVENT_TYPES,
   MIN_PUBLISHED_DAILY_KM,
 } from '@/server/application/telemetry/device-event-payloads';
+import {
+  buildChargingSessionRecord,
+  computeRecordHash,
+  newRecordSalt,
+  PAYLOAD_VERSION_WITH_RECORD_HASH,
+  snapshotDailyOdometerRecord,
+} from '@/server/application/telemetry/device-event-record';
 import { hashDeviceEventPayload } from '@/server/infrastructure/blockchain/device-event-recorder';
 import type { DatabaseExecutor } from '@/server/infrastructure/db/client';
 import { enqueueOutboxEvent } from '@/server/infrastructure/db/repositories/outbox-repository';
@@ -37,14 +44,29 @@ async function insertDeviceEvent(
     sourceType: 'charging_session' | 'daily_odometer';
     sourceId: string;
     occurredAt: Date;
-    payloadJson: string;
+    /** Builds the public payload given the record commitment. */
+    buildPayload: (recordHash: string) => string;
+    /** Canonical full off-chain record (never published). */
+    recordJson: string;
   },
 ): Promise<QueueDeviceEventResult> {
+  const recordSalt = newRecordSalt();
+  const recordHash = computeRecordHash(recordSalt, input.recordJson);
+  const payloadJson = input.buildPayload(recordHash);
   const [row] = await db
     .insert(deviceEvents)
     .values({
-      ...input,
-      payloadHash: hashDeviceEventPayload(input.payloadJson),
+      deviceId: input.deviceId,
+      eventType: input.eventType,
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      occurredAt: input.occurredAt,
+      payloadJson,
+      payloadHash: hashDeviceEventPayload(payloadJson),
+      payloadVersion: PAYLOAD_VERSION_WITH_RECORD_HASH,
+      recordJson: input.recordJson,
+      recordSalt,
+      recordHash,
       status: 'queued',
     })
     .onConflictDoNothing({
@@ -79,7 +101,8 @@ export async function queueChargingSessionEvent(
   if (session === undefined) {
     throw new Error(`Charging session not found: ${chargingSessionId}`);
   }
-  if (session.status !== 'completed' || session.endTime === null) {
+  const endTime = session.endTime;
+  if (session.status !== 'completed' || endTime === null) {
     return { status: 'skipped', reason: 'not_completed' };
   }
   const energyDeliveredKwh = Number(session.energyDeliveredKwh);
@@ -95,25 +118,31 @@ export async function queueChargingSessionEvent(
     eventType: DEVICE_EVENT_TYPES.CHARGING_COMPLETED,
     sourceType: 'charging_session',
     sourceId: session.id,
-    occurredAt: session.endTime,
-    payloadJson: buildChargingCompletedPayload({
-      deviceId: session.deviceId,
-      sessionId: session.sessionId,
-      startTime: session.startTime,
-      endTime: session.endTime,
-      energyDeliveredKwh,
-      endBatteryLevel:
-        session.endBatteryLevel === null
-          ? null
-          : Number(session.endBatteryLevel),
-      energyMethod: 'estimated_from_battery_change',
-      electricityPrice:
-        session.electricityPrice === null
-          ? null
-          : Number(session.electricityPrice),
-      totalCost: session.totalCost === null ? null : Number(session.totalCost),
-      currency: session.currency,
-    }),
+    occurredAt: endTime,
+    recordJson: buildChargingSessionRecord(session),
+    buildPayload: (recordHash) =>
+      buildChargingCompletedPayload(
+        {
+          deviceId: session.deviceId,
+          sessionId: session.sessionId,
+          startTime: session.startTime,
+          endTime,
+          energyDeliveredKwh,
+          endBatteryLevel:
+            session.endBatteryLevel === null
+              ? null
+              : Number(session.endBatteryLevel),
+          energyMethod: 'estimated_from_battery_change',
+          electricityPrice:
+            session.electricityPrice === null
+              ? null
+              : Number(session.electricityPrice),
+          totalCost:
+            session.totalCost === null ? null : Number(session.totalCost),
+          currency: session.currency,
+        },
+        { recordHash },
+      ),
   });
 }
 
@@ -145,12 +174,17 @@ export async function queueDailyOdometerEvent(
     sourceType: 'daily_odometer',
     sourceId: day.id,
     occurredAt: end,
-    payloadJson: buildDailyOdometerPayload({
-      deviceId: day.deviceId,
-      dateUtc: day.dateUtc,
-      startOdometerKm: Number(day.startOdometerKm),
-      endOdometerKm: Number(day.endOdometerKm),
-      startEstimated: day.startEstimated,
-    }),
+    recordJson: await snapshotDailyOdometerRecord(db, day),
+    buildPayload: (recordHash) =>
+      buildDailyOdometerPayload(
+        {
+          deviceId: day.deviceId,
+          dateUtc: day.dateUtc,
+          startOdometerKm: Number(day.startOdometerKm),
+          endOdometerKm: Number(day.endOdometerKm),
+          startEstimated: day.startEstimated,
+        },
+        { recordHash },
+      ),
   });
 }

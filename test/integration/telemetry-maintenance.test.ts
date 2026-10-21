@@ -204,13 +204,16 @@ describe('finalizeDueOdometerDays', () => {
     });
     const [event] = await eventsFor(device.id);
     expect(event?.payloadJson).toBe(
-      buildDailyOdometerPayload({
-        deviceId: device.id,
-        dateUtc: '2030-06-08',
-        startOdometerKm: 1000,
-        endOdometerKm: 1400,
-        startEstimated: false,
-      }),
+      buildDailyOdometerPayload(
+        {
+          deviceId: device.id,
+          dateUtc: '2030-06-08',
+          startOdometerKm: 1000,
+          endOdometerKm: 1400,
+          startEstimated: false,
+        },
+        { recordHash: event?.recordHash ?? '' },
+      ),
     );
   });
 });

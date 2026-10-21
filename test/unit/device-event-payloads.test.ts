@@ -9,6 +9,10 @@ import {
   hashDeviceEventPayload,
   receiptHasDeviceEvent,
 } from '@/server/infrastructure/blockchain/device-event-recorder';
+import {
+  computeRecordHash,
+  newRecordSalt,
+} from '@/server/application/telemetry/device-event-record';
 import { decideOutboxFollowUp } from '@/server/infrastructure/jobs/outbox-follow-up';
 
 const session = {
@@ -59,6 +63,26 @@ describe('buildChargingCompletedPayload', () => {
     expect(hashDeviceEventPayload(buildChargingCompletedPayload(session))).toBe(
       hashDeviceEventPayload(buildChargingCompletedPayload({ ...session })),
     );
+  });
+});
+
+describe('recordHash in payloads', () => {
+  it('appends recordHash last and leaves a v1 payload byte-identical', () => {
+    const v1 = buildChargingCompletedPayload(session);
+    const v2 = buildChargingCompletedPayload(session, {
+      recordHash: `0x${'ab'.repeat(32)}`,
+    });
+    expect(v2.startsWith(v1.slice(0, -1))).toBe(true);
+    expect(Object.keys(JSON.parse(v2)).at(-1)).toBe('recordHash');
+    expect(buildChargingCompletedPayload(session, {})).toBe(v1);
+  });
+
+  it('depends on the salt, so values cannot be guessed from the hash', () => {
+    const record = '{"kind":"charging_session"}';
+    expect(computeRecordHash(`0x${'01'.repeat(32)}`, record)).not.toBe(
+      computeRecordHash(`0x${'02'.repeat(32)}`, record),
+    );
+    expect(newRecordSalt()).toMatch(/^0x[0-9a-f]{64}$/);
   });
 });
 

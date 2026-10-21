@@ -523,6 +523,13 @@ export const deviceEvents = pgTable(
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
     payloadJson: text('payload_json').notNull(),
     payloadHash: text('payload_hash').notNull(),
+    // 1 = public fields only; 2 = also carries `recordHash`, the salted
+    // keccak256 of `record_json`, committing to the full off-chain record.
+    payloadVersion: smallint('payload_version').notNull().default(1),
+    // Off-chain only (contains location / raw readings). Never published.
+    recordJson: text('record_json'),
+    recordSalt: text('record_salt'),
+    recordHash: text('record_hash'),
     status: text('status').notNull().default('queued'),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
     chainId: bigint('chain_id', { mode: 'bigint' }),
@@ -546,6 +553,10 @@ export const deviceEvents = pgTable(
     check(
       'device_events_status_check',
       sql`${table.status} in ('queued', 'pending', 'confirmed', 'failed')`,
+    ),
+    check(
+      'device_events_record_commitment_check',
+      sql`(${table.payloadVersion} = 1 and ${table.recordHash} is null and ${table.recordSalt} is null and ${table.recordJson} is null) or (${table.payloadVersion} = 2 and ${table.recordHash} is not null and ${table.recordSalt} is not null and ${table.recordJson} is not null)`,
     ),
     check(
       'device_events_confirmed_has_tx_check',

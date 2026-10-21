@@ -60,26 +60,47 @@ export type CompletedChargingSession = {
   currency: string;
 };
 
+/**
+ * Optional commitment to the full off-chain record (payload version 2).
+ * Appended last, so a v1 payload's bytes are unchanged without it.
+ */
+type RecordCommitment = { recordHash?: string };
+
+function withRecordHash(
+  payload: Record<string, unknown>,
+  commitment: RecordCommitment,
+): Record<string, unknown> {
+  return commitment.recordHash === undefined
+    ? payload
+    : { ...payload, recordHash: commitment.recordHash };
+}
+
 /** CHARGING_COMPLETED (eventType 2). */
 export function buildChargingCompletedPayload(
   session: CompletedChargingSession,
+  commitment: RecordCommitment = {},
 ): string {
   const energyDelivered = round(session.energyDeliveredKwh, 4);
-  return serialize({
-    vehicleId: session.deviceId,
-    sessionId: session.sessionId,
-    energyDelivered,
-    startTime: session.startTime.toISOString(),
-    endTime: session.endTime.toISOString(),
-    batteryLevel: roundOrNull(session.endBatteryLevel, 2),
-    method: session.energyMethod,
-    // No points system in this app; kept for schema parity with the
-    // existing series, using the reference's rule (1 point per whole kWh).
-    pointsAwarded: Math.floor(energyDelivered),
-    electricityPrice: roundOrNull(session.electricityPrice, 4),
-    totalCost: roundOrNull(session.totalCost, 4),
-    currency: session.currency,
-  });
+  return serialize(
+    withRecordHash(
+      {
+        vehicleId: session.deviceId,
+        sessionId: session.sessionId,
+        energyDelivered,
+        startTime: session.startTime.toISOString(),
+        endTime: session.endTime.toISOString(),
+        batteryLevel: roundOrNull(session.endBatteryLevel, 2),
+        method: session.energyMethod,
+        // No points system in this app; kept for schema parity with the
+        // existing series, using the reference's rule (1 point per whole kWh).
+        pointsAwarded: Math.floor(energyDelivered),
+        electricityPrice: roundOrNull(session.electricityPrice, 4),
+        totalCost: roundOrNull(session.totalCost, 4),
+        currency: session.currency,
+      },
+      commitment,
+    ),
+  );
 }
 
 export type FinalizedOdometerDay = {
@@ -101,24 +122,32 @@ export function dailyTripIdFor(deviceId: string, dateUtc: string): string {
  * no speed/energy/efficiency/cost is published — those were derived from
  * assumptions, not measurements.
  */
-export function buildDailyOdometerPayload(day: FinalizedOdometerDay): string {
+export function buildDailyOdometerPayload(
+  day: FinalizedOdometerDay,
+  commitment: RecordCommitment = {},
+): string {
   const start = new Date(`${day.dateUtc}T00:00:00.000Z`);
   const end = new Date(start);
   end.setUTCDate(end.getUTCDate() + 1);
   const startMiles = round(kmToMiles(day.startOdometerKm), 3);
   const endMiles = round(kmToMiles(day.endOdometerKm), 3);
-  return serialize({
-    vehicleId: day.deviceId,
-    tripId: dailyTripIdFor(day.deviceId, day.dateUtc),
-    startTime: start.toISOString(),
-    endTime: end.toISOString(),
-    distanceTraveled: round(endMiles - startMiles, 3),
-    duration: 1440,
-    startOdometer: startMiles,
-    endOdometer: endMiles,
-    distanceUnit: 'mi',
-    // True when the day's start is its own first reading (no reading the
-    // day before), so overnight driving may be under-counted.
-    startEstimated: day.startEstimated,
-  });
+  return serialize(
+    withRecordHash(
+      {
+        vehicleId: day.deviceId,
+        tripId: dailyTripIdFor(day.deviceId, day.dateUtc),
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        distanceTraveled: round(endMiles - startMiles, 3),
+        duration: 1440,
+        startOdometer: startMiles,
+        endOdometer: endMiles,
+        distanceUnit: 'mi',
+        // True when the day's start is its own first reading (no reading the
+        // day before), so overnight driving may be under-counted.
+        startEstimated: day.startEstimated,
+      },
+      commitment,
+    ),
+  );
 }
