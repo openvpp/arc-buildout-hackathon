@@ -57,6 +57,13 @@
       "when": 1792602522314,
       "tag": "0007_event_verifications",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792603510622,
+      "tag": "0008_admin_accounts",
+      "breakpoints": true
     }
   ]
 }

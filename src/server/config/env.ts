@@ -80,6 +80,10 @@ const serverEnvSchema = z.object({
   // Falls back to API_KEY_HASH_SECRET when unset.
   LOCATION_OBFUSCATION_SECRET: z.string().default(''),
 
+  // Password of the single, fixed `Admin` account for /admin. Empty
+  // disables the admin console; staging/production refuse the demo default.
+  ADMIN_PASSWORD: z.string().default(''),
+
   WORKER_ID: z.string().default('local'),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().default(2000),
   WORKER_MAX_ATTEMPTS: z.coerce.number().default(5),
@@ -173,6 +177,30 @@ function assertProductionSafe(env: ServerEnv): void {
   if (env.API_KEY_HASH_SECRET.length < 32) {
     throw new Error(
       'API_KEY_HASH_SECRET must be at least 32 characters when APP_ENV is production or staging.',
+    );
+  }
+  assertAdminPasswordSafe(env.ADMIN_PASSWORD);
+}
+
+/** The demo admin password is public (it's in the repo); never in prod. */
+export const DEMO_ADMIN_PASSWORD = 'Admin123';
+export const ADMIN_PASSWORD_MIN_PRODUCTION_LENGTH = 12;
+
+/** Staging/production: an admin password is required and must be strong. */
+export function assertAdminPasswordSafe(password: string): void {
+  if (password.length === 0) {
+    throw new Error(
+      'ADMIN_PASSWORD must be set when APP_ENV is production or staging.',
+    );
+  }
+  if (password === DEMO_ADMIN_PASSWORD) {
+    throw new Error(
+      'ADMIN_PASSWORD must not be the demo default when APP_ENV is production or staging.',
+    );
+  }
+  if (password.length < ADMIN_PASSWORD_MIN_PRODUCTION_LENGTH) {
+    throw new Error(
+      `ADMIN_PASSWORD must be at least ${ADMIN_PASSWORD_MIN_PRODUCTION_LENGTH} characters when APP_ENV is production or staging.`,
     );
   }
 }

@@ -680,6 +680,29 @@ export const eventVerifications = pgTable(
   ],
 );
 
+/**
+ * The admin role, separate from dashboard principals. One fixed `Admin`
+ * account whose password hash is synced from ADMIN_PASSWORD. Admin actions
+ * (e.g. verifications) are attributed to `username`.
+ */
+export const adminAccounts = pgTable(
+  'admin_accounts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    username: text('username').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'admin_accounts_hash_check',
+      sql`char_length(${table.passwordHash}) between 20 and 500`,
+    ),
+    uniqueIndex('admin_accounts_username_uidx').on(table.username),
+  ],
+);
+
 export const schemaMeta = {
   tables: [
     'principals',
@@ -697,5 +720,6 @@ export const schemaMeta = {
     'device_events',
     'device_addresses',
     'event_verifications',
+    'admin_accounts',
   ],
 } as const;
