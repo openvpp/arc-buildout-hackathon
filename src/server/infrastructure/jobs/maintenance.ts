@@ -1,5 +1,6 @@
 import { closeStaleChargingSessions } from '@/server/application/telemetry/close-stale-charging-sessions';
 import { finalizeDueOdometerDays } from '@/server/application/telemetry/finalize-odometer-days';
+import { scanChainForward } from '@/server/application/verification/chain-event-index';
 import { enqueueUncheckedVerifications } from '@/server/application/verification/verify-stored-event';
 import { getServerEnv } from '@/server/config/env';
 import type { Database } from '@/server/infrastructure/db/client';
@@ -26,6 +27,15 @@ export async function runTelemetryMaintenance(
   });
   // Confirmed events never independently checked (e.g. from before M3).
   const verificationsQueued = await enqueueUncheckedVerifications(db);
+  // Index new on-chain DeviceEvents (any writer). An RPC failure here must
+  // not stop the sweeps above; it resumes from its cursor next minute.
+  try {
+    await scanChainForward(db);
+  } catch (error) {
+    log.warn('maintenance.chain_scan_failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+  }
   if (days.finalized > 0 || sessions.closed > 0 || verificationsQueued > 0) {
     log.info('maintenance.ran', {
       daysFinalized: days.finalized,

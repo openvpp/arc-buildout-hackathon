@@ -703,6 +703,67 @@ export const adminAccounts = pgTable(
   ],
 );
 
+/**
+ * Every DeviceEvent log observed on the DeviceNFT contract — written by this
+ * app or anyone else holding UPDATER_ROLE. Filled by the forward scanner,
+ * explorer backfill. Lets admin reconcile what is on
+ * chain against what this app recorded (matched / missing / orphan).
+ */
+export const chainDeviceEvents = pgTable(
+  'chain_device_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    chainId: bigint('chain_id', { mode: 'bigint' }).notNull(),
+    contractAddress: text('contract_address').notNull(),
+    tokenId: text('token_id').notNull(),
+    eventType: smallint('event_type').notNull(),
+    transactionHash: text('transaction_hash').notNull(),
+    blockNumber: bigint('block_number', { mode: 'bigint' }).notNull(),
+    logIndex: bigint('log_index', { mode: 'number' }).notNull(),
+    dataHash: text('data_hash').notNull(),
+    payloadUtf8: text('payload_utf8'),
+    blockTimestamp: timestamp('block_timestamp', { withTimezone: true }),
+    // 'scan' (forward RPC scanner) | 'explorer' (history backfill)
+    discoveredVia: text('discovered_via').notNull(),
+    discoveredAt: timestamp('discovered_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    check(
+      'chain_device_events_discovered_via_check',
+      sql`${table.discoveredVia} in ('scan', 'explorer')`,
+    ),
+    uniqueIndex('chain_device_events_log_uidx').on(
+      table.chainId,
+      table.transactionHash,
+      table.logIndex,
+    ),
+    index('chain_device_events_token_idx').on(
+      table.chainId,
+      table.contractAddress,
+      table.tokenId,
+      table.blockNumber,
+    ),
+  ],
+);
+
+/** How far the forward scanner has read each contract (inclusive). */
+export const chainScanCursors = pgTable(
+  'chain_scan_cursors',
+  {
+    chainId: bigint('chain_id', { mode: 'bigint' }).notNull(),
+    contractAddress: text('contract_address').notNull(),
+    lastScannedBlock: bigint('last_scanned_block', {
+      mode: 'bigint',
+    }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.chainId, table.contractAddress] })],
+);
+
 export const schemaMeta = {
   tables: [
     'principals',
@@ -721,5 +782,7 @@ export const schemaMeta = {
     'device_addresses',
     'event_verifications',
     'admin_accounts',
+    'chain_device_events',
+    'chain_scan_cursors',
   ],
 } as const;

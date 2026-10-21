@@ -64,6 +64,13 @@
       "when": 1792603510622,
       "tag": "0008_admin_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792604384467,
+      "tag": "0009_chain_event_index",
+      "breakpoints": true
     }
   ]
 }

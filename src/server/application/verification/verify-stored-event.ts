@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 
 import {
@@ -330,4 +330,38 @@ export async function enqueueUncheckedVerifications(
     await enqueueEventVerification(db, row.id, 0);
   }
   return rows.length;
+}
+
+/** Latest verification of each event, in one query (validated on read). */
+export async function latestVerificationsFor(
+  db: Database,
+  deviceEventIds: readonly string[],
+): Promise<Map<string, StoredVerification>> {
+  const result = new Map<string, StoredVerification>();
+  if (deviceEventIds.length === 0) {
+    return result;
+  }
+  const rows = await db
+    .selectDistinctOn([eventVerifications.deviceEventId])
+    .from(eventVerifications)
+    .where(inArray(eventVerifications.deviceEventId, [...deviceEventIds]))
+    .orderBy(
+      eventVerifications.deviceEventId,
+      desc(eventVerifications.checkedAt),
+    );
+  for (const row of rows) {
+    const verdict = storedVerdictSchema.safeParse(row.verdict);
+    const checks = storedChecksSchema.safeParse(row.checks);
+    if (verdict.success && checks.success) {
+      result.set(row.deviceEventId, {
+        deviceEventId: row.deviceEventId,
+        verdict: verdict.data,
+        checks: checks.data,
+        evidence: row.evidence,
+        checkedBy: row.checkedBy,
+        checkedAt: row.checkedAt,
+      });
+    }
+  }
+  return result;
 }
