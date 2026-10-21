@@ -47,6 +47,17 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
 5. Send (or wait for) an Enode webhook with a `location` payload for that
    vehicle; `/` (home) should show a pin at that location. Click it → popup →
    **View device** → lands on the same device detail page.
+6. **Verification.** After a charging session or a finished UTC day, the
+   event anchors and, ~30 s later, the worker verifies it: the owner's
+   timeline badge turns **Verified**. Open it → `/verify/<tx>` shows every
+   check. Repeat it without the app:
+   `pnpm verify:standalone -- --rpc https://rpc.testnet.arc.io --contract <address> --tx <hash> --block <n> --payload '<json>' --writer <signer>`.
+   Change one digit of the payload → **UNVERIFIED**.
+7. **Admin.** `http://localhost:3000/admin` → sign in as `Admin` /
+   `ADMIN_PASSWORD` (`Admin123` locally only). **Devices** → a device →
+   **Sync from chain**, then **Verify all records**; check the
+   reconciliation counts, daily gaps, and the private record behind
+   `recordHash`.
 
 ## Duplicate-link / retry checks
 

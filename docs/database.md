@@ -8,21 +8,25 @@ migration — add a new one.
 
 ## Tables
 
-| Table                        | Purpose                                                                           | Key constraints                                                                                                                    |
-| ---------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `principals`                 | Dashboard user identity (`type='dashboard_user'`, `displayName='circle:<email>'`) | unique `(type, display_name)`                                                                                                      |
-| `wallets`                    | Circle developer-controlled wallet (`wallet_type='circle'`)                       | unique `(chain_id, normalized_address)`, unique `circle_wallet_id`                                                                 |
-| `principal_wallets`          | Ownership: principal ↔ wallet                                                     | PK `(principal_id, wallet_id)`                                                                                                     |
-| `pending_device_connections` | Enode Link onboarding wizard state                                                | status enum incl. `pending_oauth → oauth_completed/pending_form → completed/failed/expired/cancelled`                              |
-| `enode_connections`          | One connected Enode user per wallet                                               | unique `external_user_id`                                                                                                          |
-| `devices`                    | The vehicle: identity, mint state, last known location                            | unique `(provider, external_device_id)` — this is what makes re-linking the same physical vehicle an upsert, never a duplicate row |
-| `webhook_deliveries`         | Enode webhook dedup                                                               | unique `(provider, delivery_id)`                                                                                                   |
-| `outbox_events`              | Crash-safe async job queue (currently: `MINT_DEVICE_NFT`)                         | `locked_at` lease; partial unique index allows one active mint job per device                                                      |
-| `charging_sessions`          | Off-chain charging sessions derived from Enode `chargeState` (incl. location)     | unique `session_id`; partial unique index: one `active` session per device; closed sessions must have `end_time`                   |
-| `odometer_readings`          | Raw off-chain odometer readings (km)                                              | unique `(device_id, observed_at)`                                                                                                  |
-| `daily_odometer`             | Per-device, per-UTC-day odometer aggregate (`open → finalized`)                   | unique `(device_id, date_utc)`; `end_odometer_km >= start_odometer_km`                                                             |
-| `device_addresses`           | Owner-entered device address (personal data), one per device                      | unique `device_id`; coordinate ranges; ISO country code; cascade-deleted with the device                                           |
-| `device_events`              | The on-chain time series: one row per `recordDeviceEvent` call                    | unique `(source_type, source_id, event_type)`; unique non-null `transaction_hash`; `confirmed` requires tx + token id              |
+| Table                        | Purpose                                                                           | Key constraints                                                                                                                                                 |
+| ---------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `principals`                 | Dashboard user identity (`type='dashboard_user'`, `displayName='circle:<email>'`) | unique `(type, display_name)`                                                                                                                                   |
+| `wallets`                    | Circle developer-controlled wallet (`wallet_type='circle'`)                       | unique `(chain_id, normalized_address)`, unique `circle_wallet_id`                                                                                              |
+| `principal_wallets`          | Ownership: principal ↔ wallet                                                     | PK `(principal_id, wallet_id)`                                                                                                                                  |
+| `pending_device_connections` | Enode Link onboarding wizard state                                                | status enum incl. `pending_oauth → oauth_completed/pending_form → completed/failed/expired/cancelled`                                                           |
+| `enode_connections`          | One connected Enode user per wallet                                               | unique `external_user_id`                                                                                                                                       |
+| `devices`                    | The vehicle: identity, mint state, last known location                            | unique `(provider, external_device_id)` — this is what makes re-linking the same physical vehicle an upsert, never a duplicate row                              |
+| `webhook_deliveries`         | Enode webhook dedup                                                               | unique `(provider, delivery_id)`                                                                                                                                |
+| `outbox_events`              | Crash-safe async job queue (currently: `MINT_DEVICE_NFT`)                         | `locked_at` lease; partial unique index allows one active mint job per device                                                                                   |
+| `charging_sessions`          | Off-chain charging sessions derived from Enode `chargeState` (incl. location)     | unique `session_id`; partial unique index: one `active` session per device; closed sessions must have `end_time`                                                |
+| `odometer_readings`          | Raw off-chain odometer readings (km)                                              | unique `(device_id, observed_at)`                                                                                                                               |
+| `daily_odometer`             | Per-device, per-UTC-day odometer aggregate (`open → finalized`)                   | unique `(device_id, date_utc)`; `end_odometer_km >= start_odometer_km`                                                                                          |
+| `device_addresses`           | Owner-entered device address (personal data), one per device                      | unique `device_id`; coordinate ranges; ISO country code; cascade-deleted with the device                                                                        |
+| `device_events`              | The on-chain time series: one row per `recordDeviceEvent` call                    | unique `(source_type, source_id, event_type)`; unique non-null `transaction_hash`; `confirmed` requires tx + token id; v2 requires a complete record commitment |
+| `event_verifications`        | Append-only history of independent verification runs (verdict, checks, evidence)  | verdict enum; indexed by `(device_event_id, checked_at)`; `device_events.verification_status` mirrors the latest                                                |
+| `chain_device_events`        | Every `DeviceEvent` seen on the contract (any writer) — discovery index           | unique `(chain_id, transaction_hash, log_index)`                                                                                                                |
+| `chain_scan_cursors`         | Forward scanner position per contract                                             | PK `(chain_id, contract_address)`                                                                                                                               |
+| `admin_accounts`             | The admin role: one fixed `Admin` account (scrypt hash synced from env)           | unique `username`                                                                                                                                               |
 
 ## `devices` mint lifecycle
 
@@ -114,3 +118,17 @@ Mapbox and stores the canonical address and coordinates.
 - `geocoded_permanent` records whether Mapbox was asked for a storable
   (`permanent=true`) result.
 - Nothing in this table is ever published on-chain.
+
+## Record commitment and verification (milestone 3)
+
+- `device_events.payload_version`: 1 = public fields only; 2 = the payload
+  also ends with `recordHash = keccak256(salt + ":" + record_json)`.
+  `record_json` (canonical full record incl. location / raw readings by id)
+  and `record_salt` are off-chain only. A CHECK keeps v2 rows complete.
+- A daily record lists the exact reading ids it was built from, so a late
+  raw reading never breaks it, while an edited or deleted reading does.
+- `event_verifications` stores every run; never update or delete history.
+  `device_events.verification_status` is `unchecked` until the first run.
+- `chain_device_events` is discovery only (scanner / explorer); a row there
+  is never proof. Reconciliation in the admin view: matched, anchored but
+  not yet indexed, missing on-chain, on-chain only (another writer).

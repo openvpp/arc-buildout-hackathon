@@ -54,6 +54,11 @@ current extra migration adds:
 `0003_onchain_time_series` adds `charging_sessions`, `odometer_readings`,
 `daily_odometer` and `device_events`. It only creates new tables.
 
+Milestone 3 adds `0006_event_record_commitment` (new nullable columns +
+`payload_version` default 1, so existing rows stay v1),
+`0007_event_verifications`, `0008_admin_accounts` and
+`0009_chain_event_index`. All are additive.
+
 If the unique index fails, two `pending` or `processing` mint jobs exist for
 the same device. Keep one, delete or complete the other, and run migrate
 again. Do not edit an already-applied SQL file.
@@ -75,6 +80,24 @@ sign users out.
 | ----------------------- | ----------------------------------------------------- |
 | `GET /api/health`       | Process is up. Does not touch Postgres.               |
 | `GET /api/health/ready` | Postgres answered `select 1`. Use this for readiness. |
+
+## Verification and admin (milestone 3)
+
+- `ADMIN_PASSWORD` must be set to a strong, non-default value on
+  staging/production (the server refuses to start otherwise). Username is
+  fixed: `Admin`. Changing the env value rotates the stored hash on the
+  next login.
+- `ARC_TRUSTED_WRITER_ADDRESSES`: writers whose anchors verify (defaults to
+  this app's signer). Add any other legitimate writer here.
+- `VERIFIER_RPC_URL` (optional): a different provider than the writer, for
+  independence. The public Arc RPCs work but are rate-limited and drop the
+  tx-hash index for old transactions (verification reads by block).
+- `ARC_EXPLORER_API_URL` (optional): used only by **Sync from chain**. The
+  mainnet explorer may block server requests (403); the forward scanner
+  still indexes new events from the RPC.
+- `VERIFICATION_MAX_ANCHOR_DELAY_HOURS` (default 24): later anchors are
+  flagged `verified_with_warnings`.
+- Re-check one record from a shell: `pnpm verify:event -- <deviceEventId>`.
 
 ## Device events (on-chain time series)
 

@@ -5,7 +5,7 @@ this repository. Read this file fully before modifying anything.
 
 ## Project purpose
 
-This repository (`accelerator-milestone2` branch) is a **hackathon
+This repository (`accelerator-milestone3` branch) is a **hackathon
 accelerator milestone**: a single, small, end-to-end flow on top of Arc.
 Development and automated tests run on Arc testnet; the target network
 (testnet or mainnet) is deployment configuration (`ARC_CHAIN_ID`,
@@ -40,17 +40,31 @@ Scope (and only this):
    DeviceNFT's `recordDeviceEvent`: `CHARGING_COMPLETED` (eventType 2) per
    completed session and `TRIP_COMPLETED` (eventType 12) per device per UTC
    day. The owner sees the timeline with each event's on-chain status.
+6. **Independent verification** (milestone 3, the M&V layer). Anyone — or
+   any agent — can confirm a record on-chain: the anchor exists, it was
+   written by an authorized writer, the content hash matches, and it was
+   anchored on time → `verified` / `verified_with_warnings` / `unverified`
+   / `pending`. New payloads (v2) carry `recordHash`, a salted commitment to
+   the full off-chain record. Public: `/verify`, `GET|POST /api/v1/verify*`
+   (deliberately unauthenticated, rate-limited), `docs/verification-spec.md`,
+   and `scripts/verify-standalone.ts` (no trust in this app).
+7. **Admin console** at `/admin` (same domain): a separate admin role with
+   one fixed `Admin` account, password from `ADMIN_PASSWORD`. The admin sees
+   every device and its data (including exact address), reconciles each
+   device's records with the chain, and can re-verify on demand.
 
 ### Explicitly out of scope
 
 No telemetry-nanopayment marketplace, no Circle Gateway x402 payments, no
 content-hash/provenance anchoring of files or content (the device event time
-series in scope item 5 is the only on-chain data besides mints), no points
-or rewards system, no trip detection beyond the daily odometer roll-up, no
-demo agent, no admin panel, no ledger,
+series in scope item 5 is the only on-chain data besides mints; milestone 3
+verification only reads the chain), no points or rewards system, no trip
+detection beyond the daily odometer roll-up, no demo agent, no admin
+features beyond the M&V console in scope item 7, no ledger,
 no Smartcar/Chargemap/OpenChargeMap, no Circle Paymaster, no external-wallet
 connect buttons (MetaMask/Coinbase/WalletConnect/etc.), no ScanContent
-screens, no operator/fleet-ops features. Do not reintroduce any of this
+screens, no operator/fleet-ops features. The agentic USDC nanopayment
+per-query layer (and its static payer wallet) is milestone 4 — not here. Do not reintroduce any of this
 without an explicit product decision — it was deliberately left out to keep
 this milestone small.
 
@@ -181,8 +195,8 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 
 - The browser sends address **text** only; the server geocodes it
   (`mapbox-geocoder.ts`). Never accept client-supplied coordinates.
-- Exact coordinates and address text never leave owner-only reads. The
-  public globe gets `device_addresses.public_*` or, for a device without an
+- Exact coordinates and address text never leave owner-only and admin-only
+  reads. The public globe gets `device_addresses.public_*` or, for a device without an
   address, its live location passed through `obfuscateCoordinates`. Never
   return `devices.last_latitude/longitude` from a public endpoint.
 - The offset is keyed (HMAC) and stable per device/address so repeated
@@ -191,6 +205,41 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - Never log addresses or geocoder URLs (they carry the token).
 - Storing Mapbox results requires `MAPBOX_PERMANENT_GEOCODING=true` (a
   billed Mapbox option); `geocoded_permanent` records which mode was used.
+
+### Independent verification (M3)
+
+- Verification only **reads** the chain. Never write verification results
+  on-chain, and never change or redeploy the DeviceNFT contract for it.
+- Read anchors **by block** (`eth_getLogs` at the stored block, sender from
+  the block's transactions), not by tx hash: Arc's public RPCs drop the
+  hash index for older transactions. Retry `requested data not available`
+  (the RPC load-balances over nodes with different history). Log ranges
+  must stay ≤ 2,000 blocks.
+- The contract admits any `UPDATER_ROLE` holder; only senders in
+  `ARC_TRUSTED_WRITER_ADDRESSES` (default: this app's signer) may verify.
+- Never mark an event verified from our own publish receipt; verdicts come
+  from `verifyDeviceEvent` (pure) and are stored in `event_verifications`.
+  A verdict is never recorded when the chain could not be read.
+- Payload v2 (`recordHash`) is frozen at queue time with a random salt;
+  the salt and `record_json` are off-chain only and never returned by any
+  public endpoint. Never rebuild or rehash a stored payload.
+- Discovery (scanner, explorer) is never proof. Everything shown as
+  verified is re-checked against an RPC.
+- Public verify routes are deliberately unauthenticated (like the globe)
+  and must stay rate-limited; a forced re-read has its own tighter limit.
+- Say plainly what verification proves: anchored, attributable, unchanged,
+  timely — not that the measurement is true.
+
+### Admin console
+
+- Separate role: `admin_accounts` (fixed `Admin`), its own session cookie
+  (`ev_admin_session`, path `/admin`, its own JWT subject). Never accept a
+  dashboard session for admin or vice versa.
+- `ADMIN_PASSWORD` is only ever stored as a hash. Staging/production refuse
+  a missing, demo-default (`Admin123`) or < 12-character password.
+- Middleware gates `/admin`; protected layouts and server actions re-check
+  the account. Admin actions are attributed (`admin:<username>`).
+- Never log attempted passwords.
 
 ### On-chain device events
 
@@ -228,6 +277,8 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - Use PostgreSQL for database integration tests.
 - Add concurrency tests for the claim-before-mint path and the device-event
   publish path.
+- Verification tests use a fake chain reader; never point automated tests
+  at mainnet. Cover tampering (payload, private record, writer, backdating).
 - Test webhook dedup and vendor-scoped disconnect explicitly.
 - Never use real funds/mainnet in automated tests.
 
