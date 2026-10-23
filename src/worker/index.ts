@@ -1,7 +1,9 @@
 import { getServerEnv } from '@/server/config/env';
 import { closeDb, getDb } from '@/server/infrastructure/db/client';
 import {
+  CHAIN_SCAN_INTERVAL_MS,
   MAINTENANCE_INTERVAL_MS,
+  runChainIndexing,
   runTelemetryMaintenance,
 } from '@/server/infrastructure/jobs/maintenance';
 import { runWorkerCycle } from '@/server/infrastructure/jobs/worker';
@@ -23,16 +25,24 @@ async function main(): Promise<void> {
   log.info('worker.started', { workerId: env.WORKER_ID });
 
   let lastMaintenanceAt = 0;
+  let lastChainScanAt = 0;
   while (!stopping) {
+    // Each interval counts from when the previous run finished, so a slow
+    // run cannot make the next one start immediately after.
     if (Date.now() - lastMaintenanceAt >= MAINTENANCE_INTERVAL_MS) {
-      lastMaintenanceAt = Date.now();
       try {
         await runTelemetryMaintenance(db);
       } catch (error) {
         log.error('worker.maintenance_failed', {
           errorMessage: error instanceof Error ? error.message : String(error),
         });
+      } finally {
+        lastMaintenanceAt = Date.now();
       }
+    }
+    if (Date.now() - lastChainScanAt >= CHAIN_SCAN_INTERVAL_MS) {
+      await runChainIndexing(db);
+      lastChainScanAt = Date.now();
     }
     try {
       const didWork = await runWorkerCycle(db);

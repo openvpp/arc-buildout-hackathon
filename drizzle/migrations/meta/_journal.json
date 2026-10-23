@@ -78,6 +78,13 @@
       "when": 1792755915958,
       "tag": "0010_device_nft_minted_at",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792756551885,
+      "tag": "0011_verification_retry_state",
+      "breakpoints": true
     }
   ]
 }

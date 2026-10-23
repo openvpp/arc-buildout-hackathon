@@ -4,7 +4,10 @@ import { and, desc, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { backfillTokenFromExplorer } from '@/server/application/verification/chain-event-index';
-import { verifyStoredDeviceEvent } from '@/server/application/verification/verify-stored-event';
+import {
+  requestVerificationNow,
+  verifyStoredDeviceEvent,
+} from '@/server/application/verification/verify-stored-event';
 import { getDb } from '@/server/infrastructure/db/client';
 import { deviceEvents, devices } from '@/server/infrastructure/db/schema';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
@@ -13,8 +16,8 @@ import { requireAdminSession } from './server';
 
 const log = createServerLogger({ component: 'admin-actions' });
 
-/** "Verify all" re-checks at most this many of a device's newest records. */
-const VERIFY_ALL_LIMIT = 25;
+/** "Verify all" queues at most this many of a device's newest records. */
+const VERIFY_ALL_LIMIT = 200;
 
 export type AdminActionState = {
   readonly message: string | null;
@@ -63,7 +66,10 @@ export async function verifyRecordAction(
   }
 }
 
-/** Re-verify a device's newest anchored records (bounded). */
+/**
+ * Queue a re-check of a device's newest anchored records (bounded). The
+ * worker reads the chain; the request only enqueues.
+ */
 export async function verifyDeviceAction(
   _previous: AdminActionState,
   formData: FormData,
@@ -74,43 +80,42 @@ export async function verifyDeviceAction(
   const deviceId = String(formData.get('deviceId') ?? '');
   if (!UUID.test(deviceId)) return failed('Unknown device.');
   const db = getDb();
-  const records = await db
-    .select({ id: deviceEvents.id })
-    .from(deviceEvents)
-    .where(
-      and(
-        eq(deviceEvents.deviceId, deviceId),
-        eq(deviceEvents.status, 'confirmed'),
-      ),
-    )
-    .orderBy(desc(deviceEvents.occurredAt))
-    .limit(VERIFY_ALL_LIMIT);
-  const tally = new Map<string, number>();
-  let errors = 0;
-  for (const record of records) {
-    try {
-      const result = await verifyStoredDeviceEvent({
-        db,
-        deviceEventId: record.id,
-        checkedBy: `admin:${admin.username}`,
-      });
-      tally.set(result.verdict, (tally.get(result.verdict) ?? 0) + 1);
-    } catch {
-      errors += 1;
-    }
+  try {
+    const records = await db
+      .select({ id: deviceEvents.id })
+      .from(deviceEvents)
+      .where(
+        and(
+          eq(deviceEvents.deviceId, deviceId),
+          eq(deviceEvents.status, 'confirmed'),
+        ),
+      )
+      .orderBy(desc(deviceEvents.occurredAt))
+      .limit(VERIFY_ALL_LIMIT);
+    const queued = await requestVerificationNow(
+      db,
+      records.map((record) => record.id),
+    );
+    log.info('admin.verify_all_queued', {
+      deviceId,
+      queued,
+      requestedBy: `admin:${admin.username}`,
+    });
+    revalidatePath(`/admin/devices/${deviceId}`);
+    return {
+      ok: true,
+      message:
+        queued === 0
+          ? 'No anchored records to verify.'
+          : `Queued ${queued} record(s) for re-verification. Results appear here as the worker checks them; reload in a minute.`,
+    };
+  } catch (error) {
+    log.warn('admin.verify_all_failed', {
+      deviceId,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    return failed('Could not queue the re-verification. Try again.');
   }
-  revalidatePath(`/admin/devices/${deviceId}`);
-  const parts = [...tally.entries()].map(
-    ([verdict, n]) => `${n} ${verdict.replaceAll('_', ' ')}`,
-  );
-  if (errors > 0) parts.push(`${errors} could not be read (RPC)`);
-  return {
-    ok: errors === 0,
-    message:
-      records.length === 0
-        ? 'No anchored records to verify.'
-        : `Checked ${records.length}: ${parts.join(', ')}.`,
-  };
 }
 
 /** Pull this device's token history from the explorer into the chain index. */

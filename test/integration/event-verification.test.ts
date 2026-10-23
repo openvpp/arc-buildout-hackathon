@@ -11,8 +11,11 @@ import {
 import { publishDeviceEvent } from '@/server/application/telemetry/publish-device-event';
 import { processEnodeWebhook } from '@/server/application/webhooks/enode-webhook';
 import {
-  enqueueUncheckedVerifications,
+  enqueueDueVerifications,
   latestVerification,
+  markVerificationJobFailed,
+  pruneFinishedVerificationJobs,
+  requestVerificationNow,
   verifyStoredDeviceEvent,
   VERIFY_DEVICE_EVENT_JOB,
 } from '@/server/application/verification/verify-stored-event';
@@ -23,7 +26,6 @@ import {
   chargingSessions,
   deviceEvents,
   devices,
-  eventVerifications,
   outboxEvents,
 } from '@/server/infrastructure/db/schema';
 
@@ -353,25 +355,141 @@ describe('verifyStoredDeviceEvent', () => {
     expect(jobs[0]?.availableAt.getTime()).toBeGreaterThan(Date.now());
   });
 
-  it('backfills verification for confirmed events never checked', async () => {
-    const { event } = await publishedEvent();
-    await db.delete(outboxEvents).where(eq(outboxEvents.aggregateId, event.id));
-    await db
-      .delete(eventVerifications)
-      .where(eq(eventVerifications.deviceEventId, event.id));
-
-    expect(await enqueueUncheckedVerifications(db)).toBeGreaterThanOrEqual(1);
-    // Idempotent while the job is still queued.
-    await enqueueUncheckedVerifications(db);
-    const jobs = await db
+  async function verifyJobsFor(deviceEventId: string) {
+    return db
       .select()
       .from(outboxEvents)
       .where(
         and(
           eq(outboxEvents.eventType, VERIFY_DEVICE_EVENT_JOB),
-          eq(outboxEvents.aggregateId, event.id),
+          eq(outboxEvents.aggregateId, deviceEventId),
         ),
       );
+  }
+
+  it('backfills verification for confirmed events never checked', async () => {
+    const { event } = await publishedEvent();
+    await db.delete(outboxEvents).where(eq(outboxEvents.aggregateId, event.id));
+
+    expect(await enqueueDueVerifications(db)).toBeGreaterThanOrEqual(1);
+    // Idempotent while the job is still queued.
+    await enqueueDueVerifications(db);
+    expect(await verifyJobsFor(event.id)).toHaveLength(1);
+  });
+
+  it('backs off a record whose verify job ran out of attempts', async () => {
+    const { event } = await publishedEvent();
+    await db
+      .update(outboxEvents)
+      .set({ status: 'failed', processedAt: new Date() })
+      .where(eq(outboxEvents.aggregateId, event.id));
+    const now = new Date();
+    await markVerificationJobFailed(db, event.id, now);
+
+    // Not re-queued every minute…
+    await enqueueDueVerifications(db, {
+      now: new Date(now.getTime() + 60_000),
+    });
+    expect(
+      (await verifyJobsFor(event.id)).filter((j) => j.status === 'pending'),
+    ).toHaveLength(0);
+
+    // …but again once the backoff (15 min after the first failure) is due.
+    await enqueueDueVerifications(db, {
+      now: new Date(now.getTime() + 16 * 60_000),
+    });
+    expect(
+      (await verifyJobsFor(event.id)).filter((j) => j.status === 'pending'),
+    ).toHaveLength(1);
+
+    // The backoff doubles with each exhausted job.
+    await markVerificationJobFailed(db, event.id, now);
+    const [row] = await db
+      .select()
+      .from(deviceEvents)
+      .where(eq(deviceEvents.id, event.id));
+    expect(row?.verificationAttempts).toBe(2);
+    expect(row?.verificationNextCheckAt?.getTime()).toBe(
+      now.getTime() + 30 * 60_000,
+    );
+  });
+
+  it('re-queues a pending verdict whose job was lost', async () => {
+    const { event, transactionHash } = await publishedEvent();
+    // Not final yet → pending verdict.
+    await verifyStoredDeviceEvent({
+      db,
+      deviceEventId: event.id,
+      checkedBy: 'worker',
+      readerOverride: {
+        ...fakeChain({ transactionHash, payloadJson: event.payloadJson }),
+        latestBlockNumber: async () => 1000n,
+      },
+      policyOverride: policy,
+    });
+    await db.delete(outboxEvents).where(eq(outboxEvents.aggregateId, event.id));
+
+    await enqueueDueVerifications(db);
+    expect(await verifyJobsFor(event.id)).toHaveLength(0);
+    await enqueueDueVerifications(db, {
+      now: new Date(Date.now() + 11 * 60_000),
+    });
+    expect(await verifyJobsFor(event.id)).toHaveLength(1);
+  });
+
+  it('a recorded verdict clears the backoff', async () => {
+    const { event, transactionHash } = await publishedEvent();
+    await markVerificationJobFailed(db, event.id);
+    await verifyStoredDeviceEvent({
+      db,
+      deviceEventId: event.id,
+      checkedBy: 'worker',
+      readerOverride: fakeChain({
+        transactionHash,
+        payloadJson: event.payloadJson,
+      }),
+      policyOverride: policy,
+    });
+    const [row] = await db
+      .select()
+      .from(deviceEvents)
+      .where(eq(deviceEvents.id, event.id));
+    expect(row).toMatchObject({
+      verificationAttempts: 0,
+      verificationNextCheckAt: null,
+    });
+  });
+
+  it('"verify all" moves queued checks to now and resets the backoff', async () => {
+    const { event } = await publishedEvent();
+    await markVerificationJobFailed(db, event.id);
+    // The confirmation's own job is still pending, in the future.
+    expect(await requestVerificationNow(db, [event.id])).toBe(1);
+    const jobs = await verifyJobsFor(event.id);
     expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.availableAt.getTime()).toBeLessThanOrEqual(Date.now());
+    const [row] = await db
+      .select()
+      .from(deviceEvents)
+      .where(eq(deviceEvents.id, event.id));
+    expect(row?.verificationNextCheckAt).toBeNull();
+  });
+
+  it('prunes finished verify jobs past retention only', async () => {
+    const { event } = await publishedEvent();
+    const old = new Date(Date.now() - 8 * 24 * 3600 * 1000);
+    await db
+      .update(outboxEvents)
+      .set({ status: 'completed', processedAt: old })
+      .where(eq(outboxEvents.aggregateId, event.id));
+    const fresh = await publishedEvent();
+    await db
+      .update(outboxEvents)
+      .set({ status: 'failed', processedAt: new Date() })
+      .where(eq(outboxEvents.aggregateId, fresh.event.id));
+
+    expect(await pruneFinishedVerificationJobs(db)).toBeGreaterThanOrEqual(1);
+    expect(await verifyJobsFor(event.id)).toHaveLength(0);
+    expect(await verifyJobsFor(fresh.event.id)).toHaveLength(1);
   });
 });

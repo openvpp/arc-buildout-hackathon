@@ -129,6 +129,8 @@ Mapbox and stores the canonical address and coordinates.
   raw reading never breaks it, while an edited or deleted reading does.
 - `event_verifications` stores every run; never update or delete history.
   `device_events.verification_status` is `unchecked` until the first run.
+  `verification_attempts` / `verification_next_check_at` hold the verify
+  job's backoff after failed runs (reset by any recorded verdict).
 - `chain_device_events` is discovery only (scanner / explorer); a row there
   is never proof. Reconciliation in the admin view: matched, anchored but
   not yet indexed, missing on-chain, on-chain only (another writer).

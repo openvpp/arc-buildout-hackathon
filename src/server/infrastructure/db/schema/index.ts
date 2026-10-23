@@ -538,6 +538,14 @@ export const deviceEvents = pgTable(
       .notNull()
       .default('unchecked'),
     lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true }),
+    // Verify-job retry state: consecutive failed check jobs and when the
+    // sweep may queue the next one (null = due now). Reset on any verdict.
+    verificationAttempts: smallint('verification_attempts')
+      .notNull()
+      .default(0),
+    verificationNextCheckAt: timestamp('verification_next_check_at', {
+      withTimezone: true,
+    }),
     status: text('status').notNull().default('queued'),
     claimedAt: timestamp('claimed_at', { withTimezone: true }),
     chainId: bigint('chain_id', { mode: 'bigint' }),
@@ -563,6 +571,10 @@ export const deviceEvents = pgTable(
       sql`${table.status} in ('queued', 'pending', 'confirmed', 'failed')`,
     ),
     check(
+      'device_events_verification_attempts_check',
+      sql`${table.verificationAttempts} >= 0`,
+    ),
+    check(
       'device_events_verification_status_check',
       sql`${table.verificationStatus} in ('unchecked', 'pending', 'verified', 'verified_with_warnings', 'unverified')`,
     ),
@@ -583,6 +595,12 @@ export const deviceEvents = pgTable(
     uniqueIndex('device_events_transaction_hash_uidx')
       .on(table.transactionHash)
       .where(sql`${table.transactionHash} is not null`),
+    // Verification sweep: confirmed records still awaiting a verdict.
+    index('device_events_verification_due_idx')
+      .on(table.verificationNextCheckAt, table.confirmedAt)
+      .where(
+        sql`${table.status} = 'confirmed' and ${table.verificationStatus} in ('unchecked', 'pending')`,
+      ),
     // Per-device timeline, newest first, keyset-paginated.
     index('device_events_device_occurred_idx').on(
       table.deviceId,

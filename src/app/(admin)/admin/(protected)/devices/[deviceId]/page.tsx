@@ -127,7 +127,7 @@ export default async function AdminDeviceDetailPage({
             action={verifyDeviceAction}
             fields={{ deviceId: device.id }}
             label="Verify all records"
-            pendingLabel="Verifying…"
+            pendingLabel="Queuing…"
             variant="primary"
           />
           <AdminActionButton

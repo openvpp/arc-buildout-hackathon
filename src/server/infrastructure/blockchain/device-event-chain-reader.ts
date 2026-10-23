@@ -19,6 +19,8 @@ import { getServerEnv } from '@/server/config/env';
 export const MAX_LOG_RANGE_BLOCKS = 2_000n;
 
 const READ_TIMEOUT_MS = 20_000;
+/** viem's own HTTP retries; history misses are retried below instead. */
+const TRANSPORT_RETRY_COUNT = 1;
 
 /** Same signature as DEVICE_NFT_ABI's DeviceEvent (verified on-chain). */
 const DEVICE_EVENT = parseAbiItem(
@@ -71,10 +73,23 @@ export type DeviceEventChainReader = {
   findTransactionBlock(transactionHash: string): Promise<bigint | null>;
 };
 
+const HISTORY_MISS =
+  /requested data not available|header not found|missing trie node/i;
+
+/** A miss on one node of a load-balanced RPC; another node may serve it. */
+function isHistoryMiss(error: unknown): boolean {
+  return (
+    error instanceof BlockNotFoundError ||
+    (error instanceof Error && HISTORY_MISS.test(error.message))
+  );
+}
+
 /**
  * Arc's public RPCs load-balance over nodes with different history
  * retention: an old-block read can fail with "requested data not available"
- * on one node and succeed on the next. Retry those reads a few times.
+ * on one node and succeed on the next. Retry only those misses; timeouts and
+ * rate limits fail fast (the job retries with backoff), so retries never
+ * stack on top of the transport's own.
  */
 async function withHistoryRetry<T>(read: () => Promise<T>): Promise<T> {
   let lastError: unknown;
@@ -82,6 +97,9 @@ async function withHistoryRetry<T>(read: () => Promise<T>): Promise<T> {
     try {
       return await read();
     } catch (error) {
+      if (!isHistoryMiss(error)) {
+        throw error;
+      }
       lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
     }
@@ -108,8 +126,14 @@ export function createDeviceEventChainReader(
     clientOverride ??
     createPublicClient({
       transport: separateVerifier
-        ? http(url, { timeout: READ_TIMEOUT_MS })
-        : createArcHttpTransport(env),
+        ? http(url, {
+            timeout: READ_TIMEOUT_MS,
+            retryCount: TRANSPORT_RETRY_COUNT,
+          })
+        : createArcHttpTransport(env, {
+            timeout: READ_TIMEOUT_MS,
+            retryCount: TRANSPORT_RETRY_COUNT,
+          }),
     });
 
   return {

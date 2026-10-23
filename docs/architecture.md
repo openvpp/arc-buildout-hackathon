@@ -78,17 +78,20 @@ external_device_id)`) and enqueues a `MINT_DEVICE_NFT` outbox event.
     job independently re-reads the anchor **by block** from
     `VERIFIER_RPC_URL` (or the main RPC), checks the sender is a trusted
     writer, finality, token/type, content hash, the v2 record commitment
-    and timeliness (`verifyDeviceEvent`, pure), and stores the verdict. The
-    minute sweep also backfills unchecked events and scans new
-    `DeviceEvent` logs into `chain_device_events`.
+    and timeliness (`verifyDeviceEvent`, pure), and stores the verdict. A
+    read failure records nothing; after the job's attempts run out the
+    record backs off (15 min doubling to 24 h) and the minute sweep queues
+    it again when due. Verify jobs run after mint/publish jobs. A separate
+    minute scan (15 s budget, re-reading 200 blocks behind its cursor)
+    indexes new `DeviceEvent` logs into `chain_device_events`.
 12. **Public verification:** `/verify/:tx` and `GET|POST /api/v1/verify*`
     (unauthenticated, rate-limited) show or run the same checks;
     `GET /api/v1/verify/spec` and `scripts/verify-standalone.ts` let anyone
     repeat them with only a public RPC.
 13. **Admin (`/admin`):** separate role and cookie, gated by middleware.
     Devices across all wallets; per device, our records reconciled with the
-    chain index, daily-series gaps, and Verify now / Verify all / Sync from
-    chain (explorer backfill).
+    chain index, daily-series gaps, and Verify now (inline, one record) /
+    Verify all (queues worker jobs) / Sync from chain (explorer backfill).
 
 ## Why this data model is smaller than a typical "EV platform"
 

@@ -38,10 +38,14 @@ export function createArcMintChain(env: ServerEnv): Chain {
   };
 }
 
-export function createArcHttpTransport(env: ServerEnv) {
+export function createArcHttpTransport(
+  env: ServerEnv,
+  options: { timeout?: number; retryCount?: number } = {},
+) {
   const url = resolveArcRpcUrl(env);
   const authToken = env.ARC_AUTH_TOKEN;
   return http(url, {
+    ...options,
     fetchOptions:
       authToken !== undefined && authToken.length > 0
         ? { headers: { Authorization: `Bearer ${authToken}` } }

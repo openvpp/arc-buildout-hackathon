@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, lt, lte, or } from 'drizzle-orm';
+import { and, asc, eq, isNull, lt, lte, or, sql } from 'drizzle-orm';
 
 import { mintDeviceNftIfNeeded } from '@/server/application/onboarding/mint-device-nft';
 import {
@@ -8,6 +8,7 @@ import {
 } from '@/server/application/telemetry/publish-device-event';
 import { RECORD_DEVICE_EVENT_JOB } from '@/server/application/telemetry/queue-device-event';
 import {
+  markVerificationJobFailed,
   verifyStoredDeviceEvent,
   VERIFY_DEVICE_EVENT_JOB,
 } from '@/server/application/verification/verify-stored-event';
@@ -52,7 +53,12 @@ async function claimNextEvent(db: Database): Promise<OutboxRow | null> {
           lte(outboxEvents.availableAt, new Date()),
         ),
       )
-      .orderBy(asc(outboxEvents.availableAt))
+      // On-chain writes (mints, device events) go before read-only
+      // verification, so a backlog of checks never delays publishing.
+      .orderBy(
+        sql`(${outboxEvents.eventType} = ${VERIFY_DEVICE_EVENT_JOB})`,
+        asc(outboxEvents.availableAt),
+      )
       .limit(1)
       .for('update', { skipLocked: true });
     if (row === undefined) {
@@ -139,8 +145,9 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
     },
     // Verification only reads the chain; nothing can be in flight.
     hasInFlightTransaction: async () => false,
-    // A verification that keeps erroring leaves the event 'unchecked'.
-    markFailed: async () => undefined,
+    // Keeps its last verdict; the sweep retries later, with backoff.
+    markFailed: (db, deviceEventId) =>
+      markVerificationJobFailed(db, deviceEventId),
   },
   [RECORD_DEVICE_EVENT_JOB]: {
     targetKey: 'deviceEventId',

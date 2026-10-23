@@ -1,0 +1,4 @@
+ALTER TABLE "device_events" ADD COLUMN "verification_attempts" smallint DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "device_events" ADD COLUMN "verification_next_check_at" timestamp with time zone;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "device_events_verification_due_idx" ON "device_events" USING btree ("verification_next_check_at","confirmed_at") WHERE "device_events"."status" = 'confirmed' and "device_events"."verification_status" in ('unchecked', 'pending');--> statement-breakpoint
+ALTER TABLE "device_events" ADD CONSTRAINT "device_events_verification_attempts_check" CHECK ("device_events"."verification_attempts" >= 0);

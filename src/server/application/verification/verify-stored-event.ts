@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { ApplicationError } from '@/server/application/application-error';
@@ -29,6 +29,7 @@ import {
   deviceEvents,
   devices,
   eventVerifications,
+  outboxEvents,
 } from '@/server/infrastructure/db/schema';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
@@ -38,6 +39,14 @@ export const VERIFY_DEVICE_EVENT_JOB = 'VERIFY_DEVICE_EVENT';
 
 /** Give an anchor a little depth before its first independent check. */
 const FIRST_VERIFICATION_DELAY_MS = 30_000;
+
+/** A stored 'pending' verdict is re-queued by the sweep after this. */
+const PENDING_RECHECK_MS = 10 * 60 * 1000;
+/** Backoff after a verify job exhausts its attempts: 15 min, 30 min, … 24 h. */
+const FAILED_JOB_BACKOFF_BASE_MS = 15 * 60 * 1000;
+const FAILED_JOB_BACKOFF_MAX_MS = 24 * 60 * 60 * 1000;
+/** Finished verify jobs are kept this long, then pruned. */
+const FINISHED_JOB_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type StoredVerification = {
   deviceEventId: string;
@@ -288,7 +297,17 @@ export async function verifyStoredDeviceEvent(input: {
     });
     await tx
       .update(deviceEvents)
-      .set({ verificationStatus: verdict, lastVerifiedAt: checkedAt })
+      .set({
+        verificationStatus: verdict,
+        lastVerifiedAt: checkedAt,
+        verificationAttempts: 0,
+        // A 'pending' verdict is normally finished by its own job; this
+        // only lets the sweep pick it up if that job was lost.
+        verificationNextCheckAt:
+          verdict === 'pending'
+            ? new Date(checkedAt.getTime() + PENDING_RECHECK_MS)
+            : null,
+      })
       .where(eq(deviceEvents.id, event.id));
   });
   log.info('device_event.verified', {
@@ -373,27 +392,129 @@ function sameDeploymentFilter() {
   );
 }
 
-/** Confirmed events never independently checked yet (bounded batch). */
-export async function enqueueUncheckedVerifications(
+/**
+ * Queues a verify job for confirmed records still awaiting a verdict
+ * ('unchecked', or a 'pending' whose job was lost) whose backoff is due.
+ * One statement; records that already have an active job are skipped by
+ * the outbox's partial unique index.
+ */
+export async function enqueueDueVerifications(
   db: Database,
-  limit = 100,
+  input: { now?: Date; limit?: number } = {},
 ): Promise<number> {
-  const rows = await db
-    .select({ id: deviceEvents.id })
-    .from(deviceEvents)
-    .where(
-      and(
-        eq(deviceEvents.status, 'confirmed'),
-        eq(deviceEvents.verificationStatus, 'unchecked'),
-        sameDeploymentFilter(),
+  const now = input.now ?? new Date();
+  const inserted = await db.execute<{ id: string }>(sql`
+    insert into ${outboxEvents}
+      (aggregate_type, aggregate_id, event_type, payload, available_at)
+    select 'device_event', ${deviceEvents.id}::text, ${VERIFY_DEVICE_EVENT_JOB},
+      jsonb_build_object('deviceEventId', ${deviceEvents.id}::text),
+      ${now.toISOString()}::timestamptz
+    from ${deviceEvents}
+    where ${and(
+      eq(deviceEvents.status, 'confirmed'),
+      inArray(deviceEvents.verificationStatus, ['unchecked', 'pending']),
+      or(
+        isNull(deviceEvents.verificationNextCheckAt),
+        lte(deviceEvents.verificationNextCheckAt, now),
       ),
-    )
-    .orderBy(asc(deviceEvents.confirmedAt))
-    .limit(limit);
-  for (const row of rows) {
-    await enqueueEventVerification(db, row.id, 0);
+      sameDeploymentFilter(),
+    )}
+    order by ${deviceEvents.verificationNextCheckAt} asc nulls first,
+      ${deviceEvents.confirmedAt} asc
+    limit ${input.limit ?? 100}
+    on conflict do nothing
+    returning id
+  `);
+  return Array.from(inserted).length;
+}
+
+/**
+ * A verify job ran out of attempts (RPC down, history unavailable…): back
+ * off this record so the sweep does not re-queue it every minute.
+ */
+export async function markVerificationJobFailed(
+  db: Database,
+  deviceEventId: string,
+  now: Date = new Date(),
+): Promise<void> {
+  const [row] = await db
+    .select({ attempts: deviceEvents.verificationAttempts })
+    .from(deviceEvents)
+    .where(eq(deviceEvents.id, deviceEventId))
+    .limit(1);
+  if (row === undefined) {
+    return;
   }
-  return rows.length;
+  const attempts = row.attempts + 1;
+  const backoffMs = Math.min(
+    FAILED_JOB_BACKOFF_BASE_MS * 2 ** Math.min(row.attempts, 10),
+    FAILED_JOB_BACKOFF_MAX_MS,
+  );
+  await db
+    .update(deviceEvents)
+    .set({
+      verificationAttempts: Math.min(attempts, 1000),
+      verificationNextCheckAt: new Date(now.getTime() + backoffMs),
+    })
+    .where(eq(deviceEvents.id, deviceEventId));
+}
+
+/**
+ * Re-check these records soon (admin "Verify all"): runs in the worker,
+ * never inside the request. An already-queued job is moved to now.
+ */
+export async function requestVerificationNow(
+  db: Database,
+  deviceEventIds: readonly string[],
+): Promise<number> {
+  if (deviceEventIds.length === 0) {
+    return 0;
+  }
+  const now = new Date();
+  const ids = [...deviceEventIds];
+  await db.transaction(async (tx) => {
+    await tx
+      .update(deviceEvents)
+      .set({ verificationAttempts: 0, verificationNextCheckAt: null })
+      .where(inArray(deviceEvents.id, ids));
+    await tx
+      .update(outboxEvents)
+      .set({ availableAt: now })
+      .where(
+        and(
+          eq(outboxEvents.eventType, VERIFY_DEVICE_EVENT_JOB),
+          eq(outboxEvents.status, 'pending'),
+          inArray(outboxEvents.aggregateId, ids),
+        ),
+      );
+    for (const id of ids) {
+      await enqueueEventVerification(tx, id, 0);
+    }
+  });
+  return ids.length;
+}
+
+/** Deletes finished verify jobs past retention (bounded per call). */
+export async function pruneFinishedVerificationJobs(
+  db: Database,
+  now: Date = new Date(),
+  limit = 1000,
+): Promise<number> {
+  const before = new Date(now.getTime() - FINISHED_JOB_RETENTION_MS);
+  const deleted = await db.execute<{ id: string }>(sql`
+    delete from ${outboxEvents}
+    where ${outboxEvents.id} in (
+      select ${outboxEvents.id} from ${outboxEvents}
+      where ${and(
+        eq(outboxEvents.eventType, VERIFY_DEVICE_EVENT_JOB),
+        inArray(outboxEvents.status, ['completed', 'failed']),
+        lt(outboxEvents.processedAt, before),
+      )}
+      limit ${limit}
+    )
+    returning id
+  `);
+  return Array.from(deleted).length;
 }
 
 /** Latest verification of each event, in one query (validated on read). */

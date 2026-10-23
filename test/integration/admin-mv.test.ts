@@ -9,6 +9,7 @@ import { listAdminRecords } from '@/server/application/admin/admin-records';
 import {
   recordChainEvents,
   scanChainForward,
+  SCAN_OVERLAP_BLOCKS,
 } from '@/server/application/verification/chain-event-index';
 import { getServerEnv } from '@/server/config/env';
 import type {
@@ -22,7 +23,9 @@ import {
   deviceEvents,
   devices,
   odometerReadings,
+  outboxEvents,
 } from '@/server/infrastructure/db/schema';
+import { runWorkerCycle } from '@/server/infrastructure/jobs/worker';
 
 import { createTestDb, insertTestWallet } from './test-helpers';
 
@@ -165,6 +168,41 @@ describe('chain event index', () => {
     const second = await scanChainForward(db, reader);
     expect(second.status).toBe('up_to_date');
   });
+
+  it('re-reads an overlap behind the cursor and never moves it back', async () => {
+    const device = await seedDevice('907');
+    await seedRecord(device.id, { status: 'confirmed' });
+    await db.delete(chainScanCursors);
+    const ranges: [bigint, bigint][] = [];
+    let head = 6_003n;
+    const reader: DeviceEventChainReader = {
+      chainId: CHAIN_ID,
+      rpcHost: 'rpc.test',
+      latestBlockNumber: async () => head,
+      readBlock: async () => null,
+      readDeviceEventLogs: async ({ fromBlock, toBlock }) => {
+        ranges.push([fromBlock, toBlock]);
+        return [];
+      },
+      findTransactionBlock: async () => null,
+    };
+    await scanChainForward(db, reader);
+    const [after] = await db.select().from(chainScanCursors);
+    const cursor = after?.lastScannedBlock ?? 0n;
+
+    head += 50n;
+    ranges.length = 0;
+    await scanChainForward(db, reader);
+    expect(ranges[0]?.[0]).toBe(cursor + 1n - SCAN_OVERLAP_BLOCKS);
+    const [moved] = await db.select().from(chainScanCursors);
+    expect(moved?.lastScannedBlock).toBe(cursor + 50n);
+
+    // A scan past its deadline starts no RPC requests.
+    head += 50n;
+    ranges.length = 0;
+    await scanChainForward(db, reader, Date.now() - 1);
+    expect(ranges).toHaveLength(0);
+  });
 });
 
 describe('getAdminDeviceDetail reconciliation', () => {
@@ -274,5 +312,34 @@ describe('admin lists', () => {
       .from(chainDeviceEvents)
       .where(eq(chainDeviceEvents.tokenId, '905'));
     expect(index).toHaveLength(0);
+  });
+});
+
+describe('worker job order', () => {
+  it('runs on-chain writes before older verification jobs', async () => {
+    await db.delete(outboxEvents);
+    const earlier = new Date(Date.now() - 60_000);
+    await db.insert(outboxEvents).values([
+      {
+        aggregateType: 'device_event',
+        aggregateId: randomUUID(),
+        eventType: 'VERIFY_DEVICE_EVENT',
+        payload: { deviceEventId: randomUUID() },
+        availableAt: earlier,
+      },
+      {
+        aggregateType: 'device_event',
+        aggregateId: randomUUID(),
+        eventType: 'RECORD_DEVICE_EVENT',
+        // Unknown event: the attempt errors and is rescheduled.
+        payload: { deviceEventId: randomUUID() },
+      },
+    ]);
+    await runWorkerCycle(db);
+    const rows = await db.select().from(outboxEvents);
+    const verify = rows.find((r) => r.eventType === 'VERIFY_DEVICE_EVENT');
+    const record = rows.find((r) => r.eventType === 'RECORD_DEVICE_EVENT');
+    expect(record?.attempts).toBe(1);
+    expect(verify).toMatchObject({ status: 'pending', attempts: 0 });
   });
 });

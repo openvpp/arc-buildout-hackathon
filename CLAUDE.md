@@ -230,6 +230,11 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - Payload v2 (`recordHash`) is frozen at queue time with a random salt;
   the salt and `record_json` are off-chain only and never returned by any
   public endpoint. Never rebuild or rehash a stored payload.
+- Verify jobs never block on-chain writes: the worker claims mint/publish
+  jobs first, the chain scan has its own interval and time budget, and only
+  history misses are retried in the reader. An exhausted verify job backs
+  the record off (`verification_next_check_at`) instead of re-queueing
+  every minute. Admin "Verify all" only enqueues.
 - Discovery (scanner, explorer) is never proof. Everything shown as
   verified is re-checked against an RPC.
 - Public verify routes are deliberately unauthenticated (like the globe)

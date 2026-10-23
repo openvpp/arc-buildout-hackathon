@@ -55,7 +55,8 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
    Change one digit of the payload → **UNVERIFIED**.
 7. **Admin.** `http://localhost:3000/admin` → sign in as `Admin` /
    `ADMIN_PASSWORD` (`Admin123` locally only). **Devices** → a device →
-   **Sync from chain**, then **Verify all records**; check the
+   **Sync from chain**, then **Verify all records** (queues re-checks for
+   the worker — reload after a minute); check the
    reconciliation counts, daily gaps, and the private record behind
    `recordHash`.
 

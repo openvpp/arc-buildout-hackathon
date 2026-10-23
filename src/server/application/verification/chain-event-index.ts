@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, min } from 'drizzle-orm';
+import { and, eq, isNotNull, min, sql } from 'drizzle-orm';
 
 import { getServerEnv } from '@/server/config/env';
 import {
@@ -20,6 +20,14 @@ const log = createServerLogger({ component: 'chain-event-index' });
 
 /** Per sweep: at most this many 2k-block requests (stays under RPC limits). */
 const MAX_SCAN_CHUNKS_PER_RUN = 10;
+
+/**
+ * Each sweep re-reads this many blocks behind the cursor (~100 s on Arc).
+ * A load-balanced RPC can answer a range from a node that has not reached
+ * its end yet, returning nothing for the tail without an error; the overlap
+ * picks those logs up next time. Inserts are idempotent.
+ */
+export const SCAN_OVERLAP_BLOCKS = 200n;
 
 export async function recordChainEvents(
   db: Database,
@@ -74,6 +82,8 @@ export type ScanResult =
 export async function scanChainForward(
   db: Database,
   readerOverride?: DeviceEventChainReader,
+  /** Stop starting new chunks after this time (epoch ms). */
+  deadline: number = Number.POSITIVE_INFINITY,
 ): Promise<ScanResult> {
   const env = getServerEnv();
   const contract = env.DEVICE_NFT_CONTRACT_ADDRESS?.toLowerCase();
@@ -96,7 +106,14 @@ export async function scanChainForward(
     .limit(1);
   let start: bigint;
   if (cursor !== undefined) {
-    start = cursor.lastScannedBlock + 1n;
+    if (cursor.lastScannedBlock >= finalHead) {
+      return {
+        status: 'up_to_date',
+        lastScannedBlock: cursor.lastScannedBlock,
+      };
+    }
+    const overlapped = cursor.lastScannedBlock + 1n - SCAN_OVERLAP_BLOCKS;
+    start = overlapped > 0n ? overlapped : 0n;
   } else {
     const [first] = await db
       .select({ block: min(deviceEvents.blockNumber) })
@@ -116,7 +133,9 @@ export async function scanChainForward(
   let scannedTo = start - 1n;
   for (
     let chunk = 0;
-    chunk < MAX_SCAN_CHUNKS_PER_RUN && from <= finalHead;
+    chunk < MAX_SCAN_CHUNKS_PER_RUN &&
+    from <= finalHead &&
+    Date.now() < deadline;
     chunk += 1
   ) {
     const to =
@@ -143,7 +162,10 @@ export async function scanChainForward(
       })
       .onConflictDoUpdate({
         target: [chainScanCursors.chainId, chainScanCursors.contractAddress],
-        set: { lastScannedBlock: scannedTo, updatedAt: new Date() },
+        set: {
+          lastScannedBlock: sql`greatest(${chainScanCursors.lastScannedBlock}, ${scannedTo})`,
+          updatedAt: new Date(),
+        },
       });
     from = to + 1n;
   }
