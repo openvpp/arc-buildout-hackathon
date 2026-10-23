@@ -43,6 +43,8 @@ export type AdminDevicePage = {
   nextCursor: string | null;
 };
 
+const createdAtMs = sql`date_trunc('milliseconds', ${devices.createdAt})`;
+
 /** All devices across wallets (admin), newest first, with record counts. */
 export async function listAdminDevices(
   db: Database,
@@ -64,15 +66,18 @@ export async function listAdminDevices(
     .leftJoin(deviceAddresses, eq(deviceAddresses.deviceId, devices.id))
     .where(
       and(
+        // created_at has microseconds but the cursor carries milliseconds:
+        // order and compare at millisecond precision so rows sharing the
+        // boundary row's millisecond are not skipped.
         cursor === null
           ? undefined
-          : sql`(${devices.createdAt}, ${devices.id}) < (${cursor.at.toISOString()}::timestamptz, ${cursor.id}::uuid)`,
+          : sql`(${createdAtMs}, ${devices.id}) < (${cursor.at.toISOString()}::timestamptz, ${cursor.id}::uuid)`,
         input.onlyWithRecords === true
           ? sql`exists (select 1 from ${deviceEvents} where ${deviceEvents.deviceId} = ${devices.id})`
           : undefined,
       ),
     )
-    .orderBy(desc(devices.createdAt), desc(devices.id))
+    .orderBy(desc(createdAtMs), desc(devices.id))
     .limit(limit + 1);
 
   const page = rows.slice(0, limit);

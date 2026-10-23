@@ -42,9 +42,21 @@ export async function listAdminRecords(
   if (input.cursor !== undefined && cursor === null) {
     throw new ApplicationError('INVALID_CURSOR', 'Invalid records cursor.');
   }
+  // Only the listed columns: record_json (raw readings) and the payload are
+  // never needed here.
   const rows = await db
     .select({
-      record: deviceEvents,
+      record: {
+        id: deviceEvents.id,
+        deviceId: deviceEvents.deviceId,
+        eventType: deviceEvents.eventType,
+        occurredAt: deviceEvents.occurredAt,
+        status: deviceEvents.status,
+        verificationStatus: deviceEvents.verificationStatus,
+        lastVerifiedAt: deviceEvents.lastVerifiedAt,
+        transactionHash: deviceEvents.transactionHash,
+        payloadVersion: deviceEvents.payloadVersion,
+      },
       deviceName: devices.displayName,
       vendor: devices.vendor,
     })

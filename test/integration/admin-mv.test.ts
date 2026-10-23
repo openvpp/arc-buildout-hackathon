@@ -42,6 +42,8 @@ const CONTRACT = (
 ).toLowerCase();
 const CHAIN_ID = BigInt(env.ARC_CHAIN_ID);
 const tx = () => `0x${randomUUID().replace(/-/g, '')}${'0'.repeat(32)}`;
+/** Payload hash seedRecord gives a record; a chain log matches with it. */
+const RECORD_HASH = `0x${'bb'.repeat(32)}`;
 
 function chainLog(
   overrides: Partial<ChainDeviceEventLog>,
@@ -88,6 +90,9 @@ async function seedRecord(
     verificationStatus?: 'unchecked' | 'verified' | 'unverified';
     sourceType?: 'charging_session' | 'daily_odometer';
     sourceId?: string;
+    occurredAt?: Date;
+    payloadHash?: string;
+    blockNumber?: bigint;
   },
 ) {
   const [row] = await db
@@ -97,16 +102,16 @@ async function seedRecord(
       eventType: input.sourceType === 'daily_odometer' ? 12 : 2,
       sourceType: input.sourceType ?? 'charging_session',
       sourceId: input.sourceId ?? randomUUID(),
-      occurredAt: new Date('2031-05-01T10:00:00Z'),
+      occurredAt: input.occurredAt ?? new Date('2031-05-01T10:00:00Z'),
       payloadJson: '{"vehicleId":"x"}',
-      payloadHash: `0x${'bb'.repeat(32)}`,
+      payloadHash: input.payloadHash ?? RECORD_HASH,
       status: input.status,
       verificationStatus: input.verificationStatus ?? 'unchecked',
       ...(input.status === 'confirmed'
         ? {
             transactionHash: input.transactionHash ?? tx(),
             tokenId: '900',
-            blockNumber: 5000n,
+            blockNumber: input.blockNumber ?? 5000n,
             confirmedAt: new Date(),
           }
         : {}),
@@ -220,7 +225,11 @@ describe('getAdminDeviceDetail reconciliation', () => {
       chainId: CHAIN_ID,
       via: 'scan',
       logs: [
-        chainLog({ tokenId: 903n, transactionHash: matchedTx }),
+        chainLog({
+          tokenId: 903n,
+          transactionHash: matchedTx,
+          dataHash: RECORD_HASH,
+        }),
         chainLog({ tokenId: 903n, logIndex: 1 }), // written by someone else
       ],
     });
@@ -230,8 +239,102 @@ describe('getAdminDeviceDetail reconciliation', () => {
       matched: 1,
       anchoredNotIndexed: 1,
       missingOnChain: 1,
+      conflict: 0,
       onChainOnly: 1,
     });
+  });
+
+  it("pairs records and anchors outside each other's window", async () => {
+    const device = await seedDevice('908');
+    // Activity order and anchoring order are reversed (e.g. a record held
+    // for its mint): the newest-2 records and newest-2 logs differ.
+    const txs = [tx(), tx(), tx()];
+    for (const [i, hash] of txs.entries()) {
+      await seedRecord(device.id, {
+        status: 'confirmed',
+        transactionHash: hash,
+        occurredAt: new Date(Date.UTC(2031, 6, 1 + i)),
+        blockNumber: BigInt(9000 - i),
+      });
+    }
+    await recordChainEvents(db, {
+      chainId: CHAIN_ID,
+      via: 'scan',
+      logs: txs.map((hash, i) =>
+        chainLog({
+          tokenId: 908n,
+          transactionHash: hash,
+          blockNumber: BigInt(9000 - i),
+          dataHash: RECORD_HASH,
+        }),
+      ),
+    });
+
+    const detail = await getAdminDeviceDetail(db, device.id, 2);
+    expect(detail?.summary).toMatchObject({
+      matched: 3,
+      anchoredNotIndexed: 0,
+      onChainOnly: 0,
+    });
+    expect(detail?.truncated).toBe(true);
+  });
+
+  it('flags different on-chain data and keeps every log of a transaction', async () => {
+    const device = await seedDevice('909');
+    const ours = tx();
+    const other = tx();
+    await seedRecord(device.id, { status: 'confirmed', transactionHash: ours });
+    await seedRecord(device.id, {
+      status: 'confirmed',
+      transactionHash: other,
+    });
+    await recordChainEvents(db, {
+      chainId: CHAIN_ID,
+      via: 'scan',
+      logs: [
+        // Our tx carries our event plus a foreign one.
+        chainLog({
+          tokenId: 909n,
+          transactionHash: ours,
+          dataHash: RECORD_HASH,
+        }),
+        chainLog({ tokenId: 909n, transactionHash: ours, logIndex: 1 }),
+        // This record's tx holds different bytes than we recorded.
+        chainLog({ tokenId: 909n, transactionHash: other }),
+      ],
+    });
+
+    const detail = await getAdminDeviceDetail(db, device.id);
+    expect(detail?.summary).toMatchObject({
+      matched: 1,
+      conflict: 1,
+      onChainOnly: 1,
+    });
+  });
+
+  it('does not count a day whose readings all arrived late as a gap', async () => {
+    const device = await seedDevice('910');
+    // 07-01 and 07-03 are rolled up; a reading observed on 07-02 is stored
+    // only afterwards, so it is kept raw and never gets its own day.
+    for (const dateUtc of ['2031-07-01', '2031-07-03']) {
+      await db.insert(dailyOdometer).values({
+        deviceId: device.id,
+        dateUtc,
+        startOdometerKm: '1000.000',
+        endOdometerKm: '1000.000',
+        status: 'finalized',
+        finalizedAt: new Date(),
+        createdAt: new Date(Date.now() - 60_000),
+      });
+    }
+    await db.insert(odometerReadings).values({
+      deviceId: device.id,
+      observedAt: new Date('2031-07-02T08:00:00Z'),
+      odometerKm: '1000.000',
+    });
+
+    const detail = await getAdminDeviceDetail(db, device.id);
+    expect(detail?.completeness.gaps).not.toContain('2031-07-02');
   });
 
   it('reports a day with readings that was never published as a gap', async () => {
@@ -312,6 +415,31 @@ describe('admin lists', () => {
       .from(chainDeviceEvents)
       .where(eq(chainDeviceEvents.tokenId, '905'));
     expect(index).toHaveLength(0);
+  });
+});
+
+describe('admin device paging', () => {
+  it('does not skip devices that share a millisecond', async () => {
+    const ids: string[] = [];
+    for (const micro of ['111', '222', '333']) {
+      const device = await seedDevice('');
+      // Raw client: set a microsecond timestamp drizzle would round.
+      await sql`update devices set created_at = ${`2040-01-01 00:00:00.123${micro}+00`}::timestamptz where id = ${device.id}`;
+      ids.push(device.id);
+    }
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 10; page += 1) {
+      const result = await listAdminDevices(db, {
+        limit: 1,
+        ...(cursor === undefined ? {} : { cursor }),
+      });
+      seen.push(...result.devices.map((d) => d.id));
+      if (result.nextCursor === null || ids.every((id) => seen.includes(id)))
+        break;
+      cursor = result.nextCursor;
+    }
+    expect(ids.every((id) => seen.includes(id))).toBe(true);
   });
 });
 

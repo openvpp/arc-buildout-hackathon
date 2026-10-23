@@ -37,6 +37,7 @@ const KIND_META: Record<
     tone: 'neutral',
   },
   missing_on_chain: { label: 'Missing on-chain', tone: 'warning' },
+  conflict: { label: 'On-chain data differs', tone: 'danger' },
   on_chain_only: {
     label: 'On-chain only · no off-chain record',
     tone: 'danger',
@@ -94,7 +95,7 @@ export default async function AdminDeviceDetailPage({
   if (detail === null) {
     notFound();
   }
-  const { device, address, summary, completeness } = detail;
+  const { device, address, summary, completeness, truncated } = detail;
   const name =
     device.displayName ??
     ([device.vendor, device.model].filter(Boolean).join(' ') || 'Vehicle');
@@ -252,6 +253,18 @@ export default async function AdminDeviceDetailPage({
             on-chain only
           </div>
         </div>
+        {summary.conflict > 0 ? (
+          <p role="alert" className="text-xs text-red-400">
+            {summary.conflict} record(s) point at a transaction whose on-chain
+            data is not what this app recorded.
+          </p>
+        ) : null}
+        {truncated ? (
+          <p className="text-xs text-slate-500">
+            Showing the newest records and chain events (plus each one&apos;s
+            counterpart); older history is not listed here.
+          </p>
+        ) : null}
         <p
           className={`text-xs ${completeness.gaps.length > 0 ? 'text-amber-300' : 'text-slate-500'}`}
         >
@@ -322,6 +335,22 @@ export default async function AdminDeviceDetailPage({
                       </span>
                     </summary>
                     <div className="mt-3 flex flex-col gap-3 border-t border-slate-800 pt-3">
+                      {entry.kind === 'conflict' ? (
+                        <div className="text-xs text-red-300">
+                          <p>
+                            Our payload hash {record.payloadHash}; the indexed
+                            log(s) in this transaction:
+                          </p>
+                          <ul className="mt-1 font-mono break-all text-slate-400">
+                            {entry.chainLogs.map((log) => (
+                              <li key={log.id}>
+                                log {log.logIndex} · type {log.eventType} ·{' '}
+                                {log.dataHash}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                       <VerificationReport
                         verdict={verification?.verdict ?? null}
                         checks={verification?.checks ?? []}

@@ -133,15 +133,15 @@ export async function syncDeviceFromChainAction(
     .from(devices)
     .where(eq(devices.id, deviceId))
     .limit(1);
-  if (device?.tokenId === null || device?.tokenId === undefined) {
+  // '' (and anything non-numeric) means "not minted": BigInt('') is 0n,
+  // which would sync token #0's history into this device.
+  const tokenId = device?.tokenId ?? '';
+  if (!/^\d+$/.test(tokenId)) {
     return failed(
       'This device has no DeviceNFT on the configured contract yet.',
     );
   }
-  const result = await backfillTokenFromExplorer(
-    getDb(),
-    BigInt(device.tokenId),
-  );
+  const result = await backfillTokenFromExplorer(getDb(), BigInt(tokenId));
   revalidatePath(`/admin/devices/${deviceId}`);
   switch (result.status) {
     case 'unconfigured':
@@ -155,7 +155,7 @@ export async function syncDeviceFromChainAction(
     case 'backfilled':
       return {
         ok: true,
-        message: `Found ${result.found} on-chain event(s) for token ${device.tokenId}; ${result.inserted} new.`,
+        message: `Found ${result.found} on-chain event(s) for token ${tokenId}; ${result.inserted} new.`,
       };
   }
 }

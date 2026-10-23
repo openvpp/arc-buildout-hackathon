@@ -595,6 +595,13 @@ export const deviceEvents = pgTable(
     uniqueIndex('device_events_transaction_hash_uidx')
       .on(table.transactionHash)
       .where(sql`${table.transactionHash} is not null`),
+    // Admin records list (all devices, newest first, optionally by verdict).
+    index('device_events_confirmed_occurred_idx')
+      .on(table.occurredAt, table.id)
+      .where(sql`${table.status} = 'confirmed'`),
+    index('device_events_confirmed_verdict_occurred_idx')
+      .on(table.verificationStatus, table.occurredAt, table.id)
+      .where(sql`${table.status} = 'confirmed'`),
     // Verification sweep: confirmed records still awaiting a verdict.
     index('device_events_verification_due_idx')
       .on(table.verificationNextCheckAt, table.confirmedAt)

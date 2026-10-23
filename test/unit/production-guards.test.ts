@@ -9,6 +9,7 @@ import { isSecureSessionCookie } from '@/server/infrastructure/auth/dashboard-se
 import { isAllowedEnodeLinkUrl } from '@/server/infrastructure/enode/link-url';
 import { mapEnodeWebhookEvent } from '@/server/infrastructure/enode/webhook-mapper';
 import { decideOutboxFollowUp } from '@/server/infrastructure/jobs/outbox-follow-up';
+import { redactUrls } from '@/server/infrastructure/logging/logger';
 import {
   clientAddressFromForwardedFor,
   consumeRateLimit,
@@ -190,6 +191,24 @@ describe('failure-only rate limit', () => {
     );
     expect(isRateLimited({ key, limit: 3, windowMs: 1000, now: 2000 })).toBe(
       false,
+    );
+  });
+});
+
+describe('redactUrls (server logs)', () => {
+  it('keeps the origin and drops paths and queries that can hold keys', () => {
+    expect(
+      redactUrls(
+        'HTTP request failed.\n\nURL: https://rpc.provider.example/v2/abc123key\nDetails: fetch failed',
+      ),
+    ).toBe(
+      'HTTP request failed.\n\nURL: https://rpc.provider.example/[redacted]\nDetails: fetch failed',
+    );
+    expect(redactUrls('see https://explorer.example/api?apikey=k')).toBe(
+      'see https://explorer.example/[redacted]',
+    );
+    expect(redactUrls('host https://rpc.testnet.arc.io only')).toBe(
+      'host https://rpc.testnet.arc.io only',
     );
   });
 });

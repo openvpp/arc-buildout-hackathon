@@ -239,6 +239,10 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
   history misses are retried in the reader. An exhausted verify job backs
   the record off (`verification_next_check_at`) instead of re-queueing
   every minute. Admin "Verify all" only enqueues.
+- Admin reconciliation matches on (transaction, data hash = payload_hash,
+  event type); a record whose transaction holds other bytes is a
+  `conflict`. Each window also loads the other side's counterparts by
+  transaction.
 - Discovery (scanner, explorer) is never proof. Everything shown as
   verified is re-checked against an RPC.
 - Public verify routes are deliberately unauthenticated (like the globe)
@@ -293,7 +297,9 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - No private keys in frontend code.
 - No mock verification presented as real in production.
 - No broad CORS.
-- No sensitive values in logs.
+- No sensitive values in logs. The server logger keeps only the origin of
+  any URL it is given (RPC/explorer URLs can carry keys in their path or
+  query, and viem echoes them in error messages).
 - No raw internal errors in API responses.
 - Use idempotency for financial/on-chain writes (mint jobs).
 

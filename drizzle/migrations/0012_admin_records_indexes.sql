@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "device_events_confirmed_occurred_idx" ON "device_events" USING btree ("occurred_at","id") WHERE "device_events"."status" = 'confirmed';--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "device_events_confirmed_verdict_occurred_idx" ON "device_events" USING btree ("verification_status","occurred_at","id") WHERE "device_events"."status" = 'confirmed';

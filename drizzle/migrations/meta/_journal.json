@@ -85,6 +85,13 @@
       "when": 1792756551885,
       "tag": "0011_verification_retry_state",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792757890002,
+      "tag": "0012_admin_records_indexes",
+      "breakpoints": true
     }
   ]
 }
