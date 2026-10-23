@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { keccak256, stringToHex } from 'viem';
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -9,7 +9,10 @@ import {
   getPublicEventVerification,
   verifyClaim,
 } from '@/server/application/verification/public-verification';
-import { buildVerificationSpec } from '@/server/application/verification/verification-spec';
+import {
+  buildVerificationSpec,
+  getVerificationSpec,
+} from '@/server/application/verification/verification-spec';
 import { processEnodeWebhook } from '@/server/application/webhooks/enode-webhook';
 import type { DeviceEventChainReader } from '@/server/infrastructure/blockchain/device-event-chain-reader';
 import type { DeviceEventRecorder } from '@/server/infrastructure/blockchain/device-event-recorder';
@@ -19,6 +22,7 @@ import {
   deviceEvents,
   devices,
   eventVerifications,
+  outboxEvents,
 } from '@/server/infrastructure/db/schema';
 
 import { createTestDb, insertTestWallet } from './test-helpers';
@@ -149,7 +153,7 @@ function chain(input: {
 }
 
 describe('getPublicEventVerification', () => {
-  it('runs a live check once, then serves the cached result unless forced', async () => {
+  it('checks a record once, then serves the stored result unless forced', async () => {
     const { event, transactionHash } = await publishedEvent();
     let reads = 0;
     const reader = chain({
@@ -162,22 +166,22 @@ describe('getPublicEventVerification', () => {
 
     const first = await getPublicEventVerification(db, {
       transactionHash,
-      refresh: true,
       readerOverride: reader,
     });
     expect(first?.verification?.verdict).toBe('verified');
     expect(first?.verification?.checkedBy).toBe('public');
 
-    await getPublicEventVerification(db, {
-      transactionHash,
-      refresh: true,
-      readerOverride: reader,
-    });
+    // Repeated views never touch the chain.
+    for (let i = 0; i < 3; i += 1) {
+      await getPublicEventVerification(db, {
+        transactionHash,
+        readerOverride: reader,
+      });
+    }
     expect(reads).toBe(1);
 
     await getPublicEventVerification(db, {
       transactionHash,
-      refresh: true,
       force: true,
       readerOverride: reader,
     });
@@ -189,11 +193,73 @@ describe('getPublicEventVerification', () => {
     expect(runs.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('queues a background re-check of a stale verdict instead of reading the chain', async () => {
+    const { event, transactionHash } = await publishedEvent();
+    const reader = chain({ transactionHash, payloadJson: event.payloadJson });
+    await getPublicEventVerification(db, {
+      transactionHash,
+      readerOverride: reader,
+    });
+    await db
+      .update(eventVerifications)
+      .set({ checkedAt: new Date(Date.now() - 7 * 3600 * 1000) })
+      .where(eq(eventVerifications.deviceEventId, event.id));
+    await db.delete(outboxEvents).where(eq(outboxEvents.aggregateId, event.id));
+
+    const stale = await getPublicEventVerification(db, {
+      transactionHash,
+      readerOverride: {
+        ...reader,
+        latestBlockNumber: () => {
+          throw new Error('a public view must not read the chain');
+        },
+      },
+    });
+    expect(stale?.recheckQueued).toBe(true);
+    expect(stale?.verification?.verdict).toBe('verified');
+    const jobs = await db
+      .select()
+      .from(outboxEvents)
+      .where(
+        and(
+          eq(outboxEvents.aggregateId, event.id),
+          eq(outboxEvents.eventType, 'VERIFY_DEVICE_EVENT'),
+        ),
+      );
+    expect(jobs).toHaveLength(1);
+
+    // Not while the record is backing off after failed checks.
+    await db.delete(outboxEvents).where(eq(outboxEvents.aggregateId, event.id));
+    await db
+      .update(deviceEvents)
+      .set({ verificationNextCheckAt: new Date(Date.now() + 3600 * 1000) })
+      .where(eq(deviceEvents.id, event.id));
+    const backingOff = await getPublicEventVerification(db, {
+      transactionHash,
+      readerOverride: reader,
+    });
+    expect(backingOff?.recheckQueued).toBe(false);
+  });
+
+  it('cachedOnly never reads the chain, even for an unchecked record', async () => {
+    const { transactionHash } = await publishedEvent();
+    const result = await getPublicEventVerification(db, {
+      transactionHash,
+      cachedOnly: true,
+      readerOverride: {
+        ...chain({ transactionHash, payloadJson: '{}' }),
+        latestBlockNumber: () => {
+          throw new Error('must not read the chain');
+        },
+      },
+    });
+    expect(result?.verification).toBeNull();
+  });
+
   it('never exposes the private record or its salt', async () => {
     const { event, transactionHash } = await publishedEvent();
     const result = await getPublicEventVerification(db, {
       transactionHash,
-      refresh: true,
       readerOverride: chain({
         transactionHash,
         payloadJson: event.payloadJson,
@@ -314,6 +380,7 @@ describe('verifyClaim', () => {
 describe('verification spec', () => {
   it('publishes the rules and trusted writers, and no secrets', () => {
     const spec = buildVerificationSpec();
+    expect(getVerificationSpec()).toBe(getVerificationSpec());
     expect(spec.checks.map((check) => check.id)).toEqual([
       'anchor_exists',
       'finality',

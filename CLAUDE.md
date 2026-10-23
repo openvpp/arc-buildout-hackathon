@@ -239,6 +239,8 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
   verified is re-checked against an RPC.
 - Public verify routes are deliberately unauthenticated (like the globe)
   and must stay rate-limited; a forced re-read has its own tighter limit.
+  A plain public view never reads the chain except for a record's first
+  check; a stale verdict queues a worker job (respecting backoff).
 - Say plainly what verification proves: anchored, attributable, unchanged,
   timely — not that the measurement is true.
 

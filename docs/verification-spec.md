@@ -75,7 +75,10 @@ Public RPCs: `https://rpc.testnet.arc.io` (chain 5042002),
    the sender was not checked.
 2. **Public API** (unauthenticated, rate-limited):
    - `GET /api/v1/verify/tx/{hash}` or `/api/v1/verify/events/{id}` (add
-     `?refresh=1` to re-read the chain when the cached result is > 5 min old);
+     `?refresh=1` to re-read the chain now, under a tighter rate limit).
+     Without it you get the stored result; a record never checked is
+     checked once, and a result older than 6 h queues a background
+     re-check (`recheckQueued: true`);
    - `POST /api/v1/verify` with `{"transactionHash","blockNumber","payloadJson"}`
      and optionally the `tokenId` / `eventType` you expect — works for any
      `DeviceEvent` on the contract, stores nothing.

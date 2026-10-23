@@ -26,7 +26,7 @@ export const GET = createRouteHandler<{ transactionHash: string }>(
     const { transactionHash } = paramsSchema.parse(context.params);
     const result = await getPublicEventVerification(getDb(), {
       transactionHash,
-      refresh,
+      force: refresh,
     });
     if (result === null) {
       throw new ApiError({

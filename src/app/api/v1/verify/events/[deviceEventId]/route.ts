@@ -27,7 +27,7 @@ export const GET = createRouteHandler<{ deviceEventId: string }>(
     const { deviceEventId } = paramsSchema.parse(context.params);
     const result = await getPublicEventVerification(getDb(), {
       deviceEventId,
-      refresh,
+      force: refresh,
     });
     if (result === null) {
       throw new ApiError({

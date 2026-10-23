@@ -54,11 +54,11 @@ export default async function VerifyTransactionPage({
   let chainError = false;
   if (!limited) {
     try {
-      // First view of a confirmed record runs a live check; later views use
-      // the cached result unless "Re-check now" is pressed.
+      // Shows the stored verdict. Only a record's first view, or "Re-check
+      // now" (its own tight limit), reads the chain; an old verdict queues
+      // a background re-check instead.
       result = await getPublicEventVerification(getDb(), {
         transactionHash: parsed.data,
-        refresh: true,
         force: refresh,
       });
     } catch (error) {
@@ -68,7 +68,7 @@ export default async function VerifyTransactionPage({
       chainError = true;
       result = await getPublicEventVerification(getDb(), {
         transactionHash: parsed.data,
-        refresh: false,
+        cachedOnly: true,
       });
     }
   }
@@ -105,6 +105,12 @@ export default async function VerifyTransactionPage({
               <p role="alert" className="text-sm text-amber-300">
                 The Arc RPC did not answer just now; showing the last stored
                 result.
+              </p>
+            ) : null}
+            {result.recheckQueued ? (
+              <p className="text-xs text-white/60">
+                This result is a few hours old; a fresh independent check has
+                been queued. Reload later to see it.
               </p>
             ) : null}
             <VerificationReport

@@ -2,8 +2,9 @@ import { enforceRateLimit } from '@/server/transport/http/rate-limit';
 
 /**
  * Public verification is unauthenticated, so reads are rate-limited per IP,
- * and a fresh chain read (`refresh=1`) has its own tighter budget because it
- * costs RPC calls.
+ * and a forced chain read (`refresh=1`) has its own tighter budget because
+ * it costs RPC calls. Plain reads only touch the database (see
+ * getPublicEventVerification).
  */
 export function enforcePublicVerificationLimits(
   request: Request,

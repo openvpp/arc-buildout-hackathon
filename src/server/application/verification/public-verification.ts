@@ -10,6 +10,7 @@ import {
   type Verdict,
 } from '@/server/application/verification/verify-device-event';
 import {
+  enqueueEventVerification,
   latestVerification,
   readChain,
   verificationPolicyFromEnv,
@@ -24,8 +25,11 @@ import {
 import type { Database } from '@/server/infrastructure/db/client';
 import { deviceEvents, devices } from '@/server/infrastructure/db/schema';
 
-/** A public result is reused for this long before re-reading the chain. */
-export const PUBLIC_VERIFICATION_CACHE_MS = 5 * 60 * 1000;
+/**
+ * A public view of a verdict older than this queues a background re-check
+ * (the worker reads the chain; the request never does).
+ */
+export const PUBLIC_RECHECK_AFTER_MS = 6 * 60 * 60 * 1000;
 
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/;
 
@@ -59,6 +63,8 @@ export type PublicVerificationResult = {
 export type PublicVerification = {
   record: PublicEventRecord;
   verification: PublicVerificationResult | null;
+  /** True when this view queued a background re-check of a stale verdict. */
+  recheckQueued: boolean;
   reproduce: { rpcUrl: string | null; command: string };
 };
 
@@ -164,19 +170,21 @@ async function findEvent(
 }
 
 /**
- * Public view of one of our records and its latest verification. Re-reads
- * the chain when the stored result is older than the cache window and the
- * caller asked for a fresh check (route rate-limits that).
+ * Public view of one of our records and its latest verification. A view
+ * reads the chain only for a record that has never been checked, or when
+ * the caller forces it (routes give that its own tight rate limit). A stale
+ * verdict queues a background re-check instead (respecting the record's
+ * retry backoff), so crawling public pages cannot drive RPC traffic.
  */
 export async function getPublicEventVerification(
   db: Database,
   input: {
     deviceEventId?: string;
     transactionHash?: string;
-    /** Re-read the chain if the stored result is older than the cache. */
-    refresh: boolean;
-    /** Re-read the chain even if the stored result is fresh. */
+    /** Re-read the chain now, whatever the stored result's age. */
     force?: boolean;
+    /** Only show what is stored: no chain read, nothing queued. */
+    cachedOnly?: boolean;
     readerOverride?: DeviceEventChainReader;
   },
 ): Promise<PublicVerification | null> {
@@ -185,24 +193,31 @@ export async function getPublicEventVerification(
     return null;
   }
   let stored = await latestVerification(db, row.id);
-  const stale =
-    stored === null ||
-    Date.now() - stored.checkedAt.getTime() > PUBLIC_VERIFICATION_CACHE_MS;
-  const shouldCheck = input.force === true || (input.refresh && stale);
-  if (shouldCheck && row.status === 'confirmed') {
-    stored = await verifyStoredDeviceEvent({
-      db,
-      deviceEventId: row.id,
-      checkedBy: 'public',
-      ...(input.readerOverride !== undefined
-        ? { readerOverride: input.readerOverride }
-        : {}),
-    });
+  let recheckQueued = false;
+  if (row.status === 'confirmed' && input.cachedOnly !== true) {
+    if (input.force === true || stored === null) {
+      stored = await verifyStoredDeviceEvent({
+        db,
+        deviceEventId: row.id,
+        checkedBy: 'public',
+        ...(input.readerOverride !== undefined
+          ? { readerOverride: input.readerOverride }
+          : {}),
+      });
+    } else if (
+      Date.now() - stored.checkedAt.getTime() > PUBLIC_RECHECK_AFTER_MS &&
+      (row.verificationNextCheckAt === null ||
+        row.verificationNextCheckAt.getTime() <= Date.now())
+    ) {
+      await enqueueEventVerification(db, row.id, 0);
+      recheckQueued = true;
+    }
   }
   const record = toPublicRecord(row);
   return {
     record,
     verification: toPublicResult(stored),
+    recheckQueued,
     reproduce: reproduceFor(record),
   };
 }

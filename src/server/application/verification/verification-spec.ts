@@ -8,6 +8,16 @@ import { getServerEnv } from '@/server/config/env';
 export const DEVICE_EVENT_SIGNATURE =
   'DeviceEvent(uint256 indexed tokenId, uint8 indexed eventType, bytes data, uint256 timestamp)';
 
+export type VerificationSpec = ReturnType<typeof buildVerificationSpec>;
+
+let cachedSpec: VerificationSpec | null = null;
+
+/** The spec only depends on configuration, so build it once per process. */
+export function getVerificationSpec(): VerificationSpec {
+  cachedSpec ??= buildVerificationSpec();
+  return cachedSpec;
+}
+
 /**
  * Machine-readable verification spec: everything a third party (or agent)
  * needs to verify a record without trusting this server. Mirrors
@@ -54,7 +64,7 @@ export function buildVerificationSpec() {
       },
       {
         id: 'device_and_type',
-        rule: "The log's tokenId and eventType are the record's.",
+        rule: "The log's tokenId and eventType equal the ones you expect (the record's). When a transaction holds several DeviceEvents, check the log whose keccak256(data) equals your payload's hash. Skipped when no device is expected.",
       },
       {
         id: 'content_hash',
@@ -66,11 +76,11 @@ export function buildVerificationSpec() {
       },
       {
         id: 'record_commitment',
-        rule: 'Payload v2 only: keccak256(utf8(salt + ":" + recordJson)) equals the payload\'s recordHash.',
+        rule: 'Payload v2 only: keccak256(utf8(salt + ":" + recordJson)) equals the recordHash inside the anchored bytes (never a database copy).',
       },
       {
         id: 'anchor_timeliness',
-        rule: 'Block time is no earlier than the activity end (5 min skew) and no later than maxAnchorDelaySeconds after it (warning).',
+        rule: "Activity end = the anchored payload's endTime. Block time is no earlier than the activity end (5 min skew; earlier fails) and no later than maxAnchorDelaySeconds after max(activity end, the DeviceNFT's mint) (later warns).",
       },
     ],
     verdicts: {
@@ -86,10 +96,14 @@ export function buildVerificationSpec() {
       'The contract cannot stop other UPDATER_ROLE holders from writing events for a token; such events are reported as unverified.',
     ],
     endpoints: {
-      byEvent: '/api/v1/verify/events/{deviceEventId}?refresh=1',
-      byTransaction: '/api/v1/verify/tx/{transactionHash}?refresh=1',
+      byEvent:
+        '/api/v1/verify/events/{deviceEventId} (stored result; ?refresh=1 re-reads the chain now)',
+      byTransaction:
+        '/api/v1/verify/tx/{transactionHash} (stored result; ?refresh=1 re-reads the chain now)',
       claim:
-        'POST /api/v1/verify {"transactionHash","blockNumber","payloadJson"}',
+        'POST /api/v1/verify {"transactionHash","blockNumber","payloadJson","tokenId"?,"eventType"?}',
+      standalone:
+        'pnpm verify:standalone -- --rpc <rpc> --contract <address> --tx <hash> --block <n> --payload <json> --writer <trustedWriters> [--token-id <n> --event-type <n>]',
     },
   };
 }
