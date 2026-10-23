@@ -12,6 +12,11 @@ export const ADMIN_SESSION_SUBJECT = 'arc-admin';
 export type AdminSessionClaims = {
   readonly adminId: string;
   readonly username: string;
+  /**
+   * Fingerprint of the admin credential the session was issued under (see
+   * adminCredentialVersion). A password change makes it stale.
+   */
+  readonly credentialVersion: string;
 };
 
 function sessionSecretKey(secret: string): Uint8Array {
@@ -22,10 +27,15 @@ function sessionSecretKey(secret: string): Uint8Array {
 export async function createAdminSessionToken(input: {
   readonly adminId: string;
   readonly username: string;
+  readonly credentialVersion: string;
   readonly secret: string;
   readonly ttlSeconds?: number;
 }): Promise<string> {
-  return new SignJWT({ adminId: input.adminId, username: input.username })
+  return new SignJWT({
+    adminId: input.adminId,
+    username: input.username,
+    cv: input.credentialVersion,
+  })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(ADMIN_SESSION_SUBJECT)
     .setIssuedAt()
@@ -48,24 +58,31 @@ export async function verifyAdminSessionToken(input: {
     );
     const adminId = payload['adminId'];
     const username = payload['username'];
+    const credentialVersion = payload['cv'];
     if (
       typeof adminId !== 'string' ||
       adminId.length === 0 ||
       typeof username !== 'string' ||
-      username.length === 0
+      username.length === 0 ||
+      typeof credentialVersion !== 'string' ||
+      credentialVersion.length === 0
     ) {
       return { ok: false };
     }
-    return { ok: true, claims: { adminId, username } };
+    return { ok: true, claims: { adminId, username, credentialVersion } };
   } catch {
     return { ok: false };
   }
 }
 
-/** Safe post-login redirect: same-origin /admin paths only. */
+/**
+ * Safe post-login redirect: same-origin /admin paths only. A repeated
+ * query key arrives as an array; only its first value is considered.
+ */
 export function sanitizeAdminNextPath(
-  next: string | null | undefined,
+  value: string | readonly string[] | null | undefined,
 ): '/admin' | `/admin/${string}` {
+  const next = typeof value === 'string' ? value : value?.[0];
   if (
     next === undefined ||
     next === null ||

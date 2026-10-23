@@ -26,6 +26,6 @@ export async function requireAdminSession(): Promise<
   if (!session.ok) {
     return { ok: false };
   }
-  const admin = await getAdminAccount(getDb(), session.claims.adminId);
+  const admin = await getAdminAccount(getDb(), session.claims);
   return admin === null ? { ok: false } : { ok: true, admin };
 }

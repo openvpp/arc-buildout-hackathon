@@ -247,10 +247,17 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - Separate role: `admin_accounts` (fixed `Admin`), its own session cookie
   (`ev_admin_session`, path `/admin`, its own JWT subject). Never accept a
   dashboard session for admin or vice versa.
-- `ADMIN_PASSWORD` is only ever stored as a hash. Staging/production refuse
-  a missing, demo-default (`Admin123`) or < 12-character password.
-- Middleware gates `/admin`; protected layouts and server actions re-check
-  the account. Admin actions are attributed (`admin:<username>`).
+- `ADMIN_PASSWORD` is only ever stored as a hash. Empty disables the
+  console (404). When set, staging/production refuse the demo default
+  (`Admin123`) or a < 12-character password.
+- Middleware gates `/admin` by signature only and never redirects the
+  login page or a server-action POST (the page / action decides).
+  Protected layouts and server actions re-check the account and the
+  session's credential version (an HMAC of the current password), so a
+  password change ends every session. Admin actions are attributed
+  (`admin:<username>`).
+- Rate limits key on the client IP from `clientAddress` (trusted proxy
+  hops), never the first `X-Forwarded-For` entry.
 - Never log attempted passwords.
 
 ### On-chain device events

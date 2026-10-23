@@ -1,3 +1,4 @@
+import { getServerEnv } from '@/server/config/env';
 import { ApiError } from '@/server/transport/http/api-error';
 
 type Bucket = number[];
@@ -51,17 +52,61 @@ export function resetRateLimitsForTests(): void {
   buckets.clear();
 }
 
+/** True when `key` has used up its window, without counting this call. */
+export function isRateLimited(input: {
+  key: string;
+  limit: number;
+  windowMs: number;
+  now?: number;
+}): boolean {
+  const now = input.now ?? Date.now();
+  const recent = (buckets.get(input.key) ?? []).filter(
+    (timestamp) => timestamp > now - input.windowMs,
+  );
+  return recent.length >= input.limit;
+}
+
+/** Counts one hit against `key` (e.g. a failed sign-in). */
+export function recordRateLimitHit(input: {
+  key: string;
+  windowMs: number;
+  now?: number;
+}): void {
+  const now = input.now ?? Date.now();
+  const recent = (buckets.get(input.key) ?? []).filter(
+    (timestamp) => timestamp > now - input.windowMs,
+  );
+  recent.push(now);
+  buckets.set(input.key, recent);
+}
+
+/**
+ * The client IP as seen by the nearest trusted proxy: X-Forwarded-For
+ * entries are appended left to right, so only the entry `trustedHops` from
+ * the right was written by infrastructure we control; anything further left
+ * is whatever the client sent. With no trusted proxy there is no reliable
+ * client IP and callers share one bucket.
+ */
+export function clientAddressFromForwardedFor(
+  forwarded: string | null,
+  trustedHops: number,
+): string {
+  if (trustedHops === 0 || forwarded === null) {
+    return 'unknown';
+  }
+  const hops = forwarded
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  const entry = hops[hops.length - trustedHops];
+  return entry === undefined ? 'unknown' : entry.slice(0, 64);
+}
+
 export function clientAddress(request: Request): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const firstHop = forwarded?.split(',')[0]?.trim();
-  if (firstHop !== undefined && firstHop.length > 0) {
-    return firstHop.slice(0, 64);
-  }
-  const realIp = request.headers.get('x-real-ip')?.trim();
-  if (realIp !== undefined && realIp.length > 0) {
-    return realIp.slice(0, 64);
-  }
-  return 'unknown';
+  return clientAddressFromForwardedFor(
+    request.headers.get('x-forwarded-for'),
+    getServerEnv().TRUSTED_PROXY_HOPS,
+  );
 }
 
 export function enforceRateLimit(input: {

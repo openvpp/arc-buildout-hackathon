@@ -10,7 +10,10 @@ import { isAllowedEnodeLinkUrl } from '@/server/infrastructure/enode/link-url';
 import { mapEnodeWebhookEvent } from '@/server/infrastructure/enode/webhook-mapper';
 import { decideOutboxFollowUp } from '@/server/infrastructure/jobs/outbox-follow-up';
 import {
+  clientAddressFromForwardedFor,
   consumeRateLimit,
+  isRateLimited,
+  recordRateLimitHit,
   resetRateLimitsForTests,
 } from '@/server/transport/http/rate-limit';
 import { escapeHtml, mapPopupRow } from '@/features/globe/map-popup';
@@ -152,5 +155,41 @@ describe('map popup html', () => {
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;img');
     expect(escapeHtml(`a&b"'<>`)).toBe('a&amp;b&quot;&#39;&lt;&gt;');
+  });
+});
+
+describe('clientAddressFromForwardedFor', () => {
+  it('uses the entry written by the trusted proxy, not client-sent ones', () => {
+    // Client sent "1.1.1.1"; our one proxy appended the real peer.
+    expect(clientAddressFromForwardedFor('1.1.1.1, 203.0.113.9', 1)).toBe(
+      '203.0.113.9',
+    );
+    expect(
+      clientAddressFromForwardedFor('1.1.1.1, 203.0.113.9, 10.0.0.2', 2),
+    ).toBe('203.0.113.9');
+    expect(clientAddressFromForwardedFor('203.0.113.9', 2)).toBe('unknown');
+    expect(clientAddressFromForwardedFor('203.0.113.9', 0)).toBe('unknown');
+    expect(clientAddressFromForwardedFor(null, 1)).toBe('unknown');
+  });
+});
+
+describe('failure-only rate limit', () => {
+  it('counts recorded hits without the check itself counting', () => {
+    resetRateLimitsForTests();
+    const key = 'failures:test';
+    for (let i = 0; i < 5; i += 1) {
+      expect(isRateLimited({ key, limit: 3, windowMs: 1000, now: 0 })).toBe(
+        false,
+      );
+    }
+    for (let i = 0; i < 3; i += 1) {
+      recordRateLimitHit({ key, windowMs: 1000, now: 10 });
+    }
+    expect(isRateLimited({ key, limit: 3, windowMs: 1000, now: 20 })).toBe(
+      true,
+    );
+    expect(isRateLimited({ key, limit: 3, windowMs: 1000, now: 2000 })).toBe(
+      false,
+    );
   });
 });

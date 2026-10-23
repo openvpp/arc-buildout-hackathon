@@ -1,5 +1,6 @@
 // @vitest-environment node
 // jose (JWT) needs Node’s Uint8Array; jsdom’s cross-realm one is rejected.
+import { SignJWT } from 'jose';
 import { describe, expect, it } from 'vitest';
 
 import { assertAdminPasswordSafe } from '@/server/config/env';
@@ -17,12 +18,25 @@ describe('admin session', () => {
     const token = await createAdminSessionToken({
       adminId: 'a1',
       username: 'Admin',
+      credentialVersion: 'cv1',
       secret: SECRET,
     });
     expect(await verifyAdminSessionToken({ token, secret: SECRET })).toEqual({
       ok: true,
-      claims: { adminId: 'a1', username: 'Admin' },
+      claims: { adminId: 'a1', username: 'Admin', credentialVersion: 'cv1' },
     });
+  });
+
+  it('rejects a session issued without a credential version', async () => {
+    const legacy = await new SignJWT({ adminId: 'a1', username: 'Admin' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject('arc-admin')
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(new Uint8Array(new TextEncoder().encode(SECRET)));
+    expect(
+      await verifyAdminSessionToken({ token: legacy, secret: SECRET }),
+    ).toEqual({ ok: false });
   });
 
   it('rejects a dashboard user session and a wrong secret', async () => {
@@ -40,6 +54,7 @@ describe('admin session', () => {
     const token = await createAdminSessionToken({
       adminId: 'a1',
       username: 'Admin',
+      credentialVersion: 'cv1',
       secret: SECRET,
     });
     expect(
@@ -56,12 +71,19 @@ describe('admin session', () => {
     expect(sanitizeAdminNextPath('/admin/login')).toBe('/admin');
     expect(sanitizeAdminNextPath('/adminx')).toBe('/admin');
     expect(sanitizeAdminNextPath(undefined)).toBe('/admin');
+    // A repeated ?next= arrives as an array: first value only, no crash.
+    expect(
+      sanitizeAdminNextPath(['/admin/devices', 'https://evil.example']),
+    ).toBe('/admin/devices');
+    expect(sanitizeAdminNextPath([])).toBe('/admin');
+    expect(
+      sanitizeAdminNextPath('/admin/verification?verdict=unverified'),
+    ).toBe('/admin/verification?verdict=unverified');
   });
 });
 
 describe('assertAdminPasswordSafe (staging/production)', () => {
-  it('refuses a missing, demo-default or short password', () => {
-    expect(() => assertAdminPasswordSafe('')).toThrow(/must be set/);
+  it('refuses a demo-default or short password', () => {
     expect(() => assertAdminPasswordSafe('Admin123')).toThrow(/demo default/);
     expect(() => assertAdminPasswordSafe('short-pass1')).toThrow(/at least 12/);
     expect(() =>

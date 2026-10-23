@@ -3,7 +3,10 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { authenticateAdmin } from '@/server/application/admin/admin-auth';
+import {
+  adminCredentialVersion,
+  authenticateAdmin,
+} from '@/server/application/admin/admin-auth';
 import { getServerEnv } from '@/server/config/env';
 import {
   buildAdminSessionCookie,
@@ -13,14 +16,38 @@ import {
 import { isSecureSessionCookie } from '@/server/infrastructure/auth/dashboard-session';
 import { getDb } from '@/server/infrastructure/db/client';
 import { ApiError } from '@/server/transport/http/api-error';
-import { enforceRateLimit } from '@/server/transport/http/rate-limit';
+import {
+  enforceRateLimit,
+  isRateLimited,
+  recordRateLimitHit,
+} from '@/server/transport/http/rate-limit';
 
 export type AdminLoginState = { readonly error: string | null };
+
+/**
+ * There is one admin account, so failures are also limited across every
+ * caller: rotating IPs cannot buy more guesses. (Per-process, like every
+ * limiter here — see rate-limit.ts.)
+ */
+const FAILED_LOGIN_KEY = 'admin-login-failures:Admin';
+const FAILED_LOGIN_LIMIT = 30;
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+
+const TOO_MANY = 'Too many sign-in attempts. Try again in a few minutes.';
 
 export async function loginAdmin(
   _previous: AdminLoginState,
   formData: FormData,
 ): Promise<AdminLoginState> {
+  if (
+    isRateLimited({
+      key: FAILED_LOGIN_KEY,
+      limit: FAILED_LOGIN_LIMIT,
+      windowMs: LOGIN_WINDOW_MS,
+    })
+  ) {
+    return { error: TOO_MANY };
+  }
   try {
     enforceRateLimit({
       request: new Request('http://local/admin/login', {
@@ -28,13 +55,11 @@ export async function loginAdmin(
       }),
       bucket: 'admin-login',
       limit: 10,
-      windowMs: 10 * 60 * 1000,
+      windowMs: LOGIN_WINDOW_MS,
     });
   } catch (error) {
     if (error instanceof ApiError) {
-      return {
-        error: 'Too many sign-in attempts. Try again in a few minutes.',
-      };
+      return { error: TOO_MANY };
     }
     throw error;
   }
@@ -45,6 +70,9 @@ export async function loginAdmin(
 
   const result = await authenticateAdmin(getDb(), { username, password });
   if (!result.ok) {
+    if (result.reason === 'invalid_credentials') {
+      recordRateLimitHit({ key: FAILED_LOGIN_KEY, windowMs: LOGIN_WINDOW_MS });
+    }
     return {
       error:
         result.reason === 'not_configured'
@@ -57,6 +85,7 @@ export async function loginAdmin(
   const token = await createAdminSessionToken({
     adminId: result.admin.id,
     username: result.admin.username,
+    credentialVersion: adminCredentialVersion(),
     secret: env.API_KEY_HASH_SECRET,
   });
   const cookie = buildAdminSessionCookie({

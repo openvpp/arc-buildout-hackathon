@@ -1,4 +1,4 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { eq } from 'drizzle-orm';
 
@@ -18,8 +18,22 @@ export const ADMIN_USERNAME = 'Admin';
 
 export type AdminAccount = { id: string; username: string };
 
+/** An empty ADMIN_PASSWORD disables the admin console entirely. */
 export function isAdminConfigured(): boolean {
   return getServerEnv().ADMIN_PASSWORD.length > 0;
+}
+
+/**
+ * Fingerprint of the current admin credential, carried in each session.
+ * Changing ADMIN_PASSWORD changes it, which ends every existing session at
+ * its next request. Keyed, so it reveals nothing about the password.
+ */
+export function adminCredentialVersion(): string {
+  const env = getServerEnv();
+  return createHmac('sha256', env.API_KEY_HASH_SECRET)
+    .update(`admin-credential:${ADMIN_USERNAME}:${env.ADMIN_PASSWORD}`)
+    .digest('hex')
+    .slice(0, 32);
 }
 
 function sameText(a: string, b: string): boolean {
@@ -115,11 +129,22 @@ export async function authenticateAdmin(
   return { ok: true, admin: account };
 }
 
-/** The session's admin still exists (defense in depth after middleware). */
+/**
+ * The session's admin still exists and the session was issued under the
+ * current password (defense in depth after middleware, which only checks
+ * the signature).
+ */
 export async function getAdminAccount(
   db: Database,
-  adminId: string,
+  session: { adminId: string; credentialVersion: string },
 ): Promise<AdminAccount | null> {
+  if (
+    !isAdminConfigured() ||
+    !sameText(session.credentialVersion, adminCredentialVersion())
+  ) {
+    return null;
+  }
+  const adminId = session.adminId;
   const [row] = await db
     .select({ id: adminAccounts.id, username: adminAccounts.username })
     .from(adminAccounts)

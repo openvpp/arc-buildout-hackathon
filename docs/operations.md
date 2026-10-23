@@ -83,10 +83,14 @@ sign users out.
 
 ## Verification and admin (milestone 3)
 
-- `ADMIN_PASSWORD` must be set to a strong, non-default value on
-  staging/production (the server refuses to start otherwise). Username is
-  fixed: `Admin`. Changing the env value rotates the stored hash on the
-  next login.
+- `ADMIN_PASSWORD`: empty disables the admin console (every `/admin` path
+  is a 404). When set on staging/production it must not be the demo
+  default and must be at least 12 characters (the server refuses to start
+  otherwise). Username is fixed: `Admin`. Changing the value signs out
+  every admin session at its next request and rotates the stored hash on
+  the next login.
+- Admin sign-in: 10 attempts per client IP and 30 failures in total per
+  10 minutes (one account, so rotating IPs buys nothing).
 - `ARC_TRUSTED_WRITER_ADDRESSES`: writers whose anchors verify (defaults to
   this app's signer). Add any other legitimate writer here.
 - `VERIFIER_RPC_URL` (optional): a different provider than the writer, for
@@ -127,6 +131,11 @@ sign users out.
 - Session creation, vehicle link, and finalize are rate limited in process
   memory (per instance, not across a fleet of servers). Put a shared limiter
   in front if you run more than one web process.
+- Per-IP limits use the `X-Forwarded-For` entry `TRUSTED_PROXY_HOPS`
+  (default 1) from the right — the one your nearest proxy wrote. Entries
+  further left are client-supplied and ignored. Set it to the number of
+  proxies that append to the header; with 0 (no proxy) all callers share
+  one bucket.
 - JSON bodies are capped at 16 KiB. Enode webhook bodies are capped at 256 KiB.
 - The globe loads located devices in pages of 200, up to 25 pages per refresh.
 

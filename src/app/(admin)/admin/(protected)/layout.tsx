@@ -9,7 +9,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-/** Middleware gates /admin too; this re-checks the account in the database. */
+/**
+ * Middleware gates /admin by signature only; this re-checks the account and
+ * that the session was issued under the current password. A session that
+ * fails here is cleared via /admin/logout (redirecting to the login page
+ * with the cookie still set would loop).
+ */
 export default async function AdminProtectedLayout({
   children,
 }: {
@@ -17,7 +22,7 @@ export default async function AdminProtectedLayout({
 }) {
   const session = await requireAdminSession();
   if (!session.ok) {
-    redirect('/admin/login');
+    redirect('/admin/logout');
   }
   return <AdminShell username={session.admin.username}>{children}</AdminShell>;
 }

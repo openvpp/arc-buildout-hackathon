@@ -81,8 +81,15 @@ const serverEnvSchema = z.object({
   LOCATION_OBFUSCATION_SECRET: z.string().default(''),
 
   // Password of the single, fixed `Admin` account for /admin. Empty
-  // disables the admin console; staging/production refuse the demo default.
+  // disables the admin console (every /admin path is a 404); when set,
+  // staging/production refuse the demo default and short passwords.
   ADMIN_PASSWORD: z.string().default(''),
+
+  // Reverse proxies in front of the app that append to X-Forwarded-For.
+  // The client IP used for rate limits is the entry this many hops from
+  // the right; anything to its left is client-supplied and ignored. 0 = no
+  // proxy (no trusted client IP; limits are shared).
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
 
   WORKER_ID: z.string().default('local'),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().default(2000),
@@ -179,20 +186,20 @@ function assertProductionSafe(env: ServerEnv): void {
       'API_KEY_HASH_SECRET must be at least 32 characters when APP_ENV is production or staging.',
     );
   }
-  assertAdminPasswordSafe(env.ADMIN_PASSWORD);
+  if (env.ADMIN_PASSWORD.length > 0) {
+    assertAdminPasswordSafe(env.ADMIN_PASSWORD);
+  }
 }
 
 /** The demo admin password is public (it's in the repo); never in prod. */
 export const DEMO_ADMIN_PASSWORD = 'Admin123';
 export const ADMIN_PASSWORD_MIN_PRODUCTION_LENGTH = 12;
 
-/** Staging/production: an admin password is required and must be strong. */
+/**
+ * Staging/production, when the admin console is enabled (a non-empty
+ * ADMIN_PASSWORD): the password must not be the demo default or short.
+ */
 export function assertAdminPasswordSafe(password: string): void {
-  if (password.length === 0) {
-    throw new Error(
-      'ADMIN_PASSWORD must be set when APP_ENV is production or staging.',
-    );
-  }
   if (password === DEMO_ADMIN_PASSWORD) {
     throw new Error(
       'ADMIN_PASSWORD must not be the demo default when APP_ENV is production or staging.',

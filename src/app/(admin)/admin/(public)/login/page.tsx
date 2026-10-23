@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
+import { notFound, redirect } from 'next/navigation';
 
 import { AdminLoginForm } from '@/features/admin/login-form';
+import { requireAdminSession } from '@/features/admin/server';
 import { isAdminConfigured } from '@/server/application/admin/admin-auth';
 import { sanitizeAdminNextPath } from '@/server/infrastructure/auth/admin-session';
 
@@ -14,9 +16,17 @@ export const runtime = 'nodejs';
 export default async function AdminLoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string | string[] }>;
 }) {
+  if (!isAdminConfigured()) {
+    notFound();
+  }
   const nextPath = sanitizeAdminNextPath((await searchParams).next);
+  // Signed in (valid session for the current password and an existing
+  // account): go on. A stale cookie just shows the form.
+  if ((await requireAdminSession()).ok) {
+    redirect(nextPath);
+  }
   return (
     <div className="flex min-h-dvh items-center justify-center bg-slate-950 px-4">
       <div className="flex w-full max-w-sm flex-col gap-6 rounded-md border border-slate-800 bg-slate-900 p-6">
@@ -26,14 +36,7 @@ export default async function AdminLoginPage({
             Measurement &amp; verification console.
           </p>
         </div>
-        {isAdminConfigured() ? (
-          <AdminLoginForm nextPath={nextPath} />
-        ) : (
-          <p role="alert" className="text-sm text-amber-200">
-            Admin is not configured on this environment. Set ADMIN_PASSWORD to
-            enable the console.
-          </p>
-        )}
+        <AdminLoginForm nextPath={nextPath} />
       </div>
     </div>
   );
