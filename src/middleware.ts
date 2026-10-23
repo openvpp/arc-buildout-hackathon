@@ -21,6 +21,43 @@ function adminHeaders(response: NextResponse): NextResponse {
   return response;
 }
 
+const FORWARDED_HOST = /^([A-Za-z0-9.-]+)(?::(\d{1,5}))?$/;
+
+function firstHeaderValue(value: string | null): string | null {
+  const first = value?.split(',')[0]?.trim() ?? '';
+  return first.length > 0 ? first : null;
+}
+
+/**
+ * Redirects must use the public host. Behind Caddy, `request.url` is the
+ * loopback address Next is bound to (`https://localhost:3000`), so a
+ * redirect built from it sends the browser off the public site. The app
+ * only listens on loopback, so the proxy's forwarded host is the client
+ * host.
+ */
+function adminRedirectUrl(request: NextRequest, pathname: string): URL {
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  url.search = '';
+  const forwardedHost = firstHeaderValue(
+    request.headers.get('x-forwarded-host'),
+  );
+  const host =
+    forwardedHost === null ? null : FORWARDED_HOST.exec(forwardedHost);
+  if (host !== null) {
+    url.hostname = host[1] ?? '';
+    // Drop the loopback port (3000) unless the proxy named one.
+    url.port = host[2] ?? '';
+  }
+  const forwardedProto = firstHeaderValue(
+    request.headers.get('x-forwarded-proto'),
+  );
+  if (forwardedProto === 'http' || forwardedProto === 'https') {
+    url.protocol = `${forwardedProto}:`;
+  }
+  return url;
+}
+
 /**
  * Cookie-session gate for /admin. With no ADMIN_PASSWORD the console does
  * not exist (404). /admin/login is public (the page itself sends a signed-in
@@ -46,7 +83,7 @@ export async function middleware(request: NextRequest): Promise<Response> {
 
   if (pathname === '/admin/logout') {
     const response = NextResponse.redirect(
-      new URL('/admin/login', request.url),
+      adminRedirectUrl(request, '/admin/login'),
     );
     const cleared = clearAdminSessionCookie({ secure });
     response.cookies.set(cleared.name, cleared.value, cleared.options);
@@ -69,7 +106,7 @@ export async function middleware(request: NextRequest): Promise<Response> {
     ) {
       return adminHeaders(NextResponse.next());
     }
-    const loginUrl = new URL('/admin/login', request.url);
+    const loginUrl = adminRedirectUrl(request, '/admin/login');
     loginUrl.searchParams.set('next', `${pathname}${search}`);
     return adminHeaders(NextResponse.redirect(loginUrl));
   }

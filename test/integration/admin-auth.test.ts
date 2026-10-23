@@ -121,6 +121,20 @@ describe.skipIf(PASSWORD.length === 0)('admin middleware', () => {
     );
   });
 
+  it('keeps the public host from the proxy instead of the loopback bind', async () => {
+    const response = await middleware(
+      at('/admin', {
+        headers: {
+          'x-forwarded-host': 'arc-hackathon.openvpp.energy',
+          'x-forwarded-proto': 'https',
+        },
+      }),
+    );
+    expect(response.headers.get('location')).toBe(
+      'https://arc-hackathon.openvpp.energy/admin/login?next=%2Fadmin',
+    );
+  });
+
   it('lets a signed-out server action answer for itself', async () => {
     const response = await middleware(
       at('/admin/devices/x', {
