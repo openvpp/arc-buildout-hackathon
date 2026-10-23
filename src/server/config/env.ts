@@ -44,16 +44,21 @@ const serverEnvSchema = z.object({
   PENDING_DEVICE_OAUTH_TTL_HOURS: z.coerce.number().default(1),
 
   USE_ARC_NETWORK: boolFromString,
-  // Optional: Arc's public RPC for the chain is used when unset.
+  // Required on Arc mainnet (set it explicitly, even to Arc's public RPC);
+  // on testnet Arc's public RPC is used when unset. ARC_AUTH_TOKEN is only
+  // ever sent to this URL, never to a fallback.
   ARC_RPC_URL: z.string().optional(),
   // Optional separate RPC for independent verification reads, so checking
   // an event does not rely on the provider that wrote it.
   VERIFIER_RPC_URL: z.string().optional(),
+  // Bearer token for VERIFIER_RPC_URL only.
+  VERIFIER_AUTH_TOKEN: z.string().optional(),
   // Optional explorer API (Blockscout) used only to discover past events.
   ARC_EXPLORER_API_URL: z.string().optional(),
   // Comma-separated writer addresses whose anchors verification accepts
-  // (the contract lets any UPDATER_ROLE holder write). Defaults to this
-  // app's own signer.
+  // (the contract lets any UPDATER_ROLE holder write). Any letter case; an
+  // invalid entry fails startup. Required on staging/production; elsewhere
+  // defaults to this app's own signer.
   ARC_TRUSTED_WRITER_ADDRESSES: z.string().default(''),
   // Anchors later than this after the activity are flagged (warning).
   VERIFICATION_MAX_ANCHOR_DELAY_HOURS: z.coerce.number().positive().default(48),
@@ -124,6 +129,7 @@ export function getServerEnv(): ServerEnv {
   }
   assertProductionSafe(parsed.data);
   assertArcNetworkConfig(parsed.data, process.env.NEXT_PUBLIC_ARC_CHAIN_ID);
+  assertTrustedWritersConfig(parsed.data);
   cached = parsed.data;
   return cached;
 }
@@ -162,6 +168,17 @@ export function assertArcNetworkConfig(
       `ARC_RPC_URL is required for ARC_CHAIN_ID ${env.ARC_CHAIN_ID} (no public Arc RPC is known for it).`,
     );
   }
+  // Mainnet spends real gas: never fall back silently to the shared,
+  // rate-limited public RPC because ARC_RPC_URL was missing or misspelled.
+  if (
+    env.USE_ARC_NETWORK &&
+    !hasRpc &&
+    arcNetworkFor(env.ARC_CHAIN_ID) === 'mainnet'
+  ) {
+    throw new Error(
+      'ARC_RPC_URL is required on Arc mainnet (set your provider URL, or https://rpc.mainnet.arc.io explicitly).',
+    );
+  }
   if (
     arcNetworkFor(env.ARC_CHAIN_ID) === 'mainnet' &&
     env.CIRCLE_WALLET_BLOCKCHAIN.toUpperCase().includes('TESTNET')
@@ -188,6 +205,46 @@ function assertProductionSafe(env: ServerEnv): void {
   }
   if (env.ADMIN_PASSWORD.length > 0) {
     assertAdminPasswordSafe(env.ADMIN_PASSWORD);
+  }
+}
+
+const WRITER_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/** ARC_TRUSTED_WRITER_ADDRESSES entries, trimmed; empty entries dropped. */
+export function trustedWriterEntries(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+}
+
+/**
+ * Trusted writers decide what verification vouches for, so a typo must
+ * fail loudly instead of silently trusting someone else (every
+ * environment). Staging/production must list them explicitly: the signer
+ * fallback breaks on key rotation and on a web tier without the key.
+ */
+export function assertTrustedWritersConfig(
+  env: Pick<
+    ServerEnv,
+    'ARC_TRUSTED_WRITER_ADDRESSES' | 'APP_ENV' | 'USE_ARC_NETWORK'
+  >,
+): void {
+  const entries = trustedWriterEntries(env.ARC_TRUSTED_WRITER_ADDRESSES);
+  const invalid = entries.filter((entry) => !WRITER_ADDRESS.test(entry));
+  if (invalid.length > 0) {
+    throw new Error(
+      `ARC_TRUSTED_WRITER_ADDRESSES has ${invalid.length} invalid address(es); each entry must be 0x followed by 40 hex characters.`,
+    );
+  }
+  if (
+    (env.APP_ENV === 'production' || env.APP_ENV === 'staging') &&
+    env.USE_ARC_NETWORK &&
+    entries.length === 0
+  ) {
+    throw new Error(
+      'ARC_TRUSTED_WRITER_ADDRESSES must list the writer address(es) when APP_ENV is production or staging.',
+    );
   }
 }
 

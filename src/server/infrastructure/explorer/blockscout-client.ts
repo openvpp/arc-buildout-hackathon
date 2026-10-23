@@ -32,6 +32,9 @@ const logSchema = z.object({
   topics: z.array(hex.nullable()),
   transactionHash: hex,
 });
+/** Etherscan-style error messages that mean "you are being refused". */
+const REFUSED_MESSAGE = /rate limit|api key|apikey|forbidden|too many/i;
+
 const responseSchema = z.object({
   status: z.string(),
   message: z.string().optional(),
@@ -69,8 +72,13 @@ export async function fetchTokenDeviceEventsFromExplorer(input: {
     env.ARC_EXPLORER_API_URL.length > 0
       ? env.ARC_EXPLORER_API_URL
       : defaultArcExplorerApiUrl(env.ARC_CHAIN_ID);
+  if (base === null) {
+    return { ok: false, reason: 'unavailable' };
+  }
   const url = new URL(base);
-  url.search = new URLSearchParams({
+  // Set each parameter, keeping anything already in the configured URL
+  // (e.g. an apikey).
+  for (const [key, value] of Object.entries({
     module: 'logs',
     action: 'getLogs',
     address: input.contractAddress,
@@ -79,7 +87,9 @@ export async function fetchTokenDeviceEventsFromExplorer(input: {
     topic0_1_opr: 'and',
     fromBlock: '0',
     toBlock: 'latest',
-  }).toString();
+  })) {
+    url.searchParams.set(key, value);
+  }
 
   let body: unknown;
   try {
@@ -107,11 +117,19 @@ export async function fetchTokenDeviceEventsFromExplorer(input: {
   if (!parsed.success) {
     return { ok: false, reason: 'unavailable' };
   }
-  // Blockscout answers "No logs found" with status "0" and an empty list.
+  // Blockscout answers "No logs found" with status "0" and an empty list
+  // (handled below). Status "0" with anything else is an error — a bad
+  // request, a rate limit, a missing key — never "no events".
   if (!Array.isArray(parsed.data.result)) {
-    return parsed.data.status === '0'
-      ? { ok: true, logs: [] }
-      : { ok: false, reason: 'unavailable' };
+    const message = `${parsed.data.message ?? ''} ${typeof parsed.data.result === 'string' ? parsed.data.result : ''}`;
+    log.warn('explorer.error_response', {
+      host: url.host,
+      status: parsed.data.status,
+    });
+    return {
+      ok: false,
+      reason: REFUSED_MESSAGE.test(message) ? 'blocked' : 'unavailable',
+    };
   }
 
   const logs: (ChainDeviceEventLog & { blockTimestamp: Date | null })[] = [];

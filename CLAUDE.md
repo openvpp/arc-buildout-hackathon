@@ -216,7 +216,11 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
   (the RPC load-balances over nodes with different history). Log ranges
   must stay ≤ 2,000 blocks.
 - The contract admits any `UPDATER_ROLE` holder; only senders in
-  `ARC_TRUSTED_WRITER_ADDRESSES` (default: this app's signer) may verify.
+  `ARC_TRUSTED_WRITER_ADDRESSES` (required on staging/production; elsewhere
+  default: this app's signer; malformed entries fail startup) may verify.
+- The verifier checks `eth_chainId` before reading. `ARC_AUTH_TOKEN` goes
+  only to an explicit `ARC_RPC_URL` (required on mainnet);
+  `VERIFIER_AUTH_TOKEN` only to `VERIFIER_RPC_URL`.
 - Never mark an event verified from our own publish receipt; verdicts come
   from `verifyDeviceEvent` (pure) and are stored in `event_verifications`.
   A verdict is never recorded when the chain could not be read.

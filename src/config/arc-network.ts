@@ -50,7 +50,12 @@ export function defaultArcExplorerUrl(chainId: string): string {
     : 'https://explorer.testnet.arc.io';
 }
 
-/** Blockscout's Etherscan-compatible API, used only to discover events. */
-export function defaultArcExplorerApiUrl(chainId: string): string {
-  return `${defaultArcExplorerUrl(chainId)}/api`;
+/**
+ * Blockscout's Etherscan-compatible API, used only to discover events.
+ * Null for unknown chains (never query another network's explorer).
+ */
+export function defaultArcExplorerApiUrl(chainId: string): string | null {
+  return arcNetworkFor(chainId) === 'unknown'
+    ? null
+    : `${defaultArcExplorerUrl(chainId)}/api`;
 }

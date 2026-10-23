@@ -3,10 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
   arcNetworkDisplayName,
   arcNetworkLabel,
+  defaultArcExplorerApiUrl,
   defaultArcExplorerUrl,
   defaultArcRpcUrl,
 } from '@/config/arc-network';
-import { assertArcNetworkConfig } from '@/server/config/env';
+import {
+  assertArcNetworkConfig,
+  assertTrustedWritersConfig,
+} from '@/server/config/env';
 
 describe('arc network naming', () => {
   it('names mainnet and testnet from the chain id', () => {
@@ -28,6 +32,7 @@ describe('arc network naming', () => {
     expect(defaultArcExplorerUrl('5042002')).toBe(
       'https://explorer.testnet.arc.io',
     );
+    expect(defaultArcExplorerApiUrl('77')).toBeNull();
   });
 });
 
@@ -50,9 +55,15 @@ describe('assertArcNetworkConfig', () => {
     );
   });
 
-  it('uses the public RPC on known chains and requires one on unknown chains', () => {
+  it('requires ARC_RPC_URL on mainnet and unknown chains, not on testnet', () => {
     expect(() =>
       assertArcNetworkConfig({ ...mainnet, ARC_RPC_URL: undefined }, '5042'),
+    ).toThrow(/required on Arc mainnet/);
+    expect(() =>
+      assertArcNetworkConfig(
+        { ...mainnet, ARC_RPC_URL: undefined, USE_ARC_NETWORK: false },
+        '5042',
+      ),
     ).not.toThrow();
     expect(() =>
       assertArcNetworkConfig(
@@ -80,5 +91,44 @@ describe('assertArcNetworkConfig', () => {
         '5042',
       ),
     ).toThrow(/CIRCLE_WALLET_BLOCKCHAIN/);
+  });
+});
+
+describe('assertTrustedWritersConfig', () => {
+  const base = {
+    ARC_TRUSTED_WRITER_ADDRESSES: '',
+    APP_ENV: 'development' as const,
+    USE_ARC_NETWORK: true,
+  };
+
+  it('accepts any letter case and rejects malformed entries', () => {
+    expect(() =>
+      assertTrustedWritersConfig({
+        ...base,
+        ARC_TRUSTED_WRITER_ADDRESSES:
+          '0x0E12C056A563C7EBC652E288E09C9BE524044CEA, 0x0e12c056a563c7ebc652e288e09c9be524044cea',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertTrustedWritersConfig({
+        ...base,
+        ARC_TRUSTED_WRITER_ADDRESSES: '0x0e12c056a563c7eb,0xabc',
+      }),
+    ).toThrow(/2 invalid address/);
+  });
+
+  it('requires an explicit list on staging and production', () => {
+    expect(() => assertTrustedWritersConfig(base)).not.toThrow();
+    expect(() =>
+      assertTrustedWritersConfig({ ...base, APP_ENV: 'production' }),
+    ).toThrow(/must list the writer/);
+    expect(() =>
+      assertTrustedWritersConfig({
+        ...base,
+        APP_ENV: 'staging',
+        ARC_TRUSTED_WRITER_ADDRESSES:
+          '0x0e12c056a563c7ebc652e288e09c9be524044cea',
+      }),
+    ).not.toThrow();
   });
 });

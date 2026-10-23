@@ -91,14 +91,24 @@ sign users out.
   the next login.
 - Admin sign-in: 10 attempts per client IP and 30 failures in total per
   10 minutes (one account, so rotating IPs buys nothing).
-- `ARC_TRUSTED_WRITER_ADDRESSES`: writers whose anchors verify (defaults to
-  this app's signer). Add any other legitimate writer here.
-- `VERIFIER_RPC_URL` (optional): a different provider than the writer, for
-  independence. The public Arc RPCs work but are rate-limited and drop the
-  tx-hash index for old transactions (verification reads by block).
-- `ARC_EXPLORER_API_URL` (optional): used only by **Sync from chain**. The
-  mainnet explorer may block server requests (403); the forward scanner
-  still indexes new events from the RPC.
+- `ARC_TRUSTED_WRITER_ADDRESSES`: writers whose anchors verify. Required on
+  staging/production (elsewhere it defaults to this app's signer); any
+  letter case; a malformed entry stops startup. When you rotate the signer
+  key, keep the old address listed or every earlier anchor turns
+  `unverified`.
+- `VERIFIER_RPC_URL` / `VERIFIER_AUTH_TOKEN` (optional): a different
+  provider than the writer, for independence. Before its first read the
+  verifier checks the RPC's `eth_chainId` equals `ARC_CHAIN_ID` and refuses
+  to read otherwise (no verdict is stored). The public Arc RPCs work but are
+  rate-limited and drop the tx-hash index for old transactions
+  (verification reads by block).
+- `ARC_AUTH_TOKEN` is sent only to an explicitly set `ARC_RPC_URL`, never to
+  Arc's public fallback RPC.
+- `ARC_EXPLORER_API_URL` (optional): used only by **Sync from chain**; a
+  query string such as `?apikey=…` is kept. The mainnet explorer may block
+  server requests (403); explorer error responses are reported as such,
+  never as "0 events". The forward scanner still indexes new events from
+  the RPC.
 - `VERIFICATION_MAX_ANCHOR_DELAY_HOURS` (default 48): anchors later than
   this after the activity — or after the DeviceNFT mint, for records held
   until it — are flagged `verified_with_warnings`. Keep it above the 24 h

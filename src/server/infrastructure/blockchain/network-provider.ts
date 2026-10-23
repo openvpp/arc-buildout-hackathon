@@ -38,19 +38,39 @@ export function createArcMintChain(env: ServerEnv): Chain {
   };
 }
 
+function bearerHeaders(token: string | undefined) {
+  return token !== undefined && token.length > 0
+    ? { headers: { Authorization: `Bearer ${token}` } }
+    : undefined;
+}
+
+/**
+ * Transport for ARC_RPC_URL (or the public fallback). ARC_AUTH_TOKEN goes
+ * only to an explicitly configured ARC_RPC_URL, never to Arc's public RPC.
+ */
 export function createArcHttpTransport(
   env: ServerEnv,
   options: { timeout?: number; retryCount?: number } = {},
 ) {
-  const url = resolveArcRpcUrl(env);
-  const authToken = env.ARC_AUTH_TOKEN;
-  return http(url, {
+  const explicit = env.ARC_RPC_URL !== undefined && env.ARC_RPC_URL.length > 0;
+  return http(resolveArcRpcUrl(env), {
     ...options,
-    fetchOptions:
-      authToken !== undefined && authToken.length > 0
-        ? { headers: { Authorization: `Bearer ${authToken}` } }
-        : undefined,
+    fetchOptions: explicit ? bearerHeaders(env.ARC_AUTH_TOKEN) : undefined,
   });
+}
+
+/** Transport for verification reads (VERIFIER_RPC_URL, else ARC_RPC_URL). */
+export function createVerifierHttpTransport(
+  env: ServerEnv,
+  options: { timeout?: number; retryCount?: number } = {},
+) {
+  if (env.VERIFIER_RPC_URL !== undefined && env.VERIFIER_RPC_URL.length > 0) {
+    return http(env.VERIFIER_RPC_URL, {
+      ...options,
+      fetchOptions: bearerHeaders(env.VERIFIER_AUTH_TOKEN),
+    });
+  }
+  return createArcHttpTransport(env, options);
 }
 
 export function resolveDeviceNftMinterPrivateKey(

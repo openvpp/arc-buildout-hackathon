@@ -2,7 +2,6 @@ import {
   BlockNotFoundError,
   createPublicClient,
   hexToString,
-  http,
   keccak256,
   parseAbiItem,
   TransactionNotFoundError,
@@ -10,7 +9,7 @@ import {
 } from 'viem';
 
 import {
-  createArcHttpTransport,
+  createVerifierHttpTransport,
   resolveVerifierRpcUrl,
 } from '@/server/infrastructure/blockchain/network-provider';
 import { getServerEnv } from '@/server/config/env';
@@ -115,34 +114,57 @@ function utf8OrNull(hex: `0x${string}`): string | null {
   }
 }
 
+/** RPC URLs already confirmed to serve the configured chain. */
+const confirmedChainUrls = new Set<string>();
+
 export function createDeviceEventChainReader(
   clientOverride?: PublicClient,
 ): DeviceEventChainReader {
   const env = getServerEnv();
   const url = resolveVerifierRpcUrl(env);
-  const separateVerifier =
-    env.VERIFIER_RPC_URL !== undefined && env.VERIFIER_RPC_URL.length > 0;
+  const expectedChainId = BigInt(env.ARC_CHAIN_ID);
+  const rpcHost = new URL(url).host;
   const client =
     clientOverride ??
     createPublicClient({
-      transport: separateVerifier
-        ? http(url, {
-            timeout: READ_TIMEOUT_MS,
-            retryCount: TRANSPORT_RETRY_COUNT,
-          })
-        : createArcHttpTransport(env, {
-            timeout: READ_TIMEOUT_MS,
-            retryCount: TRANSPORT_RETRY_COUNT,
-          }),
+      transport: createVerifierHttpTransport(env, {
+        timeout: READ_TIMEOUT_MS,
+        retryCount: TRANSPORT_RETRY_COUNT,
+      }),
     });
 
-  return {
-    chainId: BigInt(env.ARC_CHAIN_ID),
-    rpcHost: new URL(url).host,
+  /**
+   * Never read another chain's blocks as ours (e.g. a testnet
+   * VERIFIER_RPC_URL on a mainnet deployment): check eth_chainId once per
+   * URL before the first read. A mismatch throws, so no verdict is stored.
+   */
+  async function ensureExpectedChain(): Promise<void> {
+    const key = clientOverride === undefined ? url : null;
+    if (key !== null && confirmedChainUrls.has(key)) {
+      return;
+    }
+    const served = BigInt(await client.getChainId());
+    if (served !== expectedChainId) {
+      throw new Error(
+        `RPC ${rpcHost} serves chain ${served}, but ARC_CHAIN_ID is ${expectedChainId}.`,
+      );
+    }
+    if (key !== null) {
+      confirmedChainUrls.add(key);
+    }
+  }
 
-    latestBlockNumber: () => client.getBlockNumber(),
+  return {
+    chainId: expectedChainId,
+    rpcHost,
+
+    async latestBlockNumber() {
+      await ensureExpectedChain();
+      return client.getBlockNumber();
+    },
 
     async readBlock(blockNumber) {
+      await ensureExpectedChain();
       try {
         const block = await withHistoryRetry(() =>
           client.getBlock({ blockNumber, includeTransactions: true }),
@@ -164,6 +186,7 @@ export function createDeviceEventChainReader(
     },
 
     async readDeviceEventLogs(input) {
+      await ensureExpectedChain();
       if (input.toBlock - input.fromBlock + 1n > MAX_LOG_RANGE_BLOCKS) {
         throw new Error(
           `Log range exceeds ${MAX_LOG_RANGE_BLOCKS} blocks; page the request.`,
@@ -211,6 +234,7 @@ export function createDeviceEventChainReader(
     },
 
     async findTransactionBlock(transactionHash) {
+      await ensureExpectedChain();
       try {
         const tx = await client.getTransaction({
           hash: transactionHash as `0x${string}`,
