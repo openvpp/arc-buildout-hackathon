@@ -220,6 +220,13 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - Never mark an event verified from our own publish receipt; verdicts come
   from `verifyDeviceEvent` (pure) and are stored in `event_verifications`.
   A verdict is never recorded when the chain could not be read.
+- Values a check relies on (`recordHash`, `endTime`) are read from the
+  anchored bytes, never from a database copy. Lateness counts from
+  max(activity end, `devices.nft_minted_at`); keep the limit above the 24 h
+  stale-session window.
+- A chain read failure throws (`VERIFICATION_UNAVAILABLE`); only "the block
+  does not exist" counts as missing. Records are only re-checked on the
+  chain and contract they were anchored on.
 - Payload v2 (`recordHash`) is frozen at queue time with a random salt;
   the salt and `record_json` are off-chain only and never returned by any
   public endpoint. Never rebuild or rehash a stored payload.

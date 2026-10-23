@@ -1,9 +1,11 @@
 import {
+  BlockNotFoundError,
   createPublicClient,
   hexToString,
   http,
   keccak256,
   parseAbiItem,
+  TransactionNotFoundError,
   type PublicClient,
 } from 'viem';
 
@@ -53,6 +55,11 @@ export type DeviceEventChainReader = {
   /** Host of the RPC used, recorded as evidence (never the full URL). */
   rpcHost: string;
   latestBlockNumber(): Promise<bigint>;
+  /**
+   * Null only when the chain says the block does not exist. Any failure to
+   * read (timeout, rate limit, missing history) throws, so the caller never
+   * mistakes an unreachable RPC for a missing anchor.
+   */
   readBlock(blockNumber: bigint): Promise<ChainBlock | null>;
   readDeviceEventLogs(input: {
     contractAddress: string;
@@ -60,7 +67,7 @@ export type DeviceEventChainReader = {
     toBlock: bigint;
     tokenId?: bigint;
   }): Promise<ChainDeviceEventLog[]>;
-  /** Best effort; null when the RPC no longer indexes this hash. */
+  /** Null when the RPC does not know (or no longer indexes) this hash; throws when it cannot be read. */
   findTransactionBlock(transactionHash: string): Promise<bigint | null>;
 };
 
@@ -124,8 +131,11 @@ export function createDeviceEventChainReader(
           timestamp: block.timestamp,
           senderOf: (hash) => senders.get(hash.toLowerCase()) ?? null,
         };
-      } catch {
-        return null;
+      } catch (error) {
+        if (error instanceof BlockNotFoundError) {
+          return null;
+        }
+        throw error;
       }
     },
 
@@ -182,8 +192,11 @@ export function createDeviceEventChainReader(
           hash: transactionHash as `0x${string}`,
         });
         return tx.blockNumber;
-      } catch {
-        return null;
+      } catch (error) {
+        if (error instanceof TransactionNotFoundError) {
+          return null;
+        }
+        throw error;
       }
     },
   };

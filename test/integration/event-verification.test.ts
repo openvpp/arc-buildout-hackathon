@@ -4,6 +4,10 @@ import { and, eq } from 'drizzle-orm';
 import { keccak256, stringToHex } from 'viem';
 import { afterAll, describe, expect, it } from 'vitest';
 
+import {
+  computeRecordHash,
+  recomputeEventRecord,
+} from '@/server/application/telemetry/device-event-record';
 import { publishDeviceEvent } from '@/server/application/telemetry/publish-device-event';
 import { processEnodeWebhook } from '@/server/application/webhooks/enode-webhook';
 import {
@@ -210,6 +214,90 @@ describe('verifyStoredDeviceEvent', () => {
     expect(
       result.checks.find((c) => c.id === 'record_commitment')?.status,
     ).toBe('fail');
+  });
+
+  it('ignores a database record_hash rewritten to match tampered data', async () => {
+    const { device, event, transactionHash } = await publishedEvent();
+    await db
+      .update(chargingSessions)
+      .set({ energyDeliveredKwh: '45.0000' })
+      .where(eq(chargingSessions.deviceId, device.id));
+    // The attacker also "fixes" the stored commitment and activity time.
+    const rebuilt = await recomputeEventRecord(db, {
+      sourceType: event.sourceType,
+      sourceId: event.sourceId,
+      snapshotJson: event.recordJson ?? '',
+    });
+    if (rebuilt.status !== 'ok' || event.recordSalt === null) {
+      throw new Error('expected a rebuildable v2 record');
+    }
+    await db
+      .update(deviceEvents)
+      .set({
+        recordHash: computeRecordHash(event.recordSalt, rebuilt.recordJson),
+        occurredAt: new Date('2031-03-01T11:04:00Z'),
+      })
+      .where(eq(deviceEvents.id, event.id));
+
+    const result = await verifyStoredDeviceEvent({
+      db,
+      deviceEventId: event.id,
+      checkedBy: 'worker',
+      readerOverride: fakeChain({
+        transactionHash,
+        payloadJson: event.payloadJson,
+      }),
+      policyOverride: policy,
+    });
+    expect(result.verdict).toBe('unverified');
+    expect(
+      result.checks.find((c) => c.id === 'record_commitment')?.status,
+    ).toBe('fail');
+  });
+
+  it('records no verdict when the chain cannot be read', async () => {
+    const { event, transactionHash } = await publishedEvent();
+    await expect(
+      verifyStoredDeviceEvent({
+        db,
+        deviceEventId: event.id,
+        checkedBy: 'worker',
+        readerOverride: {
+          ...fakeChain({ transactionHash, payloadJson: event.payloadJson }),
+          readBlock: async () => {
+            throw new Error('429 Too Many Requests');
+          },
+        },
+        policyOverride: policy,
+      }),
+    ).rejects.toMatchObject({ code: 'VERIFICATION_UNAVAILABLE' });
+    expect(await latestVerification(db, event.id)).toBeNull();
+    const [row] = await db
+      .select()
+      .from(deviceEvents)
+      .where(eq(deviceEvents.id, event.id));
+    expect(row?.verificationStatus).toBe('unchecked');
+  });
+
+  it('does not re-check a record anchored on another chain', async () => {
+    const { event, transactionHash } = await publishedEvent();
+    await db
+      .update(deviceEvents)
+      .set({ chainId: 1n })
+      .where(eq(deviceEvents.id, event.id));
+    await expect(
+      verifyStoredDeviceEvent({
+        db,
+        deviceEventId: event.id,
+        checkedBy: 'worker',
+        readerOverride: fakeChain({
+          transactionHash,
+          payloadJson: event.payloadJson,
+        }),
+        policyOverride: policy,
+      }),
+    ).rejects.toMatchObject({ code: 'VERIFICATION_UNAVAILABLE' });
+    expect(await latestVerification(db, event.id)).toBeNull();
   });
 
   it('marks an anchor by an unknown writer unverified', async () => {

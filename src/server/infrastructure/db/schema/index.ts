@@ -224,6 +224,9 @@ export const devices = pgTable(
     // bounds a stale claim so a crashed worker's reservation can be reclaimed.
     mintStatus: text('mint_status').notNull().default('unminted'),
     mintClaimedAt: timestamp('mint_claimed_at', { withTimezone: true }),
+    // When this server saw the mint confirm. Events queued before it could
+    // not be anchored earlier; verification measures their lateness from it.
+    nftMintedAt: timestamp('nft_minted_at', { withTimezone: true }),
     lastLatitude: numeric('last_latitude', { precision: 9, scale: 6 }),
     lastLongitude: numeric('last_longitude', { precision: 9, scale: 6 }),
     lastLocationAt: timestamp('last_location_at', { withTimezone: true }),

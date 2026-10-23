@@ -71,6 +71,13 @@
       "when": 1792604384467,
       "tag": "0009_chain_event_index",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792755915958,
+      "tag": "0010_device_nft_minted_at",
+      "breakpoints": true
     }
   ]
 }

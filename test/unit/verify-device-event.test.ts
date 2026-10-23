@@ -13,16 +13,31 @@ import { decideOutboxFollowUp } from '@/server/infrastructure/jobs/outbox-follow
 const CONTRACT = '0xf1AB69B6C1eAddCf47C6019805Ac37F2d78FA908';
 const WRITER = '0x0e12c056a563c7ebc652e288e09c9be524044cea';
 const TX = `0x${'ab'.repeat(32)}`;
-const PAYLOAD = '{"vehicleId":"v1","energyDelivered":30}';
-const PAYLOAD_HASH = keccak256(stringToHex(PAYLOAD));
-// Activity ended 10 minutes before the anchoring block.
-const ACTIVITY_END = new Date('2026-10-12T17:00:00Z');
+const RECORD_HASH = `0x${'11'.repeat(32)}`;
+// The anchored payload states the activity end; the block is 10 min later.
+const ACTIVITY_END = '2026-10-12T17:00:00.000Z';
 const BLOCK_TIME = BigInt(Date.parse('2026-10-12T17:10:00Z') / 1000);
+
+function payloadText(
+  fields: { endTime?: string; recordHash?: string; energy?: number } = {},
+): string {
+  return JSON.stringify({
+    vehicleId: 'v1',
+    energyDelivered: fields.energy ?? 30,
+    endTime: fields.endTime ?? ACTIVITY_END,
+    ...(fields.recordHash === undefined
+      ? {}
+      : { recordHash: fields.recordHash }),
+  });
+}
+
+const PAYLOAD = payloadText();
+const PAYLOAD_HASH = keccak256(stringToHex(PAYLOAD));
 
 const policy: VerificationPolicy = {
   requiredConfirmations: 3n,
   trustedWriters: [WRITER],
-  maxAnchorDelaySeconds: 24 * 3600,
+  maxAnchorDelaySeconds: 48 * 3600,
   clockSkewSeconds: 300,
 };
 
@@ -35,9 +50,24 @@ function expected(overrides: Partial<ExpectedEvent> = {}): ExpectedEvent {
     eventType: 2,
     payloadHash: PAYLOAD_HASH,
     payloadJson: PAYLOAD,
-    occurredAt: ACTIVITY_END,
+    earliestAnchorAt: null,
     record: { kind: 'none' },
     ...overrides,
+  };
+}
+
+function logOf(
+  payload: string,
+  overrides: { logIndex?: number; tokenId?: bigint } = {},
+) {
+  return {
+    contractAddress: CONTRACT.toLowerCase(),
+    transactionHash: TX,
+    logIndex: overrides.logIndex ?? 0,
+    tokenId: overrides.tokenId ?? 82n,
+    eventType: 2,
+    dataHash: keccak256(stringToHex(payload)),
+    dataUtf8: payload,
   };
 }
 
@@ -46,18 +76,25 @@ function observed(overrides: Partial<ChainObservation> = {}): ChainObservation {
     latestBlockNumber: 200n,
     block: { number: 100n, timestamp: BLOCK_TIME },
     transactionSender: WRITER,
-    logs: [
-      {
-        contractAddress: CONTRACT.toLowerCase(),
-        transactionHash: TX,
-        logIndex: 0,
-        tokenId: 82n,
-        eventType: 2,
-        dataHash: PAYLOAD_HASH,
-        dataUtf8: PAYLOAD,
-      },
-    ],
+    logs: [logOf(PAYLOAD)],
     ...overrides,
+  };
+}
+
+/** Expected + observed for an anchored v2 payload with this content. */
+function anchoredV2(payload: string, recomputedHash: string | null) {
+  return {
+    expected: expected({
+      payloadJson: payload,
+      payloadHash: keccak256(stringToHex(payload)),
+      record: {
+        kind: 'commitment',
+        recomputedHash,
+        problem:
+          recomputedHash === null ? 'the source record was deleted' : null,
+      },
+    }),
+    observed: observed({ logs: [logOf(payload)] }),
   };
 }
 
@@ -118,6 +155,38 @@ describe('verifyDeviceEvent', () => {
     expect(result.verdict).toBe('unverified');
   });
 
+  it('does not claim a device match when no device was expected', () => {
+    const result = verifyDeviceEvent(
+      expected({ tokenId: null, eventType: null }),
+      observed(),
+      policy,
+    );
+    expect(statusOf(result, 'device_and_type')).toBe('skip');
+    expect(
+      verifyDeviceEvent(
+        expected({ tokenId: null, eventType: 12 }),
+        observed(),
+        policy,
+      ).verdict,
+    ).toBe('unverified');
+  });
+
+  it('picks the log carrying these bytes in a multi-event transaction', () => {
+    const other = payloadText({ energy: 99 });
+    const result = verifyDeviceEvent(
+      expected(),
+      observed({
+        logs: [
+          logOf(other, { logIndex: 0, tokenId: 82n }),
+          logOf(PAYLOAD, { logIndex: 1, tokenId: 82n }),
+        ],
+      }),
+      policy,
+    );
+    expect(result.verdict).toBe('verified');
+    expect(result.evidence.logIndex).toBe(1);
+  });
+
   it('rejects a stored record that no longer matches the chain', () => {
     const tampered = PAYLOAD.replace('30', '45');
     const result = verifyDeviceEvent(
@@ -133,71 +202,85 @@ describe('verifyDeviceEvent', () => {
     expect(result.verdict).toBe('unverified');
   });
 
-  it('checks the full off-chain record for payload version 2', () => {
-    const committed = `0x${'11'.repeat(32)}`;
-    const good = verifyDeviceEvent(
-      expected({
-        record: {
-          kind: 'commitment',
-          committedHash: committed,
-          recomputedHash: committed,
-          problem: null,
-        },
-      }),
-      observed(),
-      policy,
-    );
-    expect(statusOf(good, 'record_commitment')).toBe('pass');
+  it('checks the full off-chain record against the anchored recordHash', () => {
+    const payload = payloadText({ recordHash: RECORD_HASH });
+    const good = anchoredV2(payload, RECORD_HASH);
+    expect(
+      statusOf(
+        verifyDeviceEvent(good.expected, good.observed, policy),
+        'record_commitment',
+      ),
+    ).toBe('pass');
 
-    const changed = verifyDeviceEvent(
-      expected({
-        record: {
-          kind: 'commitment',
-          committedHash: committed,
-          recomputedHash: `0x${'22'.repeat(32)}`,
-          problem: null,
-        },
-      }),
-      observed(),
+    const changed = anchoredV2(payload, `0x${'22'.repeat(32)}`);
+    const changedResult = verifyDeviceEvent(
+      changed.expected,
+      changed.observed,
       policy,
     );
-    expect(statusOf(changed, 'record_commitment')).toBe('fail');
-    expect(changed.verdict).toBe('unverified');
+    expect(statusOf(changedResult, 'record_commitment')).toBe('fail');
+    expect(changedResult.verdict).toBe('unverified');
 
-    const deleted = verifyDeviceEvent(
-      expected({
-        record: {
-          kind: 'commitment',
-          committedHash: committed,
-          recomputedHash: null,
-          problem: 'the source record was deleted',
-        },
-      }),
-      observed(),
-      policy,
-    );
-    expect(deleted.verdict).toBe('unverified');
+    const deleted = anchoredV2(payload, null);
+    expect(
+      verifyDeviceEvent(deleted.expected, deleted.observed, policy).verdict,
+    ).toBe('unverified');
   });
 
-  it('warns on a late anchor and rejects one that predates its activity', () => {
-    const late = verifyDeviceEvent(
-      expected({ occurredAt: new Date('2026-10-09T17:00:00Z') }),
-      observed(),
-      policy,
-    );
-    expect(late.verdict).toBe('verified_with_warnings');
-    expect(statusOf(late, 'anchor_timeliness')).toBe('warn');
-
-    const backdated = verifyDeviceEvent(
-      expected({ occurredAt: new Date('2026-10-13T17:00:00Z') }),
-      observed(),
-      policy,
-    );
-    expect(backdated.verdict).toBe('unverified');
-    expect(statusOf(backdated, 'anchor_timeliness')).toBe('fail');
+  it('fails a v2 record whose anchored payload has no recordHash', () => {
+    const { expected: exp, observed: obs } = anchoredV2(PAYLOAD, RECORD_HASH);
+    const result = verifyDeviceEvent(exp, obs, policy);
+    expect(statusOf(result, 'record_commitment')).toBe('fail');
   });
 
-  it('fails closed when the block cannot be read', () => {
+  it('takes the activity time from the anchored payload', () => {
+    const late = payloadText({ endTime: '2026-10-09T17:00:00.000Z' });
+    const lateResult = verifyDeviceEvent(
+      expected({
+        payloadJson: late,
+        payloadHash: keccak256(stringToHex(late)),
+      }),
+      observed({ logs: [logOf(late)] }),
+      policy,
+    );
+    expect(lateResult.verdict).toBe('verified_with_warnings');
+    expect(statusOf(lateResult, 'anchor_timeliness')).toBe('warn');
+
+    const backdated = payloadText({ endTime: '2026-10-13T17:00:00.000Z' });
+    const backdatedResult = verifyDeviceEvent(
+      expected({
+        payloadJson: backdated,
+        payloadHash: keccak256(stringToHex(backdated)),
+      }),
+      observed({ logs: [logOf(backdated)] }),
+      policy,
+    );
+    expect(backdatedResult.verdict).toBe('unverified');
+    expect(statusOf(backdatedResult, 'anchor_timeliness')).toBe('fail');
+  });
+
+  it('measures a record held for its mint from the mint', () => {
+    const old = payloadText({ endTime: '2026-10-09T17:00:00.000Z' });
+    const held = {
+      payloadJson: old,
+      payloadHash: keccak256(stringToHex(old)),
+    };
+    const minted = verifyDeviceEvent(
+      expected({ ...held, earliestAnchorAt: new Date('2026-10-12T16:00:00Z') }),
+      observed({ logs: [logOf(old)] }),
+      policy,
+    );
+    expect(statusOf(minted, 'anchor_timeliness')).toBe('pass');
+
+    const slowAfterMint = verifyDeviceEvent(
+      expected({ ...held, earliestAnchorAt: new Date('2026-10-09T18:00:00Z') }),
+      observed({ logs: [logOf(old)] }),
+      policy,
+    );
+    expect(statusOf(slowAfterMint, 'anchor_timeliness')).toBe('warn');
+  });
+
+  it('never records "verified" when the anchor block is absent', () => {
     const result = verifyDeviceEvent(
       expected(),
       observed({ block: null }),

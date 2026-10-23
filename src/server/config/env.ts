@@ -56,7 +56,7 @@ const serverEnvSchema = z.object({
   // app's own signer.
   ARC_TRUSTED_WRITER_ADDRESSES: z.string().default(''),
   // Anchors later than this after the activity are flagged (warning).
-  VERIFICATION_MAX_ANCHOR_DELAY_HOURS: z.coerce.number().positive().default(24),
+  VERIFICATION_MAX_ANCHOR_DELAY_HOURS: z.coerce.number().positive().default(48),
   ARC_AUTH_TOKEN: z.string().optional(),
   ARC_CHAIN_ID: z.string().default('5042002'),
   DEVICE_NFT_CONTRACT_ADDRESS: z

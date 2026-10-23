@@ -11,6 +11,7 @@ import {
 } from '@/server/application/verification/verify-device-event';
 import {
   latestVerification,
+  readChain,
   verificationPolicyFromEnv,
   verifyStoredDeviceEvent,
 } from '@/server/application/verification/verify-stored-event';
@@ -21,7 +22,7 @@ import {
   type DeviceEventChainReader,
 } from '@/server/infrastructure/blockchain/device-event-chain-reader';
 import type { Database } from '@/server/infrastructure/db/client';
-import { deviceEvents } from '@/server/infrastructure/db/schema';
+import { deviceEvents, devices } from '@/server/infrastructure/db/schema';
 
 /** A public result is reused for this long before re-reading the chain. */
 export const PUBLIC_VERIFICATION_CACHE_MS = 5 * 60 * 1000;
@@ -95,6 +96,7 @@ function toPublicRecord(row: DeviceEventRow): PublicEventRecord {
 function reproduceFor(record: PublicEventRecord) {
   const chainId = record.chainId ?? getServerEnv().ARC_CHAIN_ID;
   const rpcUrl = defaultArcRpcUrl(chainId);
+  const writers = verificationPolicyFromEnv().trustedWriters;
   const command =
     record.transactionHash === null || record.blockNumber === null
       ? 'Not anchored yet.'
@@ -105,6 +107,9 @@ function reproduceFor(record: PublicEventRecord) {
           `--tx ${record.transactionHash}`,
           `--block ${record.blockNumber}`,
           `--payload '<payload json>'`,
+          `--writer ${writers.length > 0 ? writers.join(',') : '<trusted writer>'}`,
+          ...(record.tokenId === null ? [] : [`--token-id ${record.tokenId}`]),
+          `--event-type ${record.eventType}`,
         ].join(' ');
   return { rpcUrl, command };
 }
@@ -208,6 +213,9 @@ export const verifyClaimInputSchema = z
     blockNumber: z.coerce.bigint().positive().optional(),
     /** The record you hold, exactly as published (the event's data). */
     payloadJson: z.string().min(2).max(8192),
+    /** The DeviceNFT and event type you expect it to be for (optional). */
+    tokenId: z.coerce.bigint().nonnegative().optional(),
+    eventType: z.number().int().min(0).max(255).optional(),
   })
   .strict();
 
@@ -245,7 +253,7 @@ export async function verifyClaim(
   const blockNumber =
     input.blockNumber ??
     known?.blockNumber ??
-    (await reader.findTransactionBlock(input.transactionHash));
+    (await readChain(() => reader.findTransactionBlock(input.transactionHash)));
   if (blockNumber === null) {
     throw new ApplicationError(
       'BLOCK_NUMBER_REQUIRED',
@@ -253,32 +261,54 @@ export async function verifyClaim(
     );
   }
 
-  const [latestBlockNumber, block, logs] = await Promise.all([
-    reader.latestBlockNumber(),
-    reader.readBlock(blockNumber),
-    reader.readDeviceEventLogs({
-      contractAddress,
-      fromBlock: blockNumber,
-      toBlock: blockNumber,
-    }),
-  ]);
+  const [latestBlockNumber, block, logs] = await readChain(() =>
+    Promise.all([
+      reader.latestBlockNumber(),
+      reader.readBlock(blockNumber),
+      reader.readDeviceEventLogs({
+        contractAddress,
+        fromBlock: blockNumber,
+        toBlock: blockNumber,
+      }),
+    ]),
+  );
   const txLogs = logs.filter(
     (entry) =>
       entry.transactionHash.toLowerCase() ===
       input.transactionHash.toLowerCase(),
   );
-  const anchored = txLogs[0];
+  const payloadHash = keccak256(stringToHex(input.payloadJson));
+  // The log carrying these exact bytes (a tx can hold several DeviceEvents).
+  const anchored =
+    txLogs.find(
+      (entry) => entry.dataHash.toLowerCase() === payloadHash.toLowerCase(),
+    ) ?? txLogs[0];
+  // Expected identity comes from the caller or from our own record of this
+  // transaction — never from the anchor being checked.
+  const expectedTokenId =
+    input.tokenId ??
+    (known?.tokenId !== null && known?.tokenId !== undefined
+      ? BigInt(known.tokenId)
+      : null);
+  const expectedEventType = input.eventType ?? known?.eventType ?? null;
+  const [knownDevice] =
+    known === null
+      ? []
+      : await db
+          .select({ nftMintedAt: devices.nftMintedAt })
+          .from(devices)
+          .where(eq(devices.id, known.deviceId))
+          .limit(1);
   const result = verifyDeviceEvent(
     {
       contractAddress,
       transactionHash: input.transactionHash,
       blockNumber,
-      // Identity comes from the anchor itself; we're checking the content.
-      tokenId: anchored?.tokenId ?? -1n,
-      eventType: anchored?.eventType ?? -1,
-      payloadHash: keccak256(stringToHex(input.payloadJson)),
+      tokenId: expectedTokenId,
+      eventType: expectedEventType,
+      payloadHash,
       payloadJson: input.payloadJson,
-      occurredAt: known?.occurredAt ?? null,
+      earliestAnchorAt: knownDevice?.nftMintedAt ?? null,
       // The private record is not available to a third party.
       record: { kind: 'none' },
     },

@@ -203,6 +203,7 @@ describe('getPublicEventVerification', () => {
     expect(body).not.toContain(event.recordSalt ?? 'salt');
     expect(body).not.toContain('recordJson');
     expect(result?.reproduce.command).toContain('verify:standalone');
+    expect(result?.reproduce.command).toContain('--writer 0x');
   });
 });
 
@@ -232,6 +233,70 @@ describe('verifyClaim', () => {
       reader,
     );
     expect(tampered.verdict).toBe('unverified');
+  });
+
+  it('compares the device only against an independent expectation', async () => {
+    const { event, transactionHash } = await publishedEvent();
+    const reader = chain({ transactionHash, payloadJson: event.payloadJson });
+    const deviceCheck = (result: Awaited<ReturnType<typeof verifyClaim>>) =>
+      result.checks.find((c) => c.id === 'device_and_type')?.status;
+
+    // Our own record supplies the expected token and type.
+    expect(
+      deviceCheck(
+        await verifyClaim(
+          db,
+          {
+            transactionHash,
+            blockNumber: 1000n,
+            payloadJson: event.payloadJson,
+          },
+          reader,
+        ),
+      ),
+    ).toBe('pass');
+
+    const wrongDevice = await verifyClaim(
+      db,
+      {
+        transactionHash,
+        blockNumber: 1000n,
+        payloadJson: event.payloadJson,
+        tokenId: 83n,
+      },
+      reader,
+    );
+    expect(deviceCheck(wrongDevice)).toBe('fail');
+    expect(wrongDevice.verdict).toBe('unverified');
+
+    // A transaction this app never recorded: nothing to compare against.
+    const foreignTx = `0x${'ef'.repeat(32)}`;
+    const foreign = await verifyClaim(
+      db,
+      {
+        transactionHash: foreignTx,
+        blockNumber: 1000n,
+        payloadJson: event.payloadJson,
+      },
+      chain({ transactionHash: foreignTx, payloadJson: event.payloadJson }),
+    );
+    expect(deviceCheck(foreign)).toBe('skip');
+  });
+
+  it('reports an unreadable chain instead of a verdict', async () => {
+    const tx = `0x${'ce'.repeat(32)}`;
+    await expect(
+      verifyClaim(
+        db,
+        { transactionHash: tx, blockNumber: 1000n, payloadJson: '{}' },
+        {
+          ...chain({ transactionHash: tx, payloadJson: '{}' }),
+          latestBlockNumber: async () => {
+            throw new Error('timeout');
+          },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'VERIFICATION_UNAVAILABLE' });
   });
 
   it('asks for the block number when the RPC no longer indexes the hash', async () => {

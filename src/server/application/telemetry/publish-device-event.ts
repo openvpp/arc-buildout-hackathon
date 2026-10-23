@@ -34,21 +34,25 @@ async function markConfirmed(
   eventId: string,
   input: { transactionHash: string; blockNumber: bigint; tokenId: bigint },
 ): Promise<void> {
-  await db
-    .update(deviceEvents)
-    .set({
-      status: 'confirmed',
-      tokenId: input.tokenId.toString(),
-      transactionHash: input.transactionHash,
-      blockNumber: input.blockNumber,
-      confirmedAt: new Date(),
-      claimedAt: null,
-      updatedAt: new Date(),
-    })
-    .where(eq(deviceEvents.id, eventId));
-  // Our own receipt check is not the verification: queue an independent,
-  // block-based re-check of the anchor.
-  await enqueueEventVerification(db, eventId);
+  // One transaction: a confirmed row always has its verify job, and a
+  // failed enqueue never leaves a half-confirmed row behind.
+  await db.transaction(async (tx) => {
+    await tx
+      .update(deviceEvents)
+      .set({
+        status: 'confirmed',
+        tokenId: input.tokenId.toString(),
+        transactionHash: input.transactionHash,
+        blockNumber: input.blockNumber,
+        confirmedAt: new Date(),
+        claimedAt: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(deviceEvents.id, eventId));
+    // Our own receipt check is not the verification: queue an independent,
+    // block-based re-check of the anchor.
+    await enqueueEventVerification(tx, eventId);
+  });
 }
 
 /** Drop a reverted tx hash so the next attempt broadcasts afresh. */
@@ -276,7 +280,16 @@ export async function publishDeviceEvent(input: {
         claimedAt: null,
         updatedAt: new Date(),
       })
-      .where(eq(deviceEvents.id, claimed.id));
+      // Never demote a row that is already confirmed on-chain.
+      .where(
+        and(
+          eq(deviceEvents.id, claimed.id),
+          or(
+            eq(deviceEvents.status, 'pending'),
+            eq(deviceEvents.status, 'queued'),
+          ),
+        ),
+      );
     if (broadcast.hash !== null) {
       log.warn('device_event.errored_after_broadcast', {
         deviceEventId,

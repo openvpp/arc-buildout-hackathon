@@ -136,6 +136,7 @@ export async function mintDeviceNftIfNeeded(input: {
         .set({
           mintStatus: 'minted',
           nftTokenId: reconciled.tokenId,
+          nftMintedAt: new Date(),
           network: arcNetworkLabel(env),
           updatedAt: new Date(),
         })
@@ -194,6 +195,7 @@ export async function mintDeviceNftIfNeeded(input: {
       .set({
         mintStatus: 'minted',
         nftTokenId: minted.tokenId,
+        nftMintedAt: new Date(),
         nftContractAddress: env.DEVICE_NFT_CONTRACT_ADDRESS ?? null,
         nftTransactionHash: minted.transactionHash,
         nftMetadataUri: deviceURI,

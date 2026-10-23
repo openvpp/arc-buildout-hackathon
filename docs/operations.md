@@ -95,8 +95,10 @@ sign users out.
 - `ARC_EXPLORER_API_URL` (optional): used only by **Sync from chain**. The
   mainnet explorer may block server requests (403); the forward scanner
   still indexes new events from the RPC.
-- `VERIFICATION_MAX_ANCHOR_DELAY_HOURS` (default 24): later anchors are
-  flagged `verified_with_warnings`.
+- `VERIFICATION_MAX_ANCHOR_DELAY_HOURS` (default 48): anchors later than
+  this after the activity — or after the DeviceNFT mint, for records held
+  until it — are flagged `verified_with_warnings`. Keep it above the 24 h
+  stale-session window.
 - Re-check one record from a shell: `pnpm verify:event -- <deviceEventId>`.
 
 ## Device events (on-chain time series)

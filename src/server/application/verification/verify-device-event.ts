@@ -58,9 +58,11 @@ export type RecordEvidence =
   | { kind: 'none' }
   | {
       kind: 'commitment';
-      /** recordHash committed in the stored payload. */
-      committedHash: string;
-      /** keccak256(salt:recordJson) recomputed from today's database. */
+      /**
+       * keccak256(salt:recordJson) recomputed from today's database. It is
+       * compared with the recordHash inside the anchored bytes, never with
+       * a database copy of it.
+       */
       recomputedHash: string | null;
       /** Why recomputation failed, when it did. */
       problem: string | null;
@@ -70,13 +72,19 @@ export type ExpectedEvent = {
   contractAddress: string;
   transactionHash: string;
   blockNumber: bigint;
-  tokenId: bigint;
-  eventType: number;
+  /** Null when the caller has no independent expectation (not compared). */
+  tokenId: bigint | null;
+  eventType: number | null;
   payloadHash: string;
   /** Stored payload text; null when verifying a third party's claim. */
   payloadJson: string | null;
-  /** When the recorded activity ended (session end / end of the UTC day). */
-  occurredAt: Date | null;
+  /**
+   * The anchor could not have been written before this (the DeviceNFT's
+   * mint): a record held while its device was being minted is measured for
+   * lateness from here. The activity time itself always comes from the
+   * anchored payload.
+   */
+  earliestAnchorAt: Date | null;
   record: RecordEvidence;
 };
 
@@ -105,6 +113,37 @@ export type VerificationResult = {
 
 const lower = (value: string) => value.toLowerCase();
 
+/**
+ * The fields the verifier needs from the anchored bytes. Only on-chain data
+ * is trusted for these: a database copy could have been edited.
+ */
+export function readAnchoredPayload(dataUtf8: string | null): {
+  recordHash: string | null;
+  endTime: Date | null;
+} {
+  if (dataUtf8 === null) {
+    return { recordHash: null, endTime: null };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(dataUtf8);
+  } catch {
+    return { recordHash: null, endTime: null };
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    return { recordHash: null, endTime: null };
+  }
+  const fields = parsed as Record<string, unknown>;
+  const recordHash =
+    typeof fields.recordHash === 'string' ? fields.recordHash : null;
+  const endMs =
+    typeof fields.endTime === 'string' ? Date.parse(fields.endTime) : NaN;
+  return {
+    recordHash,
+    endTime: Number.isNaN(endMs) ? null : new Date(endMs),
+  };
+}
+
 export function verifyDeviceEvent(
   expected: ExpectedEvent,
   observed: ChainObservation,
@@ -120,12 +159,19 @@ export function verifyDeviceEvent(
       lower(entry.contractAddress) === lower(expected.contractAddress) &&
       lower(entry.transactionHash) === lower(expected.transactionHash),
   );
+  // A transaction can carry several DeviceEvents: prefer the one whose bytes
+  // are this record, then the expected device/type, then the first.
   const match =
+    fromContract.find(
+      (entry) => lower(entry.dataHash) === lower(expected.payloadHash),
+    ) ??
     fromContract.find(
       (entry) =>
         entry.tokenId === expected.tokenId &&
         entry.eventType === expected.eventType,
-    ) ?? fromContract[0];
+    ) ??
+    fromContract[0];
+  const anchored = readAnchoredPayload(match?.dataUtf8 ?? null);
   if (observed.block === null) {
     add(
       'anchor_exists',
@@ -186,12 +232,18 @@ export function verifyDeviceEvent(
     );
   }
 
-  // 4. Right device and event type.
+  // 4. Right device and event type (each compared only when expected).
   if (match === undefined) {
     add('device_and_type', 'skip', 'No anchor to compare.');
+  } else if (expected.tokenId === null && expected.eventType === null) {
+    add(
+      'device_and_type',
+      'skip',
+      `Anchored for token ${match.tokenId}, event type ${match.eventType}; no expected device was given, so it was not compared.`,
+    );
   } else if (
-    match.tokenId === expected.tokenId &&
-    match.eventType === expected.eventType
+    (expected.tokenId === null || match.tokenId === expected.tokenId) &&
+    (expected.eventType === null || match.eventType === expected.eventType)
   ) {
     add(
       'device_and_type',
@@ -202,7 +254,7 @@ export function verifyDeviceEvent(
     add(
       'device_and_type',
       'fail',
-      `On-chain token ${match.tokenId} / type ${match.eventType}, expected ${expected.tokenId} / ${expected.eventType}.`,
+      `On-chain token ${match.tokenId} / type ${match.eventType}, expected ${expected.tokenId ?? 'any'} / ${expected.eventType ?? 'any'}.`,
     );
   }
 
@@ -242,6 +294,14 @@ export function verifyDeviceEvent(
       'skip',
       'Payload version 1: no record commitment; only the public payload is verifiable.',
     );
+  } else if (match === undefined) {
+    add('record_commitment', 'skip', 'No anchor to compare.');
+  } else if (anchored.recordHash === null) {
+    add(
+      'record_commitment',
+      'fail',
+      'The record claims a recordHash commitment, but the anchored payload has none.',
+    );
   } else if (expected.record.recomputedHash === null) {
     add(
       'record_commitment',
@@ -249,13 +309,12 @@ export function verifyDeviceEvent(
       `Off-chain record could not be rebuilt: ${expected.record.problem ?? 'unknown'}.`,
     );
   } else if (
-    lower(expected.record.recomputedHash) ===
-    lower(expected.record.committedHash)
+    lower(expected.record.recomputedHash) === lower(anchored.recordHash)
   ) {
     add(
       'record_commitment',
       'pass',
-      'Full off-chain record matches recordHash.',
+      'Full off-chain record matches the anchored recordHash.',
     );
   } else {
     add(
@@ -265,30 +324,49 @@ export function verifyDeviceEvent(
     );
   }
 
-  // 8. Timeliness: anchored soon after (and not before) the activity.
-  if (observed.block === null || expected.occurredAt === null) {
-    add('anchor_timeliness', 'skip', 'Activity time or block time unknown.');
+  // 8. Timeliness: anchored soon after (and not before) the activity, as
+  // stated by the anchored payload's endTime.
+  if (observed.block === null || anchored.endTime === null) {
+    add(
+      'anchor_timeliness',
+      'skip',
+      observed.block === null
+        ? 'Block time unknown.'
+        : 'The anchored payload states no activity end time.',
+    );
   } else {
     const anchoredAt = Number(observed.block.timestamp);
-    const activityEnd = Math.floor(expected.occurredAt.getTime() / 1000);
+    const activityEnd = Math.floor(anchored.endTime.getTime() / 1000);
     const delay = anchoredAt - activityEnd;
+    // A record queued before its DeviceNFT existed could not be anchored
+    // until the mint; lateness counts from whichever came last.
+    const mintedAt =
+      expected.earliestAnchorAt === null
+        ? null
+        : Math.floor(expected.earliestAnchorAt.getTime() / 1000);
+    const heldForMint = mintedAt !== null && mintedAt > activityEnd;
+    const lateness = anchoredAt - (heldForMint ? mintedAt : activityEnd);
     if (delay < -policy.clockSkewSeconds) {
       add(
         'anchor_timeliness',
         'fail',
         `Anchored ${Math.abs(delay)} s before the activity it claims to record.`,
       );
-    } else if (delay > policy.maxAnchorDelaySeconds) {
+    } else if (lateness > policy.maxAnchorDelaySeconds) {
       add(
         'anchor_timeliness',
         'warn',
-        `Anchored ${formatDuration(delay)} after the activity (limit ${formatDuration(policy.maxAnchorDelaySeconds)}).`,
+        heldForMint
+          ? `Anchored ${formatDuration(lateness)} after the DeviceNFT was minted (limit ${formatDuration(policy.maxAnchorDelaySeconds)}).`
+          : `Anchored ${formatDuration(delay)} after the activity (limit ${formatDuration(policy.maxAnchorDelaySeconds)}).`,
       );
     } else {
       add(
         'anchor_timeliness',
         'pass',
-        `Anchored ${formatDuration(Math.max(delay, 0))} after the activity.`,
+        heldForMint
+          ? `Anchored ${formatDuration(Math.max(delay, 0))} after the activity, held until the DeviceNFT was minted.`
+          : `Anchored ${formatDuration(Math.max(delay, 0))} after the activity.`,
       );
     }
   }

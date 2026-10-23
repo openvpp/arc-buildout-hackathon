@@ -325,6 +325,57 @@ describe('publishDeviceEvent', () => {
     expect(row).toMatchObject({ status: 'confirmed', blockNumber: 456n });
   });
 
+  it('confirms and queues its verification together, or not at all', async () => {
+    const { event } = await queuedEventFor(true);
+    // Make the verify-job insert fail after the receipt confirmed.
+    await sql.unsafe(`
+      create or replace function test_fail_verify_enqueue() returns trigger
+      language plpgsql as $$ begin raise exception 'outbox unavailable'; end $$;
+      create trigger test_fail_verify_enqueue before insert on outbox_events
+      for each row when (new.event_type = 'VERIFY_DEVICE_EVENT')
+      execute function test_fail_verify_enqueue();
+    `);
+    try {
+      await expect(
+        publishDeviceEvent({
+          db,
+          deviceEventId: event.id,
+          recorderOverride: makeFakeRecorder(),
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await sql.unsafe(`
+        drop trigger if exists test_fail_verify_enqueue on outbox_events;
+        drop function if exists test_fail_verify_enqueue();
+      `);
+    }
+    const [afterFailure] = await eventsFor(event.deviceId);
+    expect(afterFailure).toMatchObject({
+      status: 'pending',
+      confirmedAt: null,
+    });
+    expect(afterFailure?.transactionHash).not.toBeNull();
+
+    const result = await publishDeviceEvent({
+      db,
+      deviceEventId: event.id,
+      recorderOverride: makeFakeRecorder({
+        reconcile: async () => ({ outcome: 'confirmed', blockNumber: 789n }),
+      }),
+    });
+    expect(result.status).toBe('confirmed');
+    const jobs = await db
+      .select()
+      .from(outboxEvents)
+      .where(
+        and(
+          eq(outboxEvents.eventType, 'VERIFY_DEVICE_EVENT'),
+          eq(outboxEvents.aggregateId, event.id),
+        ),
+      );
+    expect(jobs).toHaveLength(1);
+  });
+
   it('never marks confirmed while the in-flight tx is unconfirmed', async () => {
     const { event } = await queuedEventFor(true);
     const crashing = makeFakeRecorder({

@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { ApplicationError } from '@/server/application/application-error';
 import {
   computeRecordHash,
   recomputeEventRecord,
@@ -26,6 +27,7 @@ import type {
 import { enqueueOutboxEvent } from '@/server/infrastructure/db/repositories/outbox-repository';
 import {
   deviceEvents,
+  devices,
   eventVerifications,
 } from '@/server/infrastructure/db/schema';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
@@ -77,13 +79,17 @@ async function recordEvidenceFor(
   db: DatabaseExecutor,
   event: DeviceEventRow,
 ): Promise<RecordEvidence> {
-  if (
-    event.payloadVersion !== 2 ||
-    event.recordHash === null ||
-    event.recordSalt === null ||
-    event.recordJson === null
-  ) {
+  if (event.payloadVersion !== 2) {
     return { kind: 'none' };
+  }
+  if (event.recordSalt === null || event.recordJson === null) {
+    // A v2 payload commits to a record; losing its salt or snapshot is a
+    // failure to show, not a reason to skip the check.
+    return {
+      kind: 'commitment',
+      recomputedHash: null,
+      problem: 'the record salt or snapshot is missing',
+    };
   }
   const recomputed = await recomputeEventRecord(db, {
     sourceType: event.sourceType,
@@ -92,7 +98,6 @@ async function recordEvidenceFor(
   });
   return {
     kind: 'commitment',
-    committedHash: event.recordHash,
     recomputedHash:
       recomputed.status === 'ok'
         ? computeRecordHash(event.recordSalt, recomputed.recordJson)
@@ -136,6 +141,42 @@ function unanchoredResult(event: DeviceEventRow): {
 }
 
 /**
+ * A failed read is not a verdict: surface it so the caller retries (worker)
+ * or shows "try again" (pages), and nothing is recorded.
+ */
+export async function readChain<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (error) {
+    log.warn('device_event.chain_read_failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    throw new ApplicationError(
+      'VERIFICATION_UNAVAILABLE',
+      'The Arc RPC could not be read; no verdict was recorded. Try again shortly.',
+    );
+  }
+}
+
+/**
+ * Records are checked only on the chain and contract they were anchored on.
+ * After a network or contract change, older records keep their last verdict
+ * instead of being "disproved" by reading the wrong chain.
+ */
+function assertSameDeployment(event: DeviceEventRow, chainId: bigint): void {
+  const contract = getServerEnv().DEVICE_NFT_CONTRACT_ADDRESS?.toLowerCase();
+  const sameChain = event.chainId === null || event.chainId === chainId;
+  const sameContract =
+    contract !== undefined && event.contractAddress?.toLowerCase() === contract;
+  if (!sameChain || !sameContract) {
+    throw new ApplicationError(
+      'VERIFICATION_UNAVAILABLE',
+      `This record was anchored on chain ${event.chainId ?? 'unknown'} (contract ${event.contractAddress ?? 'unknown'}), which this server does not read.`,
+    );
+  }
+}
+
+/**
  * Independently re-checks one stored event against the chain and records
  * the outcome. Reads the chain by block (see DeviceEventChainReader), never
  * trusting the publisher's own receipt check. Throws on RPC failure so the
@@ -175,17 +216,26 @@ export async function verifyStoredDeviceEvent(input: {
   } else {
     const reader = input.readerOverride ?? createDeviceEventChainReader();
     rpcHost = reader.rpcHost;
+    assertSameDeployment(event, reader.chainId);
     const tokenId = BigInt(event.tokenId);
-    const [latestBlockNumber, block, logs] = await Promise.all([
-      reader.latestBlockNumber(),
-      reader.readBlock(event.blockNumber),
-      reader.readDeviceEventLogs({
-        contractAddress: event.contractAddress,
-        fromBlock: event.blockNumber,
-        toBlock: event.blockNumber,
-        tokenId,
-      }),
-    ]);
+    const { blockNumber, contractAddress } = event;
+    const [latestBlockNumber, block, logs] = await readChain(() =>
+      Promise.all([
+        reader.latestBlockNumber(),
+        reader.readBlock(blockNumber),
+        reader.readDeviceEventLogs({
+          contractAddress,
+          fromBlock: blockNumber,
+          toBlock: blockNumber,
+          tokenId,
+        }),
+      ]),
+    );
+    const [device] = await db
+      .select({ nftMintedAt: devices.nftMintedAt })
+      .from(devices)
+      .where(eq(devices.id, event.deviceId))
+      .limit(1);
     const observation: ChainObservation = {
       latestBlockNumber,
       block:
@@ -208,7 +258,7 @@ export async function verifyStoredDeviceEvent(input: {
         eventType: event.eventType,
         payloadHash: event.payloadHash,
         payloadJson: event.payloadJson,
-        occurredAt: event.occurredAt,
+        earliestAnchorAt: device?.nftMintedAt ?? null,
         record: await recordEvidenceFor(db, event),
       },
       observation,
@@ -310,6 +360,19 @@ export async function latestVerification(
   };
 }
 
+/** SQL twin of assertSameDeployment, for the backfill sweep. */
+function sameDeploymentFilter() {
+  const env = getServerEnv();
+  const contract = env.DEVICE_NFT_CONTRACT_ADDRESS?.toLowerCase() ?? '';
+  return and(
+    or(
+      isNull(deviceEvents.chainId),
+      eq(deviceEvents.chainId, BigInt(env.ARC_CHAIN_ID)),
+    ),
+    sql`lower(${deviceEvents.contractAddress}) = ${contract}`,
+  );
+}
+
 /** Confirmed events never independently checked yet (bounded batch). */
 export async function enqueueUncheckedVerifications(
   db: Database,
@@ -322,6 +385,7 @@ export async function enqueueUncheckedVerifications(
       and(
         eq(deviceEvents.status, 'confirmed'),
         eq(deviceEvents.verificationStatus, 'unchecked'),
+        sameDeploymentFilter(),
       ),
     )
     .orderBy(asc(deviceEvents.confirmedAt))
