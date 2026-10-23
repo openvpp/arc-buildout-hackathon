@@ -85,7 +85,7 @@ export default async function VerifyTransactionPage({
         ) : result === null ? (
           <EmptyState
             title="No record from this app has that transaction"
-            description="You can still verify any DeviceEvent you hold: POST it to /api/v1/verify or use the standalone script."
+            description="This transaction is not one of this app's published device records."
           />
         ) : (
           <Card className="flex flex-col gap-4">
@@ -123,7 +123,6 @@ export default async function VerifyTransactionPage({
               payloadJson={result.record.payloadJson}
               payloadHash={result.record.payloadHash}
               payloadVersion={result.record.payloadVersion}
-              reproduceCommand={result.reproduce.command}
             />
             <div className="flex gap-4 text-sm">
               <Link

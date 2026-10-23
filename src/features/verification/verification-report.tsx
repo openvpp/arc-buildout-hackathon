@@ -30,7 +30,6 @@ export type VerificationReportProps = {
   payloadVersion: number;
   /** Shown to admins only: the private record behind recordHash. */
   privateRecord?: { recordJson: string; recordSalt: string } | null;
-  reproduceCommand?: string;
 };
 
 const STATUS_MARK: Record<CheckStatus, { mark: string; className: string }> = {
@@ -50,8 +49,7 @@ export function VerdictBadge({ verdict }: { verdict: string | null }) {
 
 /**
  * The full evidence for one record: verdict, every check and why, the
- * anchor, the exact published bytes and their hash, and how to repeat the
- * check independently.
+ * anchor, and the exact published bytes and their hash.
  */
 export function VerificationReport(props: VerificationReportProps) {
   return (
@@ -143,17 +141,6 @@ export function VerificationReport(props: VerificationReportProps) {
               </dd>
             </div>
           </dl>
-        </details>
-      ) : null}
-
-      {props.reproduceCommand !== undefined ? (
-        <details className="text-xs text-white/60">
-          <summary className="cursor-pointer select-none">
-            Verify it yourself (no trust in this site)
-          </summary>
-          <pre className="mt-2 overflow-x-auto rounded-md bg-black/60 p-3 font-mono text-white/80">
-            {props.reproduceCommand}
-          </pre>
         </details>
       ) : null}
     </div>

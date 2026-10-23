@@ -3,7 +3,6 @@ import {
   type VerificationCheckId,
 } from '@/lib/verification/vocabulary';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { PageHeader } from '@/components/common/page-header';
@@ -105,28 +104,6 @@ export default async function VerifyLandingPage({
             It proves the record is tamper-evident and attributable. It does not
             prove the vehicle&apos;s measurement itself was correct.
           </CardDescription>
-        </Card>
-
-        <Card className="flex flex-col gap-2 text-sm text-white/70">
-          <CardTitle>Don&apos;t trust this site</CardTitle>
-          <p>
-            Every check uses only public chain data. Read the{' '}
-            <Link
-              href="/api/v1/verify/spec"
-              className="text-primary-500 underline"
-            >
-              machine-readable spec
-            </Link>
-            , POST your own record to{' '}
-            <code className="font-mono text-white/80">/api/v1/verify</code>, or
-            run the standalone script against any Arc RPC:
-          </p>
-          <pre className="overflow-x-auto rounded-md bg-black/60 p-3 font-mono text-xs text-white/80">
-            pnpm verify:standalone -- --rpc &lt;arc-rpc&gt; --contract
-            &lt;address&gt;
-            {'\n'} --tx &lt;hash&gt; --block &lt;number&gt; --payload
-            &apos;&lt;json&gt;&apos;
-          </pre>
         </Card>
       </div>
     </PageContainer>
