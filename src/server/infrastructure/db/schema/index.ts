@@ -16,6 +16,13 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+// Relative: drizzle-kit loads this file without the `@/` path alias.
+import {
+  sqlStringList,
+  VERDICTS,
+  VERIFICATION_STATUSES,
+} from '../../../../lib/verification/vocabulary';
+
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
@@ -576,7 +583,7 @@ export const deviceEvents = pgTable(
     ),
     check(
       'device_events_verification_status_check',
-      sql`${table.verificationStatus} in ('unchecked', 'pending', 'verified', 'verified_with_warnings', 'unverified')`,
+      sql`${table.verificationStatus} in (${sql.raw(sqlStringList(VERIFICATION_STATUSES))})`,
     ),
     check(
       'device_events_record_commitment_check',
@@ -699,7 +706,7 @@ export const eventVerifications = pgTable(
   (table) => [
     check(
       'event_verifications_verdict_check',
-      sql`${table.verdict} in ('pending', 'verified', 'verified_with_warnings', 'unverified')`,
+      sql`${table.verdict} in (${sql.raw(sqlStringList(VERDICTS))})`,
     ),
     index('event_verifications_event_checked_idx').on(
       table.deviceEventId,

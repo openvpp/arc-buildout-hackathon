@@ -1,3 +1,7 @@
+import {
+  CHECK_IDS,
+  type VerificationCheckId,
+} from '@/lib/verification/vocabulary';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -16,7 +20,8 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const EXPLANATIONS: Record<string, string> = {
+/** Exhaustive: every check the verifier runs is explained here. */
+const EXPLANATIONS: Record<VerificationCheckId, string> = {
   anchor_exists:
     'The record is in the stated Arc block, emitted by the DeviceNFT contract.',
   finality: 'The block is deep enough that it can no longer change.',
@@ -87,12 +92,12 @@ export default async function VerifyLandingPage({
         <Card className="flex flex-col gap-3">
           <CardTitle>What “verified” means</CardTitle>
           <ul className="flex flex-col gap-2 text-sm">
-            {Object.entries(EXPLANATIONS).map(([id, text]) => (
+            {CHECK_IDS.map((id) => (
               <li key={id}>
                 <span className="font-medium text-white/90">
                   {CHECK_LABELS[id]}.
                 </span>{' '}
-                <span className="text-white/60">{text}</span>
+                <span className="text-white/60">{EXPLANATIONS[id]}</span>
               </li>
             ))}
           </ul>

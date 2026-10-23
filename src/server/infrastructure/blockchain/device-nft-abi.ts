@@ -1,3 +1,5 @@
+import { getAbiItem, toEventSelector } from 'viem';
+
 /**
  * DeviceNFT ABI for the Arc EV registry. ERC-1155-style: mint emits
  * TransferSingle + DeviceMinted (not ERC-721 Transfer). `recordDeviceEvent`
@@ -68,3 +70,22 @@ export const DEVICE_NFT_ABI = [
     ],
   },
 ] as const;
+
+/** The DeviceEvent item of DEVICE_NFT_ABI — the one definition every reader uses. */
+export const DEVICE_EVENT_ABI_ITEM = getAbiItem({
+  abi: DEVICE_NFT_ABI,
+  name: 'DeviceEvent',
+});
+
+/**
+ * Human-readable signature with `indexed` markers, as published in the
+ * spec: `DeviceEvent(uint256 indexed tokenId, uint8 indexed eventType, …)`.
+ */
+export const DEVICE_EVENT_SIGNATURE = `${DEVICE_EVENT_ABI_ITEM.name}(${DEVICE_EVENT_ABI_ITEM.inputs
+  .map(
+    (input) => `${input.type}${input.indexed ? ' indexed' : ''} ${input.name}`,
+  )
+  .join(', ')})`;
+
+/** keccak256 of the canonical signature: the log's topic0. */
+export const DEVICE_EVENT_TOPIC0 = toEventSelector(DEVICE_EVENT_ABI_ITEM);

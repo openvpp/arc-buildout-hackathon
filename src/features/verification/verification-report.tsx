@@ -1,4 +1,8 @@
 import { StatusBadge } from '@/components/ui/status-badge';
+import type {
+  CheckStatus,
+  VerificationCheckId,
+} from '@/lib/verification/vocabulary';
 import { TransactionLink } from '@/features/devices/transaction-link';
 
 import {
@@ -8,7 +12,11 @@ import {
   verdictTone,
 } from './verdict';
 
-export type ReportCheck = { id: string; status: string; detail: string };
+export type ReportCheck = {
+  id: VerificationCheckId;
+  status: CheckStatus;
+  detail: string;
+};
 
 export type VerificationReportProps = {
   verdict: string | null;
@@ -25,7 +33,7 @@ export type VerificationReportProps = {
   reproduceCommand?: string;
 };
 
-const STATUS_MARK: Record<string, { mark: string; className: string }> = {
+const STATUS_MARK: Record<CheckStatus, { mark: string; className: string }> = {
   pass: { mark: '✓', className: 'text-primary-400' },
   fail: { mark: '✕', className: 'text-red-400' },
   warn: { mark: '!', className: 'text-amber-400' },
@@ -64,7 +72,7 @@ export function VerificationReport(props: VerificationReportProps) {
       {props.checks.length > 0 ? (
         <ul className="flex flex-col divide-y divide-white/10 rounded-md border border-white/10">
           {props.checks.map((check) => {
-            const mark = STATUS_MARK[check.status] ?? STATUS_MARK['skip'];
+            const mark = STATUS_MARK[check.status];
             return (
               <li key={check.id} className="flex gap-3 px-3 py-2 text-sm">
                 <span
@@ -75,7 +83,7 @@ export function VerificationReport(props: VerificationReportProps) {
                 </span>
                 <span className="flex min-w-0 flex-col">
                   <span className="text-white/90">
-                    {CHECK_LABELS[check.id] ?? check.id}
+                    {CHECK_LABELS[check.id]}
                   </span>
                   <span className="text-xs break-words text-white/60">
                     {check.detail}

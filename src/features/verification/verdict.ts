@@ -1,10 +1,11 @@
+import {
+  isVerificationStatus,
+  type VerificationCheckId,
+  type VerificationStatus,
+} from '@/lib/verification/vocabulary';
+
 /** Display mapping for verification verdicts (shared by public + admin UI). */
-export type VerdictValue =
-  | 'unchecked'
-  | 'pending'
-  | 'verified'
-  | 'verified_with_warnings'
-  | 'unverified';
+export type VerdictValue = VerificationStatus;
 
 export type VerdictTone = 'neutral' | 'success' | 'warning' | 'danger';
 
@@ -38,15 +39,11 @@ export function verdictTone(verdict: VerdictValue): VerdictTone {
 }
 
 export function toVerdictValue(value: string): VerdictValue {
-  return value === 'pending' ||
-    value === 'verified' ||
-    value === 'verified_with_warnings' ||
-    value === 'unverified'
-    ? value
-    : 'unchecked';
+  return isVerificationStatus(value) ? value : 'unchecked';
 }
 
-export const CHECK_LABELS: Record<string, string> = {
+/** Exhaustive: a new check id fails to compile until it has a label. */
+export const CHECK_LABELS: Record<VerificationCheckId, string> = {
   anchor_exists: 'Anchor exists on-chain',
   finality: 'Final (enough confirmations)',
   authorized_writer: 'Written by an authorized writer',

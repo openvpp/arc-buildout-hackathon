@@ -1,6 +1,11 @@
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+import {
+  CHECK_IDS,
+  CHECK_STATUSES,
+  VERDICTS,
+} from '@/lib/verification/vocabulary';
 import { ApplicationError } from '@/server/application/application-error';
 import {
   computeRecordHash,
@@ -326,26 +331,12 @@ export async function verifyStoredDeviceEvent(input: {
   };
 }
 
-const storedVerdictSchema = z.enum([
-  'pending',
-  'verified',
-  'verified_with_warnings',
-  'unverified',
-]);
+const storedVerdictSchema = z.enum(VERDICTS);
 
 const storedChecksSchema = z.array(
   z.object({
-    id: z.enum([
-      'anchor_exists',
-      'finality',
-      'authorized_writer',
-      'device_and_type',
-      'content_hash',
-      'stored_payload',
-      'record_commitment',
-      'anchor_timeliness',
-    ]),
-    status: z.enum(['pass', 'fail', 'warn', 'pending', 'skip']),
+    id: z.enum(CHECK_IDS),
+    status: z.enum(CHECK_STATUSES),
     detail: z.string(),
   }),
 );

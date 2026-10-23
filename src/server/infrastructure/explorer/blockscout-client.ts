@@ -1,25 +1,17 @@
-import {
-  decodeEventLog,
-  hexToString,
-  keccak256,
-  pad,
-  parseAbiItem,
-  toHex,
-} from 'viem';
+import { decodeEventLog, hexToString, keccak256, pad, toHex } from 'viem';
 import { z } from 'zod';
 
 import { defaultArcExplorerApiUrl } from '@/config/arc-network';
 import { getServerEnv } from '@/server/config/env';
 import type { ChainDeviceEventLog } from '@/server/infrastructure/blockchain/device-event-chain-reader';
+import {
+  DEVICE_EVENT_ABI_ITEM,
+  DEVICE_EVENT_TOPIC0,
+} from '@/server/infrastructure/blockchain/device-nft-abi';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
 const log = createServerLogger({ component: 'blockscout-client' });
 
-const DEVICE_EVENT = parseAbiItem(
-  'event DeviceEvent(uint256 indexed tokenId, uint8 indexed eventType, bytes data, uint256 timestamp)',
-);
-const DEVICE_EVENT_TOPIC0 =
-  '0x3de799dd7abe8fd56ddf6376287c6702888d24fbc26726a7d9bbfab1c3c53962';
 const EXPLORER_TIMEOUT_MS = 20_000;
 
 const hex = z.string().regex(/^0x[0-9a-fA-F]*$/);
@@ -147,7 +139,7 @@ export async function fetchTokenDeviceEventsFromExplorer(input: {
     const topics: [`0x${string}`, ...`0x${string}`[]] = [topic0, ...rest];
     try {
       const decoded = decodeEventLog({
-        abi: [DEVICE_EVENT],
+        abi: [DEVICE_EVENT_ABI_ITEM],
         data: entry.data.data as `0x${string}`,
         topics,
       });

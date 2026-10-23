@@ -10,26 +10,19 @@
  * is tamper-evident, attributable and timely.
  */
 
-export type CheckStatus = 'pass' | 'fail' | 'warn' | 'pending' | 'skip';
+import type {
+  CheckStatus,
+  Verdict,
+  VerificationCheckId,
+} from '@/lib/verification/vocabulary';
 
-export type VerificationCheckId =
-  | 'anchor_exists'
-  | 'finality'
-  | 'authorized_writer'
-  | 'device_and_type'
-  | 'content_hash'
-  | 'stored_payload'
-  | 'record_commitment'
-  | 'anchor_timeliness';
+export type { CheckStatus, Verdict, VerificationCheckId };
 
 export type VerificationCheck = {
   id: VerificationCheckId;
   status: CheckStatus;
   detail: string;
 };
-
-export type Verdict =
-  'verified' | 'verified_with_warnings' | 'unverified' | 'pending';
 
 /** One `DeviceEvent` log as read from the chain. */
 export type ObservedDeviceEventLog = {

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { keccak256, stringToHex } from 'viem';
 import { describe, expect, it } from 'vitest';
 
@@ -8,6 +10,11 @@ import {
   type ExpectedEvent,
   type VerificationPolicy,
 } from '@/server/application/verification/verify-device-event';
+import { CHECK_IDS } from '@/lib/verification/vocabulary';
+import {
+  DEVICE_EVENT_SIGNATURE,
+  DEVICE_EVENT_TOPIC0,
+} from '@/server/infrastructure/blockchain/device-nft-abi';
 import { decideOutboxFollowUp } from '@/server/infrastructure/jobs/outbox-follow-up';
 
 const CONTRACT = '0xf1AB69B6C1eAddCf47C6019805Ac37F2d78FA908';
@@ -331,5 +338,26 @@ describe('verification job follow-up', () => {
     expect(
       decideOutboxFollowUp({ ...base, outcome: 'not_final' }),
     ).toMatchObject({ action: 'reschedule', attempts: 0 });
+  });
+});
+
+describe('single sources of truth', () => {
+  it('runs every check in CHECK_IDS order', () => {
+    const result = verifyDeviceEvent(expected(), observed(), policy);
+    expect(result.checks.map((check) => check.id)).toEqual([...CHECK_IDS]);
+  });
+
+  it('derives the DeviceEvent signature and topic0 from DEVICE_NFT_ABI', () => {
+    expect(DEVICE_EVENT_SIGNATURE).toBe(
+      'DeviceEvent(uint256 indexed tokenId, uint8 indexed eventType, bytes data, uint256 timestamp)',
+    );
+    expect(DEVICE_EVENT_TOPIC0).toBe(
+      '0x3de799dd7abe8fd56ddf6376287c6702888d24fbc26726a7d9bbfab1c3c53962',
+    );
+  });
+
+  it('keeps the standalone script (deliberately self-contained) in sync', () => {
+    const script = readFileSync('scripts/verify-standalone.ts', 'utf8');
+    expect(script).toContain(`'event ${DEVICE_EVENT_SIGNATURE}'`);
   });
 });

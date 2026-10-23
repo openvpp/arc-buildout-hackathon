@@ -3,11 +3,11 @@ import {
   createPublicClient,
   hexToString,
   keccak256,
-  parseAbiItem,
   TransactionNotFoundError,
   type PublicClient,
 } from 'viem';
 
+import { DEVICE_EVENT_ABI_ITEM } from '@/server/infrastructure/blockchain/device-nft-abi';
 import {
   createVerifierHttpTransport,
   resolveVerifierRpcUrl,
@@ -20,11 +20,6 @@ export const MAX_LOG_RANGE_BLOCKS = 2_000n;
 const READ_TIMEOUT_MS = 20_000;
 /** viem's own HTTP retries; history misses are retried below instead. */
 const TRANSPORT_RETRY_COUNT = 1;
-
-/** Same signature as DEVICE_NFT_ABI's DeviceEvent (verified on-chain). */
-const DEVICE_EVENT = parseAbiItem(
-  'event DeviceEvent(uint256 indexed tokenId, uint8 indexed eventType, bytes data, uint256 timestamp)',
-);
 
 export type ChainDeviceEventLog = {
   contractAddress: string;
@@ -195,7 +190,7 @@ export function createDeviceEventChainReader(
       const logs = await withHistoryRetry(() =>
         client.getLogs({
           address: input.contractAddress as `0x${string}`,
-          event: DEVICE_EVENT,
+          event: DEVICE_EVENT_ABI_ITEM,
           args:
             input.tokenId === undefined
               ? undefined

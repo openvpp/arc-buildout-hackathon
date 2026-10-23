@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+import { VERIFICATION_STATUSES } from '@/lib/verification/vocabulary';
 import { ApplicationError } from '@/server/application/application-error';
 import {
   decodeLocationCursor as decodeCursor,
@@ -9,13 +10,7 @@ import {
 import type { Database } from '@/server/infrastructure/db/client';
 import { deviceEvents, devices } from '@/server/infrastructure/db/schema';
 
-export const recordVerdictFilterSchema = z.enum([
-  'verified',
-  'verified_with_warnings',
-  'unverified',
-  'pending',
-  'unchecked',
-]);
+export const recordVerdictFilterSchema = z.enum(VERIFICATION_STATUSES);
 export type RecordVerdictFilter = z.infer<typeof recordVerdictFilterSchema>;
 
 export type AdminRecordRow = {

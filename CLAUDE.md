@@ -310,6 +310,10 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
   publish path.
 - Verification tests use a fake chain reader; never point automated tests
   at mainnet. Cover tampering (payload, private record, writer, backdating).
+- Integration tests are hermetic: `test/setup/integration-setup.ts` pins a
+  fixed offline config (testnet chain id, contract, trusted writer, admin
+  password) and removes RPC URLs, tokens and signing keys, so they pass
+  with only `TEST_DATABASE_URL` + `API_KEY_HASH_SECRET` (as in CI).
 - Test webhook dedup and vendor-scoped disconnect explicitly.
 - Never use real funds/mainnet in automated tests.
 
@@ -376,4 +380,9 @@ export const dynamic = 'force-dynamic';
 - `src/server/infrastructure/db/schema/index.ts` — Drizzle schema (source of
   truth for the data model).
 - `src/worker/index.ts` — background worker (mint jobs via outbox).
+- `src/lib/verification/vocabulary.ts` — verdicts, check ids and check
+  statuses, defined once (types, schemas, UI labels, spec, DB CHECKs).
+- `src/server/infrastructure/blockchain/device-nft-abi.ts` — the DeviceNFT
+  ABI; the DeviceEvent item, signature and topic0 derive from it (the
+  standalone script keeps a copy, guarded by a test).
 - `docs/` — architecture, database, Enode integration, demo runbook.

@@ -103,7 +103,12 @@ describe('listAllDeviceLocations', () => {
     const pin = page.locations.find((row) => row.id === device?.id);
     expect(pin?.mintStatus).toBe('minted');
     expect(device?.mintStatus).toBe('unminted');
-    expect(JSON.stringify(pin)).not.toContain('50');
+    // The legacy token id is never exposed. (Not a substring check: the
+    // pin's random id and offset coordinates can contain "50" by chance.)
+    expect(Object.values(pin ?? {})).not.toContain('50');
+    expect(Object.keys(pin ?? {}).some((key) => /token/i.test(key))).toBe(
+      false,
+    );
   });
 
   it('rejects a malformed cursor', async () => {
