@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
@@ -36,6 +37,13 @@ export type TimelineEvent = {
   payloadHash: string;
   summary: TimelineEventSummary | null;
   verificationStatus: string;
+};
+
+/** Milestone 4: whether the viewer has unlocked an event, and its panel. */
+export type TimelineUnlock = {
+  state: 'locked' | 'unlocked';
+  /** The unlock button, or the unlocked record and its receipt. */
+  panel: ReactNode;
 };
 
 const STATUS_TONE = {
@@ -125,9 +133,12 @@ export function DeviceEventTimeline({
   deviceMinted,
   olderHref,
   newestHref,
+  unlocks,
 }: {
   events: TimelineEvent[];
   deviceMinted: boolean;
+  /** Per event id; omitted where an event cannot be unlocked (yet). */
+  unlocks?: Readonly<Record<string, TimelineUnlock>>;
   /** Link to the next (older) page, if any. */
   olderHref: string | null;
   /** Link back to the newest page when viewing an older one. */
@@ -149,64 +160,79 @@ export function DeviceEventTimeline({
         />
       ) : (
         <ol className="flex flex-col gap-3">
-          {events.map((event) => (
-            <li key={event.id}>
-              <Card className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <EventHeadline summary={event.summary} />
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge tone={STATUS_TONE[event.status]}>
-                      {statusLabel(event, deviceMinted)}
-                    </StatusBadge>
-                    <TransactionLink transactionHash={event.transactionHash} />
-                    {event.status === 'confirmed' &&
-                    event.transactionHash !== null ? (
-                      <Link
-                        href={`/verify/${event.transactionHash}`}
-                        className="no-underline"
-                        aria-label="Open the independent verification"
-                      >
-                        <VerdictBadge verdict={event.verificationStatus} />
-                      </Link>
-                    ) : null}
+          {events.map((event) => {
+            const unlock = unlocks?.[event.id];
+            return (
+              <li key={event.id}>
+                <Card className="flex flex-col gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <EventHeadline summary={event.summary} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      {unlock !== undefined ? (
+                        <StatusBadge
+                          tone={
+                            unlock.state === 'unlocked' ? 'success' : 'neutral'
+                          }
+                        >
+                          {unlock.state === 'unlocked' ? 'Unlocked' : 'Locked'}
+                        </StatusBadge>
+                      ) : null}
+                      <StatusBadge tone={STATUS_TONE[event.status]}>
+                        {statusLabel(event, deviceMinted)}
+                      </StatusBadge>
+                      <TransactionLink
+                        transactionHash={event.transactionHash}
+                      />
+                      {event.status === 'confirmed' &&
+                      event.transactionHash !== null ? (
+                        <Link
+                          href={`/verify/${event.transactionHash}`}
+                          className="no-underline"
+                          aria-label="Open the independent verification"
+                        >
+                          <VerdictBadge verdict={event.verificationStatus} />
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <details className="text-xs text-white/60">
-                  <summary className="cursor-pointer select-none">
-                    Published data
-                  </summary>
-                  <dl className="mt-2 flex flex-col gap-2">
-                    <div>
-                      <dt className="font-medium tracking-wide uppercase">
-                        Payload (sent as event data)
-                      </dt>
-                      <dd className="font-mono break-all text-white/80">
-                        {event.payloadJson}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="font-medium tracking-wide uppercase">
-                        keccak256
-                      </dt>
-                      <dd className="font-mono break-all text-white/80">
-                        {event.payloadHash}
-                      </dd>
-                    </div>
-                    {event.blockNumber !== null ? (
+                  <details className="text-xs text-white/60">
+                    <summary className="cursor-pointer select-none">
+                      Published data
+                    </summary>
+                    <dl className="mt-2 flex flex-col gap-2">
                       <div>
                         <dt className="font-medium tracking-wide uppercase">
-                          Block
+                          Payload (sent as event data)
                         </dt>
-                        <dd className="font-mono text-white/80">
-                          {event.blockNumber}
+                        <dd className="font-mono break-all text-white/80">
+                          {event.payloadJson}
                         </dd>
                       </div>
-                    ) : null}
-                  </dl>
-                </details>
-              </Card>
-            </li>
-          ))}
+                      <div>
+                        <dt className="font-medium tracking-wide uppercase">
+                          keccak256
+                        </dt>
+                        <dd className="font-mono break-all text-white/80">
+                          {event.payloadHash}
+                        </dd>
+                      </div>
+                      {event.blockNumber !== null ? (
+                        <div>
+                          <dt className="font-medium tracking-wide uppercase">
+                            Block
+                          </dt>
+                          <dd className="font-mono text-white/80">
+                            {event.blockNumber}
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                  </details>
+                  {unlock?.panel}
+                </Card>
+              </li>
+            );
+          })}
         </ol>
       )}
       {olderHref !== null || newestHref !== null ? (

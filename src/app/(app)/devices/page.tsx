@@ -3,7 +3,6 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
-import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { listDevicesForWallet } from '@/server/application/dashboard/list-devices';
@@ -27,7 +26,7 @@ export default async function DevicesPage() {
 
   if (principal === null) {
     return (
-      <PageContainer>
+      <>
         <div className="flex flex-col gap-6">
           <PageHeader
             title="Devices"
@@ -38,7 +37,7 @@ export default async function DevicesPage() {
             description="Sign in to create or access your Circle wallet."
           />
         </div>
-      </PageContainer>
+      </>
     );
   }
 
@@ -48,7 +47,7 @@ export default async function DevicesPage() {
   });
 
   return (
-    <PageContainer>
+    <>
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
           <PageHeader
@@ -120,6 +119,6 @@ export default async function DevicesPage() {
           active={deviceList.some((device) => device.mintStatus === 'pending')}
         />
       </div>
-    </PageContainer>
+    </>
   );
 }

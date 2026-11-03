@@ -5,10 +5,17 @@ import type { ReactNode } from 'react';
 import { z } from 'zod';
 
 import { PageHeader } from '@/components/common/page-header';
-import { PageContainer } from '@/components/layout/page-container';
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { DeviceEventTimeline } from '@/features/devices/device-event-timeline';
+import {
+  DeviceEventTimeline,
+  type TimelineUnlock,
+} from '@/features/devices/device-event-timeline';
+import { UnlockButton } from '@/features/unlocks/unlock-button';
+import { UnlockedRecord } from '@/features/unlocks/unlocked-record';
+import { formatUsdcAtomic } from '@/lib/payments/usdc';
+import { unlockedContentForPrincipal } from '@/server/application/unlocks/list-unlocks';
+import { resolvePaymentConfig } from '@/server/infrastructure/payments/payment-config';
 import { formatTimestamp, mintStatusTone } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
 import { PublicDeviceDetails } from '@/features/devices/public-device-details';
@@ -93,6 +100,12 @@ export default async function DeviceDetailPage({
     });
   }
   const events = eventsPage?.events ?? [];
+  const unlocks = await unlockPanels({
+    db,
+    principalId: principal.principalId,
+    deviceId,
+    events,
+  });
   const deviceMinted =
     device.nftTokenId !== null && device.nftTokenId.length > 0;
   const devicePath = `/devices/${device.id}`;
@@ -102,7 +115,7 @@ export default async function DeviceDetailPage({
   );
 
   return (
-    <PageContainer>
+    <>
       <div className="flex flex-col gap-6">
         <PageHeader
           title={device.displayName ?? device.externalDeviceId}
@@ -188,6 +201,7 @@ export default async function DeviceDetailPage({
               : null
           }
           newestHref={eventsCursor !== undefined ? devicePath : null}
+          unlocks={unlocks}
         />
         <RefreshWhilePending
           active={device.mintStatus === 'pending' || eventInFlight}
@@ -201,8 +215,69 @@ export default async function DeviceDetailPage({
           </Link>
         </div>
       </div>
-    </PageContainer>
+    </>
   );
+}
+
+/**
+ * Milestone 4: each anchored event is locked until paid for. Unlocked ones
+ * show their full record and receipt; locked ones an unlock button.
+ */
+async function unlockPanels(input: {
+  db: Database;
+  principalId: string;
+  deviceId: string;
+  events: DeviceEventPage['events'];
+}): Promise<Record<string, TimelineUnlock>> {
+  const resolved = resolvePaymentConfig();
+  const unlocked = await unlockedContentForPrincipal(
+    input.db,
+    input.principalId,
+    input.events.map((event) => event.id),
+  );
+  const panels: Record<string, TimelineUnlock> = {};
+  for (const event of input.events) {
+    const paid = unlocked.get(event.id);
+    if (paid !== undefined) {
+      panels[event.id] = {
+        state: 'unlocked',
+        panel: (
+          <UnlockedRecord
+            view={{
+              payloadVersion: paid.content.payloadVersion,
+              record: paid.content.record,
+              receipt: {
+                amountAtomic: paid.unlock.amountAtomic,
+                payerAddress: paid.unlock.payerAddress,
+                settlementReference: paid.unlock.settlementReference,
+                settlementStatus: paid.unlock.settlementStatus,
+                settlementTxHash: paid.unlock.settlementTxHash,
+              },
+            }}
+          />
+        ),
+      };
+    } else if (event.status === 'confirmed' && resolved.ok) {
+      panels[event.id] = {
+        state: 'locked',
+        panel: (
+          <div className="flex flex-col gap-2 border-t border-white/10 pt-3 text-xs text-white/60">
+            <p>
+              The full record (battery levels, location, every reading) and its
+              on-chain proof are locked. Unlock it with a USDC nanopayment on
+              Arc, paid by the demo wallet.
+            </p>
+            <UnlockButton
+              eventId={event.id}
+              deviceId={input.deviceId}
+              priceLabel={`${formatUsdcAtomic(resolved.config.unlockPriceAtomic)} USDC`}
+            />
+          </div>
+        ),
+      };
+    }
+  }
+  return panels;
 }
 
 async function publicDevicePage(

@@ -33,7 +33,7 @@ function CopyIcon() {
 
 /**
  * Signed-in wallet chip: shows the shortened address, a copy-to-clipboard
- * icon, and a dropdown (Devices / Add vehicle / Log out) — everything that
+ * icon, and a dropdown (Dashboard / Devices / Add vehicle / Log out) — everything that
  * requires a wallet lives behind this trigger rather than as standalone
  * header links, since none of it is usable signed out.
  */
@@ -117,6 +117,15 @@ function WalletMenu({
           role="menu"
           className="absolute right-0 top-[calc(100%+8px)] z-50 w-48 rounded-lg border border-modalborder bg-modalbg p-1 shadow-xl"
         >
+          <Link
+            href="/dashboard"
+            onClick={() => {
+              setOpen(false);
+            }}
+            className="block rounded-md px-3 py-2 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+          >
+            Dashboard
+          </Link>
           <Link
             href="/devices"
             onClick={() => {

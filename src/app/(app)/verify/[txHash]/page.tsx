@@ -5,7 +5,6 @@ import { notFound } from 'next/navigation';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
-import { PageContainer } from '@/components/layout/page-container';
 import { Card } from '@/components/ui/card';
 import { VerificationReport } from '@/features/verification/verification-report';
 import {
@@ -74,7 +73,7 @@ export default async function VerifyTransactionPage({
   }
 
   return (
-    <PageContainer>
+    <>
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
         <PageHeader title="Record verification" description={parsed.data} />
         {limited ? (
@@ -138,6 +137,6 @@ export default async function VerifyTransactionPage({
           </Card>
         )}
       </div>
-    </PageContainer>
+    </>
   );
 }

@@ -2,7 +2,6 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { PageHeader } from '@/components/common/page-header';
-import { PageContainer } from '@/components/layout/page-container';
 import { Card } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { formatTimestamp, mintStatusTone } from '@/features/devices/format';
@@ -45,7 +44,7 @@ export function PublicDeviceDetails({
     .join(' · ');
 
   return (
-    <PageContainer>
+    <>
       <div className="flex flex-col gap-6">
         <PageHeader
           title={title}
@@ -143,7 +142,7 @@ export function PublicDeviceDetails({
           Back to globe
         </Link>
       </div>
-    </PageContainer>
+    </>
   );
 }
 

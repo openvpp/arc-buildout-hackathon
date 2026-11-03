@@ -1,11 +1,7 @@
-export type AdminNavItem = {
-  readonly title: string;
-  readonly href: string;
-  readonly description: string;
-};
+import type { NavItem } from '@/components/layout/nav';
 
 /** Admin sidebar. */
-export const ADMIN_NAV: readonly AdminNavItem[] = [
+export const ADMIN_NAV: readonly NavItem[] = [
   {
     title: 'Overview',
     href: '/admin',

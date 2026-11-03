@@ -6,7 +6,6 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { PageHeader } from '@/components/common/page-header';
-import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 import { CHECK_LABELS } from '@/features/verification/verdict';
 import { transactionHashSchema } from '@/server/application/verification/public-verification';
@@ -51,7 +50,7 @@ export default async function VerifyLandingPage({
   const invalid = typeof tx === 'string' && tx.length > 0 && !parsed.success;
 
   return (
-    <PageContainer>
+    <>
       <div className="mx-auto flex max-w-3xl flex-col gap-6">
         <PageHeader
           title="Verify a record"
@@ -106,6 +105,6 @@ export default async function VerifyLandingPage({
           </CardDescription>
         </Card>
       </div>
-    </PageContainer>
+    </>
   );
 }
