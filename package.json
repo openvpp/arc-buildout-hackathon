@@ -35,6 +35,9 @@
   },
   "dependencies": {
     "@circle-fin/developer-controlled-wallets": "^9.6.0",
+    "@circle-fin/x402-batching": "3.2.0",
+    "@x402/core": "2.20.0",
+    "@x402/evm": "2.20.0",
     "drizzle-orm": "^0.36.4",
     "jose": "^5.9.6",
     "lucide-react": "^0.562.0",

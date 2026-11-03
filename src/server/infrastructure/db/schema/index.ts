@@ -799,6 +799,88 @@ export const chainScanCursors = pgTable(
   (table) => [primaryKey({ columns: [table.chainId, table.contractAddress] })],
 );
 
+/**
+ * One paid unlock of a device event (milestone 4): who unlocked it, and the
+ * Circle Gateway nanopayment that paid for it. A row exists only after
+ * Gateway accepted the payment (settle-before-reveal), so the payment and
+ * the unlock are one record.
+ *
+ * Settlement: 'accepted' (Gateway verified the authorization and locked the
+ * payer's funds) -> 'settled' (its batch confirmed on Arc, with the batch
+ * transaction) | 'failed'.
+ */
+export const eventUnlocks = pgTable(
+  'event_unlocks',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    deviceEventId: uuid('device_event_id')
+      .notNull()
+      .references(() => deviceEvents.id, { onDelete: 'restrict' }),
+    // 'owner' (a signed-in user), 'admin' (the console) or 'agent' (x402
+    // API, identified only by the address that paid).
+    buyerKind: text('buyer_kind').notNull(),
+    principalId: uuid('principal_id').references(() => principals.id, {
+      onDelete: 'restrict',
+    }),
+    agentAddress: text('agent_address'),
+    // Who actually paid (the static payer for owner/admin unlocks in demos).
+    payerAddress: text('payer_address').notNull(),
+    sellerAddress: text('seller_address').notNull(),
+    // CAIP-2, e.g. eip155:5042002.
+    network: text('network').notNull(),
+    asset: text('asset').notNull(),
+    amountAtomic: bigint('amount_atomic', { mode: 'bigint' }).notNull(),
+    // Gateway's transfer id for this payment. One payment, one unlock.
+    settlementReference: text('settlement_reference').notNull(),
+    settlementStatus: text('settlement_status').notNull().default('accepted'),
+    settlementTxHash: text('settlement_tx_hash'),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      'event_unlocks_buyer_kind_check',
+      sql`(${table.buyerKind} = 'owner' and ${table.principalId} is not null and ${table.agentAddress} is null) or (${table.buyerKind} = 'agent' and ${table.agentAddress} is not null and ${table.principalId} is null) or (${table.buyerKind} = 'admin' and ${table.principalId} is null and ${table.agentAddress} is null)`,
+    ),
+    check(
+      'event_unlocks_settlement_status_check',
+      sql`${table.settlementStatus} in ('accepted', 'settled', 'failed')`,
+    ),
+    check(
+      'event_unlocks_settled_has_tx_check',
+      sql`${table.settlementStatus} <> 'settled' or (${table.settlementTxHash} is not null and ${table.settledAt} is not null)`,
+    ),
+    check('event_unlocks_amount_check', sql`${table.amountAtomic} > 0`),
+    // Addresses are compared as stored: keep them lowercase.
+    check(
+      'event_unlocks_lowercase_addresses_check',
+      sql`${table.payerAddress} = lower(${table.payerAddress}) and ${table.sellerAddress} = lower(${table.sellerAddress}) and (${table.agentAddress} is null or ${table.agentAddress} = lower(${table.agentAddress}))`,
+    ),
+    uniqueIndex('event_unlocks_settlement_reference_uidx').on(
+      table.settlementReference,
+    ),
+    // One unlock per buyer per event: asking again never charges twice.
+    uniqueIndex('event_unlocks_owner_uidx')
+      .on(table.deviceEventId, table.principalId)
+      .where(sql`${table.buyerKind} = 'owner'`),
+    uniqueIndex('event_unlocks_agent_uidx')
+      .on(table.deviceEventId, table.agentAddress)
+      .where(sql`${table.buyerKind} = 'agent'`),
+    uniqueIndex('event_unlocks_admin_uidx')
+      .on(table.deviceEventId)
+      .where(sql`${table.buyerKind} = 'admin'`),
+    // Static payer daily cap; payments lists.
+    index('event_unlocks_payer_created_idx').on(
+      table.payerAddress,
+      table.createdAt,
+    ),
+    // Settlement tracking (phase 5).
+    index('event_unlocks_accepted_idx')
+      .on(table.createdAt)
+      .where(sql`${table.settlementStatus} = 'accepted'`),
+  ],
+);
+
 export const schemaMeta = {
   tables: [
     'principals',
@@ -819,5 +901,6 @@ export const schemaMeta = {
     'admin_accounts',
     'chain_device_events',
     'chain_scan_cursors',
+    'event_unlocks',
   ],
 } as const;

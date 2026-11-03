@@ -11,6 +11,15 @@ importers:
       '@circle-fin/developer-controlled-wallets':
         specifier: ^9.6.0
         version: 9.6.0
+      '@circle-fin/x402-batching':
+        specifier: 3.2.0
+        version: 3.2.0(@x402/core@2.20.0)(@x402/evm@2.20.0(typescript@5.9.3))(viem@2.56.9(typescript@5.9.3)(zod@3.25.76))
+      '@x402/core':
+        specifier: 2.20.0
+        version: 2.20.0
+      '@x402/evm':
+        specifier: 2.20.0
+        version: 2.20.0(typescript@5.9.3)
       drizzle-orm:
         specifier: ^0.36.4
         version: 0.36.4(@types/react@19.3.0)(postgres@3.4.9)(react@19.3.0)
@@ -213,6 +222,17 @@ packages:
 
   '@circle-fin/developer-controlled-wallets@9.6.0':
     resolution: {integrity: sha512-DTmXKtBG7De21W6Kf8BNm5Cd27s4Rl73RItABjYkvlaEJSYpkkaS1hTeJGGewWh3C3LiROimNm0q+HAPneGmZw==}
+
+  '@circle-fin/x402-batching@3.2.0':
+    resolution: {integrity: sha512-ft+ynAsYIGGQNAeud8v73GKyg1qonycMVqEK8Gt+ATwtrNBikYhfMtO9l7zMZCOTA1hJ1NJOnGWBFUR/gvDHjw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@x402/core': ^2.3.0
+      '@x402/evm': ^2.3.0
+      viem: ^2.0.0
+    peerDependenciesMeta:
+      '@x402/evm':
+        optional: true
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -1653,6 +1673,12 @@ packages:
 
   '@vitest/utils@2.1.9':
     resolution: {integrity: sha512-v0psaMSkNJ3A2NMrUEHFRzJtDPFn+/VWZ5WxImB21T9fjucJRmS7xCS3ppEnARb9y11OAzaD+P2Ps+b+BGX5iQ==}
+
+  '@x402/core@2.20.0':
+    resolution: {integrity: sha512-BaPPVTZ4LAeYKB0yRMOnuzDGoratyLeYobBMH/leFmRe+al94RQnw/uwuw9Rgsupsywz6JQdHzhm4LsE4snuDg==}
+
+  '@x402/evm@2.20.0':
+    resolution: {integrity: sha512-TugTYYHHhDs/QxT4ek4+oSRF9GsyVMYEirrMPRCNrF7FZLaSntNXMaDk7TEaukiwBPxbfciaJLRg84aa5lIpdQ==}
 
   abitype@1.2.3:
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
@@ -3779,6 +3805,13 @@ snapshots:
       - debug
       - supports-color
 
+  '@circle-fin/x402-batching@3.2.0(@x402/core@2.20.0)(@x402/evm@2.20.0(typescript@5.9.3))(viem@2.56.9(typescript@5.9.3)(zod@3.25.76))':
+    dependencies:
+      '@x402/core': 2.20.0
+      viem: 2.56.9(typescript@5.9.3)(zod@3.25.76)
+    optionalDependencies:
+      '@x402/evm': 2.20.0(typescript@5.9.3)
+
   '@csstools/color-helpers@5.1.0': {}
 
   '@csstools/css-calc@2.1.4(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)':
@@ -4826,6 +4859,20 @@ snapshots:
       '@vitest/pretty-format': 2.1.9
       loupe: 3.2.1
       tinyrainbow: 1.2.0
+
+  '@x402/core@2.20.0':
+    dependencies:
+      zod: 3.25.76
+
+  '@x402/evm@2.20.0(typescript@5.9.3)':
+    dependencies:
+      '@x402/core': 2.20.0
+      viem: 2.56.9(typescript@5.9.3)(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - bufferutil
+      - typescript
+      - utf-8-validate
 
   abitype@1.2.3(typescript@5.9.3)(zod@3.25.76):
     optionalDependencies:

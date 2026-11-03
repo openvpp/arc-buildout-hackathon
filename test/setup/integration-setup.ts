@@ -30,6 +30,9 @@ const TEST_ENV: Record<string, string> = {
   CIRCLE_WALLET_BLOCKCHAIN: 'ARC-TESTNET',
   ADMIN_PASSWORD: 'integration-test-admin-password',
   TRUSTED_PROXY_HOPS: '1',
+  SELLER_WALLET_ADDRESS: '0x1111111111111111111111111111111111111111',
+  EVENT_UNLOCK_PRICE_USDC: '0.001',
+  STATIC_PAYER_DAILY_CAP_USDC: '1',
 };
 for (const [key, value] of Object.entries(TEST_ENV)) {
   process.env[key] = value;
@@ -42,6 +45,8 @@ for (const key of [
   'ARC_EXPLORER_API_URL',
   'DEVICE_NFT_MINTER_PRIVATE_KEY',
   'PRIVATE_KEY',
+  'ARC_PAYMENT_SIGNER_PRIVATE_KEY',
+  'CIRCLE_GATEWAY_FACILITATOR_URL',
 ]) {
   delete process.env[key];
 }

@@ -7,6 +7,14 @@ const boolFromString = z
   .optional()
   .transform((v) => v === 'true' || v === '1');
 
+/** An empty `NAME=` line means unset (as `.env.example` ships them). */
+function optionalNonEmpty<T extends z.ZodTypeAny>(schema: T) {
+  return z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    schema.optional(),
+  );
+}
+
 const serverEnvSchema = z.object({
   APP_ENV: z
     .enum(['development', 'test', 'demo', 'staging', 'production'])
@@ -95,6 +103,30 @@ const serverEnvSchema = z.object({
   // the right; anything to its left is client-supplied and ignored. 0 = no
   // proxy (no trusted client IP; limits are shared).
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(1),
+
+  // --- Nanopayments (milestone 4): Circle Gateway, x402 v2 -------------
+  // Address that receives every unlock payment (the platform seller).
+  SELLER_WALLET_ADDRESS: optionalNonEmpty(
+    z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  ),
+  // The static backend payer (an EOA; Gateway requires one) that pays for
+  // unlocks in demos. Server-only, refused when APP_ENV=production.
+  ARC_PAYMENT_SIGNER_PRIVATE_KEY: optionalNonEmpty(
+    z.string().regex(/^(0x)?[0-9a-fA-F]{64}$/),
+  ),
+  // Optional overrides; by default both follow ARC_CHAIN_ID.
+  CIRCLE_GATEWAY_FACILITATOR_URL: optionalNonEmpty(z.string().url()),
+  // Price of unlocking one device event, in USDC (decimal string).
+  EVENT_UNLOCK_PRICE_USDC: z
+    .string()
+    .regex(/^\d+(\.\d{1,6})?$/)
+    .refine((value) => /[1-9]/.test(value), 'must be more than 0')
+    .default('0.001'),
+  // Most the static payer may spend per UTC day, in USDC.
+  STATIC_PAYER_DAILY_CAP_USDC: z
+    .string()
+    .regex(/^\d+(\.\d{1,6})?$/)
+    .default('1'),
 
   WORKER_ID: z.string().default('local'),
   WORKER_POLL_INTERVAL_MS: z.coerce.number().default(2000),
@@ -205,6 +237,25 @@ function assertProductionSafe(env: ServerEnv): void {
   }
   if (env.ADMIN_PASSWORD.length > 0) {
     assertAdminPasswordSafe(env.ADMIN_PASSWORD);
+  }
+  assertStaticPayerAllowed(env);
+}
+
+/**
+ * The static payer is a raw key in env that spends USDC on every unlock:
+ * demos and tests only, never a production deployment.
+ */
+export function assertStaticPayerAllowed(
+  env: Pick<ServerEnv, 'APP_ENV' | 'ARC_PAYMENT_SIGNER_PRIVATE_KEY'>,
+): void {
+  if (
+    env.APP_ENV === 'production' &&
+    env.ARC_PAYMENT_SIGNER_PRIVATE_KEY !== undefined &&
+    env.ARC_PAYMENT_SIGNER_PRIVATE_KEY.length > 0
+  ) {
+    throw new Error(
+      'ARC_PAYMENT_SIGNER_PRIVATE_KEY (the static demo payer) must not be set when APP_ENV is production.',
+    );
   }
 }
 
