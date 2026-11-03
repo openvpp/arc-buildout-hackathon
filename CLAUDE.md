@@ -285,6 +285,11 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
 - A payment is `accepted` when Gateway takes it and `settled` only once its
   batch is confirmed on Arc; never show settled (or an Arcscan link) before
   that.
+- The worker (`runSettlementReconciliation`, its own interval and time
+  budget) reads Gateway's transfer (`GET /v1/x402/transfers/:id`) and marks
+  a payment `settled` only with the batch `txHash` in hand. A `failed`
+  settlement does not revoke an unlock (it was already revealed); it is
+  shown as failed for follow-up.
 - The agent data API is authenticated by payment only (x402) and stays
   rate-limited; listing events is free and returns only data that is already
   public on-chain.

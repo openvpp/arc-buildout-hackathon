@@ -1,5 +1,6 @@
 import { closeStaleChargingSessions } from '@/server/application/telemetry/close-stale-charging-sessions';
 import { finalizeDueOdometerDays } from '@/server/application/telemetry/finalize-odometer-days';
+import { reconcileAcceptedUnlocks } from '@/server/application/unlocks/reconcile-settlements';
 import { scanChainForward } from '@/server/application/verification/chain-event-index';
 import {
   enqueueDueVerifications,
@@ -8,6 +9,10 @@ import {
 import { getServerEnv } from '@/server/config/env';
 import type { Database } from '@/server/infrastructure/db/client';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
+import {
+  createConfiguredTransferLookup,
+  resolvePaymentConfig,
+} from '@/server/infrastructure/payments/payment-config';
 
 const log = createServerLogger({ component: 'maintenance' });
 
@@ -19,6 +24,10 @@ export const CHAIN_SCAN_INTERVAL_MS = 60_000;
 
 /** A scan stops starting new RPC requests after this long. */
 const CHAIN_SCAN_BUDGET_MS = 15_000;
+
+/** How often the worker checks Gateway for settled nanopayments. */
+export const SETTLEMENT_RECONCILE_INTERVAL_MS = 60_000;
+const SETTLEMENT_RECONCILE_BUDGET_MS = 15_000;
 
 /**
  * Periodic, idempotent time-series upkeep: finalize finished UTC days
@@ -66,6 +75,32 @@ export async function runChainIndexing(db: Database): Promise<void> {
     await scanChainForward(db, undefined, Date.now() + CHAIN_SCAN_BUDGET_MS);
   } catch (error) {
     log.warn('maintenance.chain_scan_failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Move accepted unlock payments to settled (with Gateway's batch tx) or
+ * failed, within a time budget. Network-only work, so it runs on its own
+ * interval and never blocks mint/publish jobs.
+ */
+export async function runSettlementReconciliation(db: Database): Promise<void> {
+  const resolved = resolvePaymentConfig();
+  if (!resolved.ok) {
+    return;
+  }
+  try {
+    const result = await reconcileAcceptedUnlocks({
+      db,
+      lookup: createConfiguredTransferLookup(resolved.config.network),
+      deadline: Date.now() + SETTLEMENT_RECONCILE_BUDGET_MS,
+    });
+    if (result.settled > 0 || result.failed > 0) {
+      log.info('maintenance.settlements_reconciled', result);
+    }
+  } catch (error) {
+    log.warn('maintenance.settlement_reconcile_failed', {
       errorMessage: error instanceof Error ? error.message : String(error),
     });
   }

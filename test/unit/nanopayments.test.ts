@@ -9,6 +9,10 @@ import { assertStaticPayerAllowed } from '@/server/config/env';
 import { resolveArcPaymentNetwork } from '@/server/infrastructure/payments/arc-payment-network';
 import { createGatewayBuyer } from '@/server/infrastructure/payments/gateway-buyer';
 import {
+  createGatewayTransferLookup,
+  settlementOutcome,
+} from '@/server/infrastructure/payments/gateway-transfers';
+import {
   createGatewaySeller,
   type FacilitatorPort,
 } from '@/server/infrastructure/payments/gateway-seller';
@@ -252,5 +256,52 @@ describe('static payer guard', () => {
         ARC_PAYMENT_SIGNER_PRIVATE_KEY: undefined,
       }),
     ).not.toThrow();
+  });
+});
+
+describe('Gateway settlement status', () => {
+  const txHash = `0x${'ab'.repeat(32)}`;
+
+  it('is settled only with a batch transaction, failed when Gateway says so', () => {
+    expect(settlementOutcome({ status: 'completed', txHash })).toEqual({
+      kind: 'settled',
+      txHash,
+    });
+    expect(settlementOutcome({ status: 'confirmed', txHash })).toEqual({
+      kind: 'settled',
+      txHash,
+    });
+    // A "completed" status without a transaction is not proof of settlement.
+    expect(settlementOutcome({ status: 'completed', txHash: null })).toEqual({
+      kind: 'pending',
+    });
+    expect(settlementOutcome({ status: 'batched', txHash: null })).toEqual({
+      kind: 'pending',
+    });
+    expect(settlementOutcome({ status: 'failed', txHash: null })).toEqual({
+      kind: 'failed',
+    });
+    expect(settlementOutcome(null)).toEqual({ kind: 'pending' });
+  });
+
+  it('reads a transfer from Gateway and rejects odd answers', async () => {
+    const respond = (status: number, body: unknown) =>
+      createGatewayTransferLookup(testnet!, async () =>
+        Response.json(body, { status }),
+      );
+    expect(
+      await respond(200, {
+        id: 't1',
+        status: 'completed',
+        txHash: txHash.toUpperCase().replace('0X', '0x'),
+      })('t1'),
+    ).toEqual({ status: 'completed', txHash });
+    expect(await respond(404, {})('t1')).toBeNull();
+    await expect(respond(500, {})('t1')).rejects.toThrow('500');
+    await expect(respond(200, { nope: true })('t1')).rejects.toThrow('shape');
+    // A malformed tx hash is never treated as a settlement transaction.
+    expect(
+      await respond(200, { status: 'completed', txHash: '0x123' })('t1'),
+    ).toEqual({ status: 'completed', txHash: null });
   });
 });

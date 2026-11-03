@@ -4,7 +4,9 @@ import {
   CHAIN_SCAN_INTERVAL_MS,
   MAINTENANCE_INTERVAL_MS,
   runChainIndexing,
+  runSettlementReconciliation,
   runTelemetryMaintenance,
+  SETTLEMENT_RECONCILE_INTERVAL_MS,
 } from '@/server/infrastructure/jobs/maintenance';
 import { runWorkerCycle } from '@/server/infrastructure/jobs/worker';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
@@ -26,6 +28,7 @@ async function main(): Promise<void> {
 
   let lastMaintenanceAt = 0;
   let lastChainScanAt = 0;
+  let lastSettlementCheckAt = 0;
   while (!stopping) {
     // Each interval counts from when the previous run finished, so a slow
     // run cannot make the next one start immediately after.
@@ -43,6 +46,13 @@ async function main(): Promise<void> {
     if (Date.now() - lastChainScanAt >= CHAIN_SCAN_INTERVAL_MS) {
       await runChainIndexing(db);
       lastChainScanAt = Date.now();
+    }
+    if (
+      Date.now() - lastSettlementCheckAt >=
+      SETTLEMENT_RECONCILE_INTERVAL_MS
+    ) {
+      await runSettlementReconciliation(db);
+      lastSettlementCheckAt = Date.now();
     }
     try {
       const didWork = await runWorkerCycle(db);

@@ -12,6 +12,10 @@ import type {
 import { createGatewayBuyer } from '@/server/infrastructure/payments/gateway-buyer';
 import { createGatewaySeller } from '@/server/infrastructure/payments/gateway-seller';
 import {
+  createGatewayTransferLookup,
+  type GatewayTransferLookup,
+} from '@/server/infrastructure/payments/gateway-transfers';
+import {
   createMockGatewayBuyer,
   createMockGatewaySeller,
 } from '@/server/infrastructure/payments/mock-gateway';
@@ -49,6 +53,18 @@ export function resolvePaymentConfig(
       ),
     },
   };
+}
+
+/**
+ * Gateway transfer lookup; with mock adapters, mock payments are unknown to
+ * Gateway, so they simply stay "accepted" (no network calls).
+ */
+export function createConfiguredTransferLookup(
+  network: ArcPaymentNetwork,
+): GatewayTransferLookup {
+  return getServerEnv().ALLOW_MOCK_ADAPTERS
+    ? async () => null
+    : createGatewayTransferLookup(network);
 }
 
 /** Circle Gateway seller, or the mock when ALLOW_MOCK_ADAPTERS=true. */
