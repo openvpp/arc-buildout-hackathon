@@ -13,6 +13,11 @@ export const ADMIN_NAV: readonly NavItem[] = [
     description: 'Every device and its on-chain telemetry.',
   },
   {
+    title: 'Payments',
+    href: '/admin/payments',
+    description: 'Every nanopayment and the Gateway balances.',
+  },
+  {
     title: 'Verification',
     href: '/admin/verification',
     description: 'Every record and its latest verdict.',

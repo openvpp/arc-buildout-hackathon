@@ -38,8 +38,10 @@ export function createGatewayBuyer(input: {
   return {
     address: account.address.toLowerCase(),
 
-    async getBalances() {
-      const balances = await client.getBalances();
+    async getBalances(address) {
+      const balances = await client.getBalances(
+        address === undefined ? undefined : (address as `0x${string}`),
+      );
       return {
         walletAtomic: balances.wallet.balance,
         gatewayAvailableAtomic: balances.gateway.available,

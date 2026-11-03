@@ -10,6 +10,9 @@ import {
   verifyDeviceAction,
   verifyRecordAction,
 } from '@/features/admin/actions';
+import { fetchPaidTelemetryAction } from '@/features/admin/payment-actions';
+import { SettlementBadge } from '@/features/unlocks/settlement-badge';
+import { adminUnlocksByEvent } from '@/server/application/admin/admin-payments';
 import { mintStatusTone } from '@/features/devices/format';
 import { TransactionLink } from '@/features/devices/transaction-link';
 import {
@@ -96,6 +99,12 @@ export default async function AdminDeviceDetailPage({
     notFound();
   }
   const { device, address, summary, completeness, truncated } = detail;
+  const adminUnlocks = await adminUnlocksByEvent(
+    getDb(),
+    detail.reconciled.flatMap((entry) =>
+      entry.kind === 'on_chain_only' ? [] : [entry.record.id],
+    ),
+  );
   const name =
     device.displayName ??
     ([device.vendor, device.model].filter(Boolean).join(' ') || 'Vehicle');
@@ -130,6 +139,12 @@ export default async function AdminDeviceDetailPage({
             label="Verify all records"
             pendingLabel="Queuing…"
             variant="primary"
+          />
+          <AdminActionButton
+            action={fetchPaidTelemetryAction}
+            fields={{ deviceId: device.id }}
+            label="Fetch telemetry (paid)"
+            pendingLabel="Paying on Arc…"
           />
           <AdminActionButton
             action={syncDeviceFromChainAction}
@@ -322,6 +337,18 @@ export default async function AdminDeviceDetailPage({
                       <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
                       {record.status === 'confirmed' ? (
                         <VerdictBadge verdict={record.verificationStatus} />
+                      ) : null}
+                      {adminUnlocks.has(record.id) ? (
+                        <SettlementBadge
+                          status={
+                            adminUnlocks.get(record.id)?.settlementStatus ??
+                            'accepted'
+                          }
+                          settlementTxHash={
+                            adminUnlocks.get(record.id)?.settlementTxHash ??
+                            null
+                          }
+                        />
                       ) : null}
                       <span className="text-slate-200">
                         {recordTitle(

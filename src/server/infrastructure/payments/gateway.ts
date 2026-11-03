@@ -36,7 +36,7 @@ export type GatewaySeller = {
 };
 
 export type GatewayBalances = {
-  /** USDC held by the payer's own address on Arc (atomic units). */
+  /** USDC held by the address itself (ERC-20 balance, 6-decimal atomic units). */
   walletAtomic: bigint;
   /** USDC in Gateway available for payments (atomic units). */
   gatewayAvailableAtomic: bigint;
@@ -45,7 +45,8 @@ export type GatewayBalances = {
 /** Buyer side: the static demo payer (or the agent's own key). */
 export type GatewayBuyer = {
   address: string;
-  getBalances(): Promise<GatewayBalances>;
+  /** This payer's balances, or another address's (e.g. the seller's). */
+  getBalances(address?: string): Promise<GatewayBalances>;
   /** An on-chain deposit into Gateway. Callers confirm with a human first. */
   deposit(amountAtomic: bigint): Promise<{ depositTxHash: string }>;
   /** Signs a payment for the Gateway option of a 402 body. */
