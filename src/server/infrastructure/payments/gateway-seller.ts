@@ -5,7 +5,10 @@ import type {
   SettlementResult,
 } from '@/server/infrastructure/payments/gateway';
 import type { ArcPaymentNetwork } from '@/server/infrastructure/payments/arc-payment-network';
-import { decodePaymentSignatureHeader } from '@/server/infrastructure/payments/x402';
+import {
+  decodePaymentSignatureHeader,
+  signerOfPaymentSignature,
+} from '@/server/infrastructure/payments/x402';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 
 const log = createServerLogger({ component: 'gateway-seller' });
@@ -54,20 +57,10 @@ export function createGatewaySeller(input: {
       return toSettlementResult(
         response,
         requirements.network,
-        signerOf(signature.payload),
+        signerOfPaymentSignature(signature),
       );
     },
   };
-}
-
-/** The signing address inside an EIP-3009 authorization, if present. */
-function signerOf(payload: Record<string, unknown>): string | null {
-  const authorization = payload['authorization'];
-  if (typeof authorization !== 'object' || authorization === null) {
-    return null;
-  }
-  const from = (authorization as Record<string, unknown>)['from'];
-  return typeof from === 'string' && from.length > 0 ? from : null;
 }
 
 function toSettlementResult(

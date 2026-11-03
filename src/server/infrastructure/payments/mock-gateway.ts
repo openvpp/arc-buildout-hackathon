@@ -9,6 +9,7 @@ import {
   decodePaymentSignatureHeader,
   encodePaymentSignatureHeader,
   findGatewayRequirements,
+  signerOfPaymentSignature,
 } from '@/server/infrastructure/payments/x402';
 
 /**
@@ -30,11 +31,10 @@ export function createMockGatewaySeller(
       if (signature === null) {
         return { success: false, code: 'invalid', reason: 'Not a payment.' };
       }
-      const payer = signature.payload['from'];
       return {
         success: true,
         reference: randomUUID(),
-        payer: typeof payer === 'string' ? payer : MOCK_PAYER_ADDRESS,
+        payer: signerOfPaymentSignature(signature) ?? MOCK_PAYER_ADDRESS,
         network: requirements.network,
       };
     },
@@ -63,7 +63,10 @@ export function createMockGatewayBuyer(
       }
       return encodePaymentSignatureHeader({
         x402Version: body.x402Version,
-        payload: { mock: true, from: address, nonce: randomUUID() },
+        payload: {
+          mock: true,
+          authorization: { from: address, nonce: randomUUID() },
+        },
         resource: body.resource,
         accepted: requirements,
       });

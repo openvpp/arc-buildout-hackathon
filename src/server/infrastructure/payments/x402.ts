@@ -146,6 +146,23 @@ export function encodePaymentSignatureHeader(value: PaymentSignature): string {
   return toBase64Json(value);
 }
 
+/**
+ * The address that signed the payment's EIP-3009 authorization (lowercase),
+ * known before settling. Null when the payload carries none.
+ */
+export function signerOfPaymentSignature(
+  signature: PaymentSignature,
+): string | null {
+  const authorization = signature.payload['authorization'];
+  if (typeof authorization !== 'object' || authorization === null) {
+    return null;
+  }
+  const from = (authorization as Record<string, unknown>)['from'];
+  return typeof from === 'string' && /^0x[0-9a-fA-F]{40}$/.test(from)
+    ? from.toLowerCase()
+    : null;
+}
+
 /** Decodes a PAYMENT-SIGNATURE header; null when it is not a payment. */
 export function decodePaymentSignatureHeader(
   header: string,
