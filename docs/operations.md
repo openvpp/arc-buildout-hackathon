@@ -115,6 +115,30 @@ sign users out.
   stale-session window.
 - Re-check one record from a shell: `pnpm verify:event -- <deviceEventId>`.
 
+## Nanopayments (milestone 4)
+
+- `SELLER_WALLET_ADDRESS`: receives every unlock payment. Without it, nothing
+  can be unlocked (pages say so; agent routes answer 503).
+- `ARC_PAYMENT_SIGNER_PRIVATE_KEY`: the static demo payer (an EOA; Circle
+  Gateway requires one). Refused when `APP_ENV=production`. Fund it from
+  https://faucet.circle.com (testnet), then deposit into Gateway from
+  `/admin/payments` (an on-chain transaction; the form needs a confirmation
+  tick and is capped at 10 USDC). Payments then need no gas.
+- `EVENT_UNLOCK_PRICE_USDC` (default 0.001) and `STATIC_PAYER_DAILY_CAP_USDC`
+  (default 1): the cap is enforced under a lock; past it, unlocks say so.
+- Network values (CAIP-2, USDC, Gateway wallet, facilitator URL) follow
+  `ARC_CHAIN_ID` from Circle's SDK; `CIRCLE_GATEWAY_FACILITATOR_URL`
+  overrides the facilitator. Arc mainnet may need Circle's private-mainnet
+  opt-in header — not exercised yet.
+- Settlement: Gateway batches payments; the worker marks each `settled`
+  once Gateway reports the batch tx (checked at most once a minute per
+  payment). A `failed` settlement is shown in `/admin/payments`; the unlock
+  is not revoked.
+- `pnpm agent:mv -- --budget 0.01 --base-url https://…`: the autonomous
+  agent (pays with `AGENT_PRIVATE_KEY`, or the demo payer). Refuses Arc
+  mainnet unless `AGENT_ALLOW_MAINNET=true`.
+- Rate limits: agent catalog 60/min, paid event 30/min per client IP.
+
 ## Device events (on-chain time series)
 
 - One worker processes jobs sequentially with a single signer, so mint and

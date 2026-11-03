@@ -92,6 +92,25 @@ external_device_id)`) and enqueues a `MINT_DEVICE_NFT` outbox event.
     Devices across all wallets; per device, our records reconciled with the
     chain index, daily-series gaps, and Verify now (inline, one record) /
     Verify all (queues worker jobs) / Sync from chain (explorer backfill).
+14. **Nanopayments and unlocks (M4).** Every anchored event is locked.
+    Unlocking is x402 v2 over Circle Gateway on Arc
+    (`requestEventUnlock`): an unpaid request gets `402` +
+    `PAYMENT-REQUIRED`; the payer retries with `PAYMENT-SIGNATURE`; the
+    server settles through Gateway (`BatchFacilitatorClient.settle`) and
+    only then records the unlock (`event_unlocks`) and reveals the record,
+    in one transaction under a per-(event, buyer) lock.
+    - Signed-in users: `/dashboard`, `/devices/:id` (Locked/Unlocked, an
+      Unlock button), `/payments` — the shared `AppShell`, same layout as
+      `/admin`. The static demo payer (`ARC_PAYMENT_SIGNER_PRIVATE_KEY`)
+      pays (`unlockWithStaticPayer`, daily cap under a per-payer lock).
+    - Agents: `GET /api/v1/agent/events` (free catalog) and
+      `GET /api/v1/agent/events/:id` (x402). `pnpm agent:mv` pays per event
+      within a budget, verifies each record against Arc itself, and writes
+      an M&V report.
+    - Admin: `/admin/payments` (every payment, payer/seller Gateway
+      balances, deposit) and "Fetch telemetry (paid)" per device.
+    - The worker's settlement sweep (own interval, 15 s budget) moves
+      payments from `accepted` to `settled` once Gateway's batch tx exists.
 
 ## Why this data model is smaller than a typical "EV platform"
 

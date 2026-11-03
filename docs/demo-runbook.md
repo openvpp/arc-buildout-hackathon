@@ -60,6 +60,21 @@ pnpm worker:dev      # terminal 2 — mints run here, not in the request
    reconciliation counts, daily gaps, and the private record behind
    `recordHash`.
 
+8. **Unlock with a nanopayment (M4).** Sign in → **Dashboard** → a device →
+   an anchored event shows **Locked** → **Unlock · 0.001 USDC**. The demo
+   payer pays through Circle Gateway; the event shows its full record, the
+   commitment proof (v2) and the receipt (**Accepted · settling**, then
+   **Settled on Arc** with the batch tx once the worker sees it). See all
+   unlocks under **Payments**.
+9. **Admin payments.** `/admin/payments`: every payment, the payer and
+   seller Gateway balances, today's spend vs the cap; deposit more if
+   needed. On a device page, **Fetch telemetry (paid)** buys its records as
+   the admin.
+10. **Autonomous agent.** `pnpm agent:mv -- --budget 0.005 --max-events 5`
+    discovers events, pays per event, verifies each one on Arc itself and
+    prints an M&V report (verified kWh / miles). Run it twice: the second
+    run is free (already owned).
+
 ## Duplicate-link / retry checks
 
 - Re-run step 2 for the **same** vehicle: `/devices` should still show one

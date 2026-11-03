@@ -134,3 +134,17 @@ Mapbox and stores the canonical address and coordinates.
 - `chain_device_events` is discovery only (scanner / explorer); a row there
   is never proof. Reconciliation in the admin view: matched, anchored but
   not yet indexed, missing on-chain, on-chain only (another writer).
+
+## Nanopayment unlocks (milestone 4)
+
+- `event_unlocks`: one row per paid unlock, written only after Circle
+  Gateway accepted the payment (settle-before-reveal), so the payment and
+  the unlock are one record. `buyer_kind` is `owner` (principal), `admin`
+  or `agent` (identified by the paying address), enforced by a CHECK.
+- One unlock per buyer per event (partial unique indexes per kind); one
+  Gateway transfer per unlock (`settlement_reference` unique).
+- `settlement_status`: `accepted` → `settled` (with `settlement_tx_hash`,
+  the Gateway batch transaction on Arc; a CHECK requires it) | `failed`.
+  `updated_at` marks the worker's last settlement check.
+- Amounts are atomic USDC (6 decimals) and must be > 0; addresses are
+  stored lowercase (CHECK).

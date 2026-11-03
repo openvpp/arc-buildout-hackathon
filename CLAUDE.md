@@ -427,4 +427,12 @@ export const dynamic = 'force-dynamic';
 - `src/server/infrastructure/blockchain/device-nft-abi.ts` — the DeviceNFT
   ABI; the DeviceEvent item, signature and topic0 derive from it (the
   standalone script keeps a copy, guarded by a test).
+- `src/server/infrastructure/payments/` — Circle Gateway x402: network
+  from `ARC_CHAIN_ID`, seller/buyer ports and adapters (+ mocks), x402
+  headers, transfer lookup, `payment-config.ts` (what is configured).
+- `src/server/application/unlocks/` — the unlock flow (`event-unlock.ts`),
+  what an unlock reveals (`unlock-content.ts`), lists, settlement sweep,
+  the agent catalog.
+- `src/agent/mv-agent.ts` + `scripts/agent-mv.ts` — the autonomous M&V
+  agent (`pnpm agent:mv`).
 - `docs/` — architecture, database, Enode integration, demo runbook.
