@@ -285,7 +285,7 @@ export function verifyDeviceEvent(
     add(
       'record_commitment',
       'skip',
-      'Payload version 1: no record commitment; only the public payload is verifiable.',
+      'Private record was not supplied, so the recordHash commitment was not checked.',
     );
   } else if (match === undefined) {
     add('record_commitment', 'skip', 'No anchor to compare.');

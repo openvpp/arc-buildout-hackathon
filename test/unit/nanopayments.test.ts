@@ -160,8 +160,16 @@ describe('Gateway seller', () => {
   const requirements = findGatewayRequirements(paymentRequired());
   if (requirements === null) throw new Error('expected requirements');
 
-  function sellerWith(settle: FacilitatorPort['settle']) {
-    return createGatewaySeller({ network: testnet!, facilitator: { settle } });
+  function sellerWith(
+    settle: FacilitatorPort['settle'],
+    verify: FacilitatorPort['verify'] = async () => {
+      throw new Error('verify not stubbed');
+    },
+  ) {
+    return createGatewaySeller({
+      network: testnet!,
+      facilitator: { settle, verify },
+    });
   }
 
   it("returns Gateway's transfer id and the payer when it accepts", async () => {
@@ -218,6 +226,51 @@ describe('Gateway seller', () => {
     }).settle({ paymentSignatureHeader: 'garbage', requirements });
     expect(garbage).toMatchObject({ success: false, code: 'invalid' });
   });
+
+  it('verifies a signature without settling', async () => {
+    let settled = false;
+    const accepted = await sellerWith(
+      async () => {
+        settled = true;
+        throw new Error('settle must not be called');
+      },
+      async () => ({
+        isValid: true,
+        payer: '0xABCDEF0000000000000000000000000000000001',
+      }),
+    ).verify({ paymentSignatureHeader: header, requirements });
+    expect(accepted).toEqual({
+      ok: true,
+      payer: '0xabcdef0000000000000000000000000000000001',
+    });
+    expect(settled).toBe(false);
+
+    const refused = await sellerWith(
+      async () => {
+        throw new Error('settle must not be called');
+      },
+      async () => ({ isValid: false, invalidReason: 'invalid_signature' }),
+    ).verify({ paymentSignatureHeader: header, requirements });
+    expect(refused).toMatchObject({ ok: false, code: 'invalid' });
+
+    const down = await sellerWith(
+      async () => {
+        throw new Error('settle must not be called');
+      },
+      async () => {
+        throw new Error('ECONNRESET');
+      },
+    ).verify({ paymentSignatureHeader: header, requirements });
+    expect(down).toMatchObject({ ok: false, code: 'unavailable' });
+
+    const noPayer = await sellerWith(
+      async () => {
+        throw new Error('settle must not be called');
+      },
+      async () => ({ isValid: true }),
+    ).verify({ paymentSignatureHeader: header, requirements });
+    expect(noPayer).toMatchObject({ ok: false, code: 'invalid' });
+  });
 });
 
 describe('mock adapters', () => {
@@ -231,6 +284,23 @@ describe('mock adapters', () => {
       requirements,
     });
     expect(result).toMatchObject({ success: true, payer: buyer.address });
+    const verified = await createMockGatewaySeller().verify({
+      paymentSignatureHeader: header,
+      requirements,
+    });
+    expect(verified).toEqual({ ok: true, payer: buyer.address });
+
+    const forged = Buffer.from(
+      JSON.stringify({
+        x402Version: 2,
+        payload: { authorization: { from: buyer.address } },
+      }),
+    ).toString('base64');
+    const rejected = await createMockGatewaySeller().verify({
+      paymentSignatureHeader: forged,
+      requirements,
+    });
+    expect(rejected).toMatchObject({ ok: false, code: 'invalid' });
   });
 });
 

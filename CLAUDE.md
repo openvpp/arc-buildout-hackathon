@@ -277,7 +277,9 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
   requires one) is server-only, refused when `APP_ENV=production`, and
   limited by a daily spending cap. Never log a payment signature or key.
 - One unlock per (principal, event). Asking again returns the existing
-  unlock without charging; a settlement reference can back only one payment.
+  unlock without charging. An agent must present a signature that Gateway
+  verifies again (`verify`, which does not settle). An owner or the admin
+  is the signed-in session. A settlement reference can back only one payment.
 - What an unlock reveals: the owner gets the full off-chain record and its
   salt (so the private-record check can be repeated); an agent gets the
   record **without location**. Location, identity and wallet addresses of

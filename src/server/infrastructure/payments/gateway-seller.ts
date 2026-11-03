@@ -3,6 +3,7 @@ import { BatchFacilitatorClient } from '@circle-fin/x402-batching/server';
 import type {
   GatewaySeller,
   SettlementResult,
+  VerificationResult,
 } from '@/server/infrastructure/payments/gateway';
 import type { ArcPaymentNetwork } from '@/server/infrastructure/payments/arc-payment-network';
 import {
@@ -14,7 +15,7 @@ import { createServerLogger } from '@/server/infrastructure/logging/logger';
 const log = createServerLogger({ component: 'gateway-seller' });
 
 /** The part of Circle's facilitator client the seller uses (injectable). */
-export type FacilitatorPort = Pick<BatchFacilitatorClient, 'settle'>;
+export type FacilitatorPort = Pick<BatchFacilitatorClient, 'settle' | 'verify'>;
 
 /**
  * Settles x402 payments through Circle Gateway. `settle` both verifies the
@@ -31,6 +32,32 @@ export function createGatewaySeller(input: {
     new BatchFacilitatorClient({ url: input.network.facilitatorUrl });
 
   return {
+    async verify({ paymentSignatureHeader, requirements }) {
+      const signature = decodePaymentSignatureHeader(paymentSignatureHeader);
+      if (signature === null) {
+        return {
+          ok: false,
+          code: 'invalid',
+          reason: 'The PAYMENT-SIGNATURE header is not an x402 payment.',
+        };
+      }
+      let response: Awaited<ReturnType<FacilitatorPort['verify']>>;
+      try {
+        response = await facilitator.verify(signature, requirements);
+      } catch (error) {
+        // Never log the signature itself.
+        log.warn('gateway.verify_unavailable', {
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        return {
+          ok: false,
+          code: 'unavailable',
+          reason: 'Circle Gateway could not be reached. Try again shortly.',
+        };
+      }
+      return toVerificationResult(response);
+    },
+
     async settle({ paymentSignatureHeader, requirements }) {
       const signature = decodePaymentSignatureHeader(paymentSignatureHeader);
       if (signature === null) {
@@ -61,6 +88,35 @@ export function createGatewaySeller(input: {
       );
     },
   };
+}
+
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+function toVerificationResult(
+  response: Awaited<ReturnType<FacilitatorPort['verify']>>,
+): VerificationResult {
+  if (!response.isValid) {
+    log.info('gateway.verify_refused', {
+      errorReason: response.invalidReason ?? 'unknown',
+    });
+    return {
+      ok: false,
+      code: 'invalid',
+      reason: response.invalidReason ?? 'Circle Gateway refused the payment.',
+    };
+  }
+  // The payer is whoever Gateway verified. Never fall back to the unsigned
+  // `from` field: that is the value a repeat fetch must not be able to forge.
+  const payer = response.payer?.trim() ?? '';
+  if (!ADDRESS.test(payer)) {
+    log.error('gateway.verify_incomplete', { hasPayer: payer.length > 0 });
+    return {
+      ok: false,
+      code: 'invalid',
+      reason: 'Circle Gateway verified the payment without a payer.',
+    };
+  }
+  return { ok: true, payer: payer.toLowerCase() };
 }
 
 function toSettlementResult(

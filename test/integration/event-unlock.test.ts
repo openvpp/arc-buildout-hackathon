@@ -25,7 +25,10 @@ import {
   createMockGatewaySeller,
 } from '@/server/infrastructure/payments/mock-gateway';
 import { resolvePaymentConfig } from '@/server/infrastructure/payments/payment-config';
-import { decodePaymentRequiredHeader } from '@/server/infrastructure/payments/x402';
+import {
+  decodePaymentRequiredHeader,
+  encodePaymentSignatureHeader,
+} from '@/server/infrastructure/payments/x402';
 
 import { createTestDb, insertTestWallet } from './test-helpers';
 
@@ -40,10 +43,13 @@ if (!resolved.ok) throw new Error('test env must configure payments');
 const config = resolved.config;
 const RESOURCE = 'https://app.test/api/v1/agent/events/unlock';
 
-/** Counts settle calls, delegating to the mock. */
+/** Counts settle calls, delegating to the mock. Verify is passed through. */
 function countingSeller(inner: GatewaySeller = createMockGatewaySeller()) {
   const counter = { calls: 0 };
   const seller: GatewaySeller = {
+    async verify(args) {
+      return inner.verify(args);
+    },
     async settle(args) {
       counter.calls += 1;
       return inner.settle(args);
@@ -214,6 +220,121 @@ describe('requestEventUnlock (x402)', () => {
     expect(await unlocksFor(event.id)).toHaveLength(1);
   });
 
+  it('refuses a repeat fetch that only names the payer, and verifies a real one', async () => {
+    const { event } = await seedEvent();
+    const agent = createMockGatewayBuyer({
+      address: '0x000000000000000000000000000000000000a9e8',
+    });
+    const { seller, counter } = countingSeller();
+    const quote = await requestEventUnlock({
+      db,
+      eventId: event.id,
+      buyer: { kind: 'agent' },
+      paymentSignatureHeader: null,
+      resourceUrl: RESOURCE,
+      config,
+      seller,
+    });
+    if (quote.kind !== 'payment_required') throw new Error('expected a quote');
+    const first = await requestEventUnlock({
+      db,
+      eventId: event.id,
+      buyer: { kind: 'agent' },
+      paymentSignatureHeader: await agent.createPaymentSignatureHeader(
+        quote.paymentRequired,
+      ),
+      resourceUrl: RESOURCE,
+      config,
+      seller,
+    });
+    expect(first).toMatchObject({ kind: 'unlocked', alreadyUnlocked: false });
+
+    const forged = encodePaymentSignatureHeader({
+      x402Version: 2,
+      payload: { authorization: { from: agent.address } },
+    });
+    await expect(
+      requestEventUnlock({
+        db,
+        eventId: event.id,
+        buyer: { kind: 'agent' },
+        paymentSignatureHeader: forged,
+        resourceUrl: RESOURCE,
+        config,
+        seller,
+      }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_INVALID' });
+    expect(counter.calls).toBe(1);
+
+    const again = await requestEventUnlock({
+      db,
+      eventId: event.id,
+      buyer: { kind: 'agent' },
+      paymentSignatureHeader: await agent.createPaymentSignatureHeader(
+        quote.paymentRequired,
+      ),
+      resourceUrl: RESOURCE,
+      config,
+      seller,
+    });
+    expect(again).toMatchObject({ kind: 'unlocked', alreadyUnlocked: true });
+    expect(counter.calls).toBe(1);
+    expect(await unlocksFor(event.id)).toHaveLength(1);
+  });
+
+  it('reveals nothing when a repeat fetch cannot be verified', async () => {
+    const { event } = await seedEvent();
+    const agent = createMockGatewayBuyer({
+      address: '0x000000000000000000000000000000000000a9e9',
+    });
+    const mock = createMockGatewaySeller();
+    const seller: GatewaySeller = {
+      verify: async () => ({
+        ok: false,
+        code: 'unavailable',
+        reason: 'timeout',
+      }),
+      settle: (args) => mock.settle(args),
+    };
+    const quote = await requestEventUnlock({
+      db,
+      eventId: event.id,
+      buyer: { kind: 'agent' },
+      paymentSignatureHeader: null,
+      resourceUrl: RESOURCE,
+      config,
+      seller: mock,
+    });
+    if (quote.kind !== 'payment_required') throw new Error('expected a quote');
+    const header = await agent.createPaymentSignatureHeader(
+      quote.paymentRequired,
+    );
+    const first = await requestEventUnlock({
+      db,
+      eventId: event.id,
+      buyer: { kind: 'agent' },
+      paymentSignatureHeader: header,
+      resourceUrl: RESOURCE,
+      config,
+      seller: mock,
+    });
+    expect(first).toMatchObject({ kind: 'unlocked', alreadyUnlocked: false });
+    await expect(
+      requestEventUnlock({
+        db,
+        eventId: event.id,
+        buyer: { kind: 'agent' },
+        paymentSignatureHeader: await agent.createPaymentSignatureHeader(
+          quote.paymentRequired,
+        ),
+        resourceUrl: RESOURCE,
+        config,
+        seller,
+      }),
+    ).rejects.toMatchObject({ code: 'PAYMENT_UNAVAILABLE' });
+    expect(await unlocksFor(event.id)).toHaveLength(1);
+  });
+
   it('settles once when the same agent pays twice at the same time', async () => {
     const { event } = await seedEvent();
     const agent = createMockGatewayBuyer({
@@ -221,6 +342,7 @@ describe('requestEventUnlock (x402)', () => {
     });
     const slow = createMockGatewaySeller();
     const { seller, counter } = countingSeller({
+      ...slow,
       async settle(args) {
         await new Promise((resolve) => setTimeout(resolve, 100));
         return slow.settle(args);

@@ -187,7 +187,9 @@ async function unlockedResult(
 
 /**
  * The x402 unlock flow for one event, settle-before-reveal:
- * - already unlocked by this buyer → the content, nothing charged;
+ * - already unlocked by this buyer → the content, nothing charged. An
+ *   agent must pass Gateway `verify` again (that call does not settle);
+ *   an owner or the admin is the signed-in session.
  * - no payment → `payment_required` (402 with the Gateway requirement);
  * - a payment → Circle Gateway settles it, then the unlock is recorded and
  *   the content returned. A refused payment reveals nothing.
@@ -218,7 +220,9 @@ export async function requestEventUnlock(input: {
       'The PAYMENT-SIGNATURE header is not an x402 payment.',
     );
   }
-  // An agent is the address that signs; known before settling.
+  // Claimed signer, used only to find an existing row. A repeat fetch still
+  // has to pass Gateway verify; the stored address is the payer Gateway
+  // reported when the payment was settled.
   const agentAddress =
     input.buyer.kind === 'agent' && signature !== null
       ? signerOfPaymentSignature(signature)
@@ -240,6 +244,33 @@ export async function requestEventUnlock(input: {
 
     const existing = await findUnlock(tx, event.id, input.buyer, agentAddress);
     if (existing !== null) {
+      if (input.buyer.kind === 'agent') {
+        if (input.paymentSignatureHeader === null) {
+          throw new ApplicationError(
+            'PAYMENT_INVALID',
+            'The PAYMENT-SIGNATURE header is not an x402 payment.',
+          );
+        }
+        const requirements = findGatewayRequirements(
+          paymentRequiredFor(input.config, event, input.resourceUrl),
+        );
+        if (requirements === null) {
+          throw new Error('Unlock requirements must offer the Gateway option.');
+        }
+        const verified = await input.seller.verify({
+          paymentSignatureHeader: input.paymentSignatureHeader,
+          requirements,
+        });
+        if (!verified.ok) {
+          throw paymentFailure(verified);
+        }
+        if (verified.payer !== existing.agentAddress) {
+          throw new ApplicationError(
+            'PAYMENT_INVALID',
+            'The payment was refused. Nothing was charged.',
+          );
+        }
+      }
       return unlockedResult(tx, event, existing, true);
     }
 
@@ -280,14 +311,7 @@ export async function requestEventUnlock(input: {
       requirements,
     });
     if (!settled.success) {
-      throw new ApplicationError(
-        settled.code === 'unavailable'
-          ? 'PAYMENT_UNAVAILABLE'
-          : 'PAYMENT_INVALID',
-        settled.code === 'unavailable'
-          ? 'Circle Gateway could not take the payment right now. Nothing was charged; try again shortly.'
-          : refusalMessage(settled.reason),
-      );
+      throw paymentFailure(settled);
     }
 
     // Gateway took the payment: record it with the unlock in this same
@@ -299,7 +323,7 @@ export async function requestEventUnlock(input: {
         buyerKind: input.buyer.kind,
         principalId:
           input.buyer.kind === 'owner' ? input.buyer.principalId : null,
-        agentAddress: input.buyer.kind === 'agent' ? agentAddress : null,
+        agentAddress: input.buyer.kind === 'agent' ? settled.payer : null,
         payerAddress: settled.payer,
         sellerAddress: input.config.sellerAddress,
         network: settled.network,
@@ -328,6 +352,18 @@ export async function requestEventUnlock(input: {
     });
     return unlockedResult(tx, event, unlock, false);
   });
+}
+
+function paymentFailure(result: {
+  code: 'invalid' | 'unavailable';
+  reason: string;
+}): ApplicationError {
+  return new ApplicationError(
+    result.code === 'unavailable' ? 'PAYMENT_UNAVAILABLE' : 'PAYMENT_INVALID',
+    result.code === 'unavailable'
+      ? 'Circle Gateway could not take the payment right now. Nothing was charged; try again shortly.'
+      : refusalMessage(result.reason),
+  );
 }
 
 /**

@@ -4,6 +4,7 @@ import type {
   GatewayBuyer,
   GatewaySeller,
   SettlementResult,
+  VerificationResult,
 } from '@/server/infrastructure/payments/gateway';
 import {
   decodePaymentSignatureHeader,
@@ -18,11 +19,27 @@ import {
  */
 export const MOCK_PAYER_ADDRESS = '0x00000000000000000000000000000000000000b0';
 
-/** Accepts any well-formed payment and returns a fresh transfer id. */
+/**
+ * Accepts a mock buyer's signature and returns a fresh transfer id.
+ * `verify` accepts only that same shape (`payload.mock === true`); a header
+ * that merely names an address does not pass.
+ */
 export function createMockGatewaySeller(
   options: { result?: SettlementResult } = {},
 ): GatewaySeller {
   return {
+    async verify({ paymentSignatureHeader }): Promise<VerificationResult> {
+      const signature = decodePaymentSignatureHeader(paymentSignatureHeader);
+      if (signature === null || signature.payload['mock'] !== true) {
+        return { ok: false, code: 'invalid', reason: 'Not a payment.' };
+      }
+      const payer = signerOfPaymentSignature(signature);
+      if (payer === null) {
+        return { ok: false, code: 'invalid', reason: 'Not a payment.' };
+      }
+      return { ok: true, payer };
+    },
+
     async settle({ paymentSignatureHeader, requirements }) {
       if (options.result !== undefined) {
         return options.result;

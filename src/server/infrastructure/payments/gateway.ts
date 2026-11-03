@@ -27,8 +27,26 @@ export type SettlementResult =
       reason: string;
     };
 
+/**
+ * A signature check that does not lock funds. Used when this payer already
+ * has an unlock, so a repeat fetch is not charged again.
+ */
+export type VerificationResult =
+  | { ok: true; payer: string }
+  | {
+      ok: false;
+      /** `invalid`: the signature was refused; `unavailable`: try again. */
+      code: 'invalid' | 'unavailable';
+      reason: string;
+    };
+
 /** Seller side: verify and settle a payer's signed authorization. */
 export type GatewaySeller = {
+  /** Checks the signature against our requirements. Does not settle. */
+  verify(input: {
+    paymentSignatureHeader: string;
+    requirements: PaymentRequirements;
+  }): Promise<VerificationResult>;
   settle(input: {
     paymentSignatureHeader: string;
     requirements: PaymentRequirements;

@@ -59,6 +59,8 @@ Milestone 3 adds `0006_event_record_commitment` (new nullable columns +
 `0007_event_verifications`, `0008_admin_accounts` and
 `0009_chain_event_index`. All are additive.
 
+Milestone 4 adds `0013_event_unlocks` (`event_unlocks` only). It is additive.
+
 If the unique index fails, two `pending` or `processing` mint jobs exist for
 the same device. Keep one, delete or complete the other, and run migrate
 again. Do not edit an already-applied SQL file.

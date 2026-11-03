@@ -327,11 +327,12 @@ export async function runMvAgent(input: MvAgentInput): Promise<MvReport> {
     // Lateness alone (a warning) does not make the data untrue.
     const accepted =
       verdict === 'verified' || verdict === 'verified_with_warnings';
-    const recordJson = data.record?.json ?? null;
+    // Energy counted as verified is the anchored payload field. The paid
+    // record can carry a different figure, and the agent does not hold the
+    // salt, so that figure is not checked against recordHash.
     const energyKwh =
       entry.eventType === 2
-        ? (numberField(recordJson, 'energyDeliveredKwh') ??
-          numberField(data.payloadJson, 'energyDelivered'))
+        ? numberField(data.payloadJson, 'energyDelivered')
         : null;
     const distanceMiles =
       entry.eventType === 12
@@ -376,7 +377,7 @@ export function formatMvReport(report: MvReport): string {
     `- Payer: ${report.payer} on ${report.network}`,
     `- Spent: ${formatUsdcAtomic(report.spentAtomic)} of ${formatUsdcAtomic(report.budgetAtomic)} USDC (${report.stoppedBecause === 'budget' ? 'stopped at budget' : report.stoppedBecause === 'max_events' ? 'stopped at event limit' : 'catalog done'})`,
     `- Records bought: ${report.totals.bought}; verified on Arc by the agent: ${report.totals.verified}; rejected: ${report.totals.rejected}`,
-    `- Verified energy delivered: ${report.totals.verifiedEnergyKwh.toFixed(3)} kWh`,
+    `- Verified energy (anchored payload): ${report.totals.verifiedEnergyKwh.toFixed(3)} kWh`,
     `- Verified distance: ${report.totals.verifiedDistanceMiles.toFixed(1)} mi`,
     '',
     '| Event | Token | Type | Paid (USDC) | Chain verdict | Energy (kWh) | Miles |',
@@ -386,7 +387,7 @@ export function formatMvReport(report: MvReport): string {
         `| ${e.eventId.slice(0, 8)} | ${e.tokenId ?? '—'} | ${e.eventType === 2 ? 'charging' : e.eventType === 12 ? 'daily' : e.eventType} | ${formatUsdcAtomic(e.paidAtomic)}${e.alreadyUnlocked ? ' (owned)' : ''} | ${e.verdict}${e.failedChecks.length > 0 ? ` (${e.failedChecks.join(', ')})` : ''} | ${e.energyKwh ?? '—'} | ${e.distanceMiles ?? '—'} |`,
     ),
     '',
-    'Verification proves each record is anchored by a trusted writer, unchanged and timely — not that the measurement is true.',
+    "Verification proves the public payload is anchored by a trusted writer, unchanged and timely. The private record's recordHash is not checked, because the salt stays with the owner. It does not prove the measurement is true.",
   ];
   return lines.join('\n');
 }
