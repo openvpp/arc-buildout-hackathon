@@ -5,7 +5,7 @@ this repository. Read this file fully before modifying anything.
 
 ## Project purpose
 
-This repository (`accelerator-milestone3` branch) is a **hackathon
+This repository (`accelerator-milestone4` branch) is a **hackathon
 accelerator milestone**: a single, small, end-to-end flow on top of Arc.
 Development and automated tests run on Arc testnet; the target network
 (testnet or mainnet) is deployment configuration (`ARC_CHAIN_ID`,
@@ -52,21 +52,31 @@ Scope (and only this):
    one fixed `Admin` account, password from `ADMIN_PASSWORD`. The admin sees
    every device and its data (including exact address), reconciles each
    device's records with the chain, and can re-verify on demand.
+8. **Agentic nanopayments for M&V** (milestone 4). Device events are
+   **locked**; unlocking one costs a USDC nanopayment on Arc (Circle Gateway,
+   x402 v2), settled before anything locked is revealed. Signed-in users see
+   a dashboard in the same layout as the admin console (overview, devices,
+   events with Locked/Unlocked, payments) and unlock events; in demos a
+   **static backend payer wallet** pays every unlock. An **autonomous agent**
+   (`pnpm agent:mv`) discovers events, pays per event within a budget,
+   verifies each record against the chain itself, and writes an M&V report.
+   The admin sees every payment and the payer/seller Gateway balances.
 
 ### Explicitly out of scope
 
-No telemetry-nanopayment marketplace, no Circle Gateway x402 payments, no
+No general data marketplace beyond per-event unlocks and the agent data
+API, no owner revenue share or payouts (one platform seller address), no
+payments from users' own Circle wallets (the static payer pays in demos), no
 content-hash/provenance anchoring of files or content (the device event time
-series in scope item 5 is the only on-chain data besides mints; milestone 3
-verification only reads the chain), no points or rewards system, no trip
-detection beyond the daily odometer roll-up, no demo agent, no admin
-features beyond the M&V console in scope item 7, no ledger,
+series in scope item 5 is the only on-chain data besides mints; verification
+only reads the chain), no points or rewards system, no trip detection beyond
+the daily odometer roll-up, no admin features beyond the M&V console and its
+payments view, no accounting ledger beyond the payment records themselves,
 no Smartcar/Chargemap/OpenChargeMap, no Circle Paymaster, no external-wallet
-connect buttons (MetaMask/Coinbase/WalletConnect/etc.), no ScanContent
-screens, no operator/fleet-ops features. The agentic USDC nanopayment
-per-query layer (and its static payer wallet) is milestone 4 — not here. Do not reintroduce any of this
-without an explicit product decision — it was deliberately left out to keep
-this milestone small.
+connect buttons (MetaMask/Coinbase/WalletConnect/etc.), no Web3Auth, no
+ScanContent screens, no operator/fleet-ops features. Do not reintroduce any
+of this without an explicit product decision — it was deliberately left out
+to keep this milestone small.
 
 ### The frontend is never the source of truth
 
@@ -251,6 +261,33 @@ external_device_id)`, never by wallet/user id alone — a known bug in an
   check; a stale verdict queues a worker job (respecting backoff).
 - Say plainly what verification proves: anchored, attributable, unchanged,
   timely — not that the measurement is true.
+
+### Nanopayments and unlocks (M4)
+
+- Payments use Circle Gateway nanopayments over x402 v2: an unpaid request
+  gets `402` with a `PAYMENT-REQUIRED` header; the payer retries with a
+  `PAYMENT-SIGNATURE` header; the server settles through Gateway
+  (`BatchFacilitatorClient`) **before** revealing anything locked. Never
+  reveal a locked event on a failed or unverified settlement.
+- Gateway code sits behind domain ports (seller / buyer); tests use the mock
+  adapters, never real funds. Network values (CAIP-2 network, USDC, Gateway
+  wallet, facilitator URL) follow `ARC_CHAIN_ID` — never hardcoded per call
+  site.
+- The static payer (`ARC_PAYMENT_SIGNER_PRIVATE_KEY`, an EOA — Gateway
+  requires one) is server-only, refused when `APP_ENV=production`, and
+  limited by a daily spending cap. Never log a payment signature or key.
+- One unlock per (principal, event). Asking again returns the existing
+  unlock without charging; a settlement reference can back only one payment.
+- What an unlock reveals: the owner gets the full off-chain record and its
+  salt (so the private-record check can be repeated); an agent gets the
+  record **without location**. Location, identity and wallet addresses of
+  other users are never sold.
+- A payment is `accepted` when Gateway takes it and `settled` only once its
+  batch is confirmed on Arc; never show settled (or an Arcscan link) before
+  that.
+- The agent data API is authenticated by payment only (x402) and stays
+  rate-limited; listing events is free and returns only data that is already
+  public on-chain.
 
 ### Admin console
 
