@@ -9,6 +9,7 @@ import { assertStaticPayerAllowed } from '@/server/config/env';
 import { resolveArcPaymentNetwork } from '@/server/infrastructure/payments/arc-payment-network';
 import { createGatewayBuyer } from '@/server/infrastructure/payments/gateway-buyer';
 import {
+  createGatewayBalanceReader,
   createGatewayTransferLookup,
   settlementOutcome,
 } from '@/server/infrastructure/payments/gateway-transfers';
@@ -303,5 +304,27 @@ describe('Gateway settlement status', () => {
     expect(
       await respond(200, { status: 'completed', txHash: '0x123' })('t1'),
     ).toEqual({ status: 'completed', txHash: null });
+  });
+});
+
+describe('keyless Gateway balance', () => {
+  it("reads any address's available USDC from Gateway", async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    const read = createGatewayBalanceReader(testnet!, async (url, init) => {
+      calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+      return Response.json({ balances: [{ balance: '1.04204' }] });
+    });
+    expect(await read(SELLER)).toBe(1_042_040n);
+    expect(calls[0]?.url).toBe(
+      'https://gateway-api-testnet.circle.com/v1/balances',
+    );
+    expect(calls[0]?.body).toEqual({
+      token: 'USDC',
+      sources: [{ depositor: SELLER, domain: 26 }],
+    });
+    const broken = createGatewayBalanceReader(testnet!, async () =>
+      Response.json({ balances: [] }),
+    );
+    await expect(broken(SELLER)).rejects.toThrow('shape');
   });
 });

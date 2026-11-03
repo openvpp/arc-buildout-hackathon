@@ -17,6 +17,7 @@ import { getDb } from '@/server/infrastructure/db/client';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 import type { GatewayBalances } from '@/server/infrastructure/payments/gateway';
 import {
+  createConfiguredBalanceReader,
   createStaticPayer,
   resolvePaymentConfig,
 } from '@/server/infrastructure/payments/payment-config';
@@ -71,13 +72,22 @@ export default async function AdminPaymentsPage({
   const totals = await getPaymentTotals(db);
   const resolved = resolvePaymentConfig();
   const payer = resolved.ok ? createStaticPayer(resolved.config.network) : null;
+  const readBalance = resolved.ok
+    ? createConfiguredBalanceReader(resolved.config.network)
+    : null;
   const [payerBalances, sellerBalances, spentToday] = await Promise.all([
     payer === null
       ? Promise.resolve(null)
       : balancesOrNull(() => payer.getBalances()),
-    payer === null || !resolved.ok
+    // The seller has no key here: read its balance from Gateway directly.
+    readBalance === null || !resolved.ok
       ? Promise.resolve(null)
-      : balancesOrNull(() => payer.getBalances(resolved.config.sellerAddress)),
+      : balancesOrNull(async () => ({
+          walletAtomic: 0n,
+          gatewayAvailableAtomic: await readBalance(
+            resolved.config.sellerAddress,
+          ),
+        })),
     payer === null
       ? Promise.resolve(0n)
       : staticPayerSpentToday(db, payer.address),

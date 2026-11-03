@@ -12,6 +12,7 @@ import type {
 import { createGatewayBuyer } from '@/server/infrastructure/payments/gateway-buyer';
 import { createGatewaySeller } from '@/server/infrastructure/payments/gateway-seller';
 import {
+  createGatewayBalanceReader,
   createGatewayTransferLookup,
   type GatewayTransferLookup,
 } from '@/server/infrastructure/payments/gateway-transfers';
@@ -65,6 +66,15 @@ export function createConfiguredTransferLookup(
   return getServerEnv().ALLOW_MOCK_ADAPTERS
     ? async () => null
     : createGatewayTransferLookup(network);
+}
+
+/** Gateway balance of any address (mock: a fixed demo amount, no network). */
+export function createConfiguredBalanceReader(
+  network: ArcPaymentNetwork,
+): (address: string) => Promise<bigint> {
+  return getServerEnv().ALLOW_MOCK_ADAPTERS
+    ? async () => 10_000_000n
+    : createGatewayBalanceReader(network);
 }
 
 /** Circle Gateway seller, or the mock when ALLOW_MOCK_ADAPTERS=true. */

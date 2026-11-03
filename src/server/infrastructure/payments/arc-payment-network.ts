@@ -21,6 +21,8 @@ export type ArcPaymentNetwork = {
   usdcAddress: string;
   /** Gateway wallet contract: the EIP-712 verifying contract for payments. */
   gatewayWalletAddress: string;
+  /** Circle's domain id for this chain (Gateway balance lookups). */
+  gatewayDomain: number;
   facilitatorUrl: string;
   isTestnet: boolean;
 };
@@ -49,6 +51,7 @@ export function resolveArcPaymentNetwork(
     chainId: BigInt(config.chain.id),
     usdcAddress: config.usdc,
     gatewayWalletAddress: config.gatewayWallet,
+    gatewayDomain: config.domain,
     facilitatorUrl:
       env.CIRCLE_GATEWAY_FACILITATOR_URL ?? FACILITATOR_URLS[network],
     isTestnet: network === 'testnet',

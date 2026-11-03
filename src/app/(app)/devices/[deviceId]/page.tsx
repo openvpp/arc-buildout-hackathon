@@ -15,7 +15,10 @@ import { UnlockButton } from '@/features/unlocks/unlock-button';
 import { UnlockedRecord } from '@/features/unlocks/unlocked-record';
 import { formatUsdcAtomic } from '@/lib/payments/usdc';
 import { unlockedContentForPrincipal } from '@/server/application/unlocks/list-unlocks';
-import { resolvePaymentConfig } from '@/server/infrastructure/payments/payment-config';
+import {
+  createStaticPayer,
+  resolvePaymentConfig,
+} from '@/server/infrastructure/payments/payment-config';
 import { formatTimestamp, mintStatusTone } from '@/features/devices/format';
 import { MintTransactionLink } from '@/features/devices/mint-transaction-link';
 import { PublicDeviceDetails } from '@/features/devices/public-device-details';
@@ -230,6 +233,10 @@ async function unlockPanels(input: {
   events: DeviceEventPage['events'];
 }): Promise<Record<string, TimelineUnlock>> {
   const resolved = resolvePaymentConfig();
+  // The dashboard pays with the static demo payer; where there is none
+  // (e.g. production), say so instead of offering a button that fails.
+  const payerReady =
+    resolved.ok && createStaticPayer(resolved.config.network) !== null;
   const unlocked = await unlockedContentForPrincipal(
     input.db,
     input.principalId,
@@ -255,6 +262,17 @@ async function unlockPanels(input: {
               },
             }}
           />
+        ),
+      };
+    } else if (event.status === 'confirmed' && resolved.ok && !payerReady) {
+      panels[event.id] = {
+        state: 'locked',
+        panel: (
+          <p className="border-t border-white/10 pt-3 text-xs text-white/60">
+            The full record and its proof are locked. Unlocking from the
+            dashboard uses the demo payer, which is not set up on this
+            deployment; agents can still buy it through the data API.
+          </p>
         ),
       };
     } else if (event.status === 'confirmed' && resolved.ok) {

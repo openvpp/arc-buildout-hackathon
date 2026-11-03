@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { parseUsdcToAtomic } from '@/lib/payments/usdc';
 import type { ArcPaymentNetwork } from '@/server/infrastructure/payments/arc-payment-network';
 
 /**
@@ -85,4 +86,43 @@ export function settlementOutcome(
     return { kind: 'settled', txHash: transfer.txHash };
   }
   return { kind: 'pending' };
+}
+
+const balancesSchema = z.object({
+  balances: z.array(z.object({ balance: z.string() })),
+});
+
+/**
+ * Any address's available USDC in Gateway on this chain (POST
+ * /v1/balances, public, no key) — e.g. the seller's, which has no key here.
+ * Atomic units (6 decimals).
+ */
+export function createGatewayBalanceReader(
+  network: ArcPaymentNetwork,
+  fetchImpl: typeof fetch = fetch,
+): (address: string) => Promise<bigint> {
+  const base = network.facilitatorUrl.replace(/\/$/, '');
+  return async (address) => {
+    const response = await fetchImpl(`${base}/v1/balances`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        token: 'USDC',
+        sources: [{ depositor: address, domain: network.gatewayDomain }],
+      }),
+      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      throw new Error(`Gateway balance lookup failed (${response.status}).`);
+    }
+    const parsed = balancesSchema.safeParse(await response.json());
+    const first = parsed.success ? parsed.data.balances[0] : undefined;
+    if (first === undefined) {
+      throw new Error('Gateway balance lookup returned an unexpected shape.');
+    }
+    return parseUsdcToAtomic(first.balance);
+  };
 }
