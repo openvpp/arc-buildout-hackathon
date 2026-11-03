@@ -93,6 +93,10 @@ export function buildVerificationSpec() {
         '/api/v1/verify/tx/{transactionHash} (stored result; ?refresh=1 re-reads the chain now)',
       claim:
         'POST /api/v1/verify {"transactionHash","blockNumber","payloadJson","tokenId"?,"eventType"?}',
+      agentCatalog:
+        'GET /api/v1/agent/events (free: anchored events, already-public data, price)',
+      agentUnlock:
+        'GET /api/v1/agent/events/{eventId} (x402 v2: 402 + PAYMENT-REQUIRED, retry with PAYMENT-SIGNATURE; Circle Gateway nanopayment on Arc)',
       standalone:
         'pnpm verify:standalone -- --rpc <rpc> --contract <address> --tx <hash> --block <n> --payload <json> --writer <trustedWriters> [--token-id <n> --event-type <n>]',
     },

@@ -33,6 +33,8 @@ const TEST_ENV: Record<string, string> = {
   SELLER_WALLET_ADDRESS: '0x1111111111111111111111111111111111111111',
   EVENT_UNLOCK_PRICE_USDC: '0.001',
   STATIC_PAYER_DAILY_CAP_USDC: '1',
+  // Payments go through the mock Gateway adapters: never real funds.
+  ALLOW_MOCK_ADAPTERS: 'true',
 };
 for (const [key, value] of Object.entries(TEST_ENV)) {
   process.env[key] = value;
