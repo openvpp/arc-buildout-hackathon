@@ -103,6 +103,30 @@ export default async function AdminOverviewPage() {
             : ''}
         </p>
       </section>
+
+      <section aria-labelledby="paid-fetches" className="flex flex-col gap-3">
+        <h2 id="paid-fetches" className="text-sm font-medium text-slate-300">
+          Paid fetches
+        </h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <AdminMetricCard
+            label="Events fetched"
+            value={overview.paidFetches.events}
+            tone="success"
+            hint="Nanopayment charged"
+            href="/admin/payments"
+          />
+          <AdminMetricCard
+            label="Not yet fetched"
+            value={overview.paidFetches.notFetched}
+          />
+        </div>
+        <p className="text-xs text-slate-500">
+          An event counts as fetched once its telemetry was revealed after a
+          Circle Gateway nanopayment. Checking a record on-chain does not charge
+          and does not count here.
+        </p>
+      </section>
     </div>
   );
 }

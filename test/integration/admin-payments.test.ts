@@ -9,6 +9,7 @@ import {
   listAdminPayments,
   unpaidAnchoredEventIds,
 } from '@/server/application/admin/admin-payments';
+import { getAdminOverview } from '@/server/application/admin/get-admin-overview';
 import { unlockWithStaticPayer } from '@/server/application/unlocks/event-unlock';
 import {
   deviceEvents,
@@ -122,6 +123,7 @@ describe('admin payments', () => {
 
   it('totals revenue, settled amounts and buyers, and lists every payment', async () => {
     const before = await getPaymentTotals(db);
+    const beforeFetched = (await getAdminOverview(db)).paidFetches.events;
     const { events } = await seedDevice([
       { status: 'confirmed' },
       { status: 'confirmed' },
@@ -155,6 +157,8 @@ describe('admin payments', () => {
       },
     ]);
     const after = await getPaymentTotals(db);
+    const afterFetched = (await getAdminOverview(db)).paidFetches.events;
+    expect(afterFetched - beforeFetched).toBe(2);
     expect(after.count - before.count).toBe(2);
     expect(after.revenueAtomic - before.revenueAtomic).toBe(2000n);
     expect(after.settledAtomic - before.settledAtomic).toBe(1000n);

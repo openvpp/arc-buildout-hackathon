@@ -4,6 +4,7 @@ import type { Database } from '@/server/infrastructure/db/client';
 import {
   deviceEvents,
   devices,
+  eventUnlocks,
   eventVerifications,
 } from '@/server/infrastructure/db/schema';
 
@@ -23,6 +24,8 @@ export type AdminOverview = {
     unchecked: number;
     lastCheckedAt: Date | null;
   };
+  /** Events whose telemetry was revealed after a Circle nanopayment. */
+  paidFetches: { events: number; notFetched: number };
 };
 
 /** Fleet-wide counts for the admin overview (aggregates only). */
@@ -53,11 +56,21 @@ export async function getAdminOverview(db: Database): Promise<AdminOverview> {
   const [last] = await db
     .select({ at: max(eventVerifications.checkedAt) })
     .from(eventVerifications);
+  const [paid] = await db
+    .select({
+      events:
+        sql<number>`count(distinct ${eventUnlocks.deviceEventId})`.mapWith(
+          Number,
+        ),
+    })
+    .from(eventUnlocks);
 
   const byStatus = (value: string) =>
     statusRows.find((row) => row.status === value)?.n ?? 0;
   const byVerdict = (value: string) =>
     verdictRows.find((row) => row.verdict === value)?.n ?? 0;
+  const anchored = byStatus('confirmed');
+  const fetchedEvents = paid?.events ?? 0;
 
   return {
     devices: {
@@ -67,7 +80,7 @@ export async function getAdminOverview(db: Database): Promise<AdminOverview> {
     },
     records: {
       total: statusRows.reduce((sum, row) => sum + row.n, 0),
-      anchored: byStatus('confirmed'),
+      anchored,
       awaitingAnchor: byStatus('queued') + byStatus('pending'),
       failed: byStatus('failed'),
     },
@@ -78,6 +91,10 @@ export async function getAdminOverview(db: Database): Promise<AdminOverview> {
       pending: byVerdict('pending'),
       unchecked: byVerdict('unchecked'),
       lastCheckedAt: last?.at ?? null,
+    },
+    paidFetches: {
+      events: fetchedEvents,
+      notFetched: Math.max(0, anchored - fetchedEvents),
     },
   };
 }
