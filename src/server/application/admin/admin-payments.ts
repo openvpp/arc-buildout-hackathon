@@ -136,6 +136,26 @@ export async function adminUnlocksByEvent(
   return byEvent;
 }
 
+/** True when this anchored event belongs to the device. */
+export async function confirmedEventOnDevice(
+  db: Database,
+  deviceId: string,
+  eventId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: deviceEvents.id })
+    .from(deviceEvents)
+    .where(
+      and(
+        eq(deviceEvents.id, eventId),
+        eq(deviceEvents.deviceId, deviceId),
+        eq(deviceEvents.status, 'confirmed'),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
 /**
  * A device's newest anchored events the admin has not paid for yet
  * (bounded): what "Fetch telemetry (paid)" buys.

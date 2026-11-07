@@ -1,5 +1,6 @@
 import { and, eq, gte, sql, sum } from 'drizzle-orm';
 
+import { parseUsdcToAtomic } from '@/lib/payments/usdc';
 import { ApplicationError } from '@/server/application/application-error';
 import {
   buildUnlockedContent,
@@ -30,6 +31,13 @@ import {
 } from '@/server/infrastructure/payments/x402';
 
 const log = createServerLogger({ component: 'event-unlock' });
+
+/**
+ * When Gateway cannot cover an unlock, move this much wallet USDC into
+ * Gateway (or less, if the wallet holds less). One deposit then covers
+ * many unlocks; Circle's buyer sample uses the same 1 USDC top-up.
+ */
+const GATEWAY_TOP_UP_ATOMIC = parseUsdcToAtomic('1');
 
 type DeviceEventRow = typeof deviceEvents.$inferSelect;
 export type EventUnlockRow = typeof eventUnlocks.$inferSelect;
@@ -445,13 +453,7 @@ export async function unlockWithStaticPayer(input: {
       'The demo payer has reached its daily spending cap. Try again tomorrow (UTC).',
     );
   }
-  const balances = await input.payer.getBalances();
-  if (balances.gatewayAvailableAtomic < quote.priceAtomic) {
-    throw new ApplicationError(
-      'STATIC_PAYER_INSUFFICIENT_FUNDS',
-      'The demo payer has no USDC left in Circle Gateway. An admin can deposit more from /admin/payments.',
-    );
-  }
+  await ensureGatewayBalance(input.payer, quote.priceAtomic);
   const paymentSignatureHeader = await input.payer.createPaymentSignatureHeader(
     quote.paymentRequired,
   );
@@ -460,4 +462,47 @@ export async function unlockWithStaticPayer(input: {
     paymentSignatureHeader,
     staticPayerCap: capCheck,
   });
+}
+
+/**
+ * Gateway nanopayments spend USDC deposited in Circle Gateway. USDC that is
+ * still in the payer wallet is not spendable until it is deposited, so a
+ * funded wallet with an empty Gateway balance used to fail the unlock.
+ * When the wallet can cover the price, deposit a top-up and continue.
+ */
+async function ensureGatewayBalance(
+  payer: GatewayBuyer,
+  priceAtomic: bigint,
+): Promise<void> {
+  const balances = await payer.getBalances();
+  if (balances.gatewayAvailableAtomic >= priceAtomic) return;
+  const shortfall = priceAtomic - balances.gatewayAvailableAtomic;
+  if (balances.walletAtomic < shortfall) {
+    throw new ApplicationError(
+      'STATIC_PAYER_INSUFFICIENT_FUNDS',
+      'The demo payer has no USDC left in Circle Gateway. An admin can deposit more from /admin/payments.',
+    );
+  }
+  const target =
+    shortfall > GATEWAY_TOP_UP_ATOMIC ? shortfall : GATEWAY_TOP_UP_ATOMIC;
+  const amountAtomic =
+    balances.walletAtomic < target ? balances.walletAtomic : target;
+  log.info('unlock.gateway_top_up', {
+    payerAddress: payer.address,
+    amountAtomic: amountAtomic.toString(),
+    gatewayAvailableAtomic: balances.gatewayAvailableAtomic.toString(),
+    walletAtomic: balances.walletAtomic.toString(),
+  });
+  try {
+    await payer.deposit(amountAtomic);
+  } catch (error) {
+    log.error('unlock.gateway_top_up_failed', {
+      payerAddress: payer.address,
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+    throw new ApplicationError(
+      'STATIC_PAYER_INSUFFICIENT_FUNDS',
+      'The demo payer has USDC in its wallet, but moving it into Circle Gateway failed. An admin can deposit from /admin/payments.',
+    );
+  }
 }

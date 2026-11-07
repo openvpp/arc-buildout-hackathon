@@ -65,7 +65,11 @@ export type GatewayBuyer = {
   address: string;
   /** This payer's balances, or another address's (e.g. the seller's). */
   getBalances(address?: string): Promise<GatewayBalances>;
-  /** An on-chain deposit into Gateway. Callers confirm with a human first. */
+  /**
+   * An on-chain deposit into Gateway. The admin form confirms with the
+   * operator first. The static-payer unlock path deposits a top-up on its
+   * own when the wallet can cover the price and Gateway cannot.
+   */
   deposit(amountAtomic: bigint): Promise<{ depositTxHash: string }>;
   /** Signs a payment for the Gateway option of a 402 body. */
   createPaymentSignatureHeader(body: PaymentRequiredBody): Promise<string>;

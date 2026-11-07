@@ -10,7 +10,10 @@ import {
   verifyDeviceAction,
   verifyRecordAction,
 } from '@/features/admin/actions';
-import { fetchPaidTelemetryAction } from '@/features/admin/payment-actions';
+import {
+  fetchPaidRecordAction,
+  fetchPaidTelemetryAction,
+} from '@/features/admin/payment-actions';
 import { SettlementBadge } from '@/features/unlocks/settlement-badge';
 import { adminUnlocksByEvent } from '@/server/application/admin/admin-payments';
 import { mintStatusTone } from '@/features/devices/format';
@@ -411,6 +414,17 @@ export default async function AdminDeviceDetailPage({
                             label="Verify now"
                             pendingLabel="Reading chain…"
                           />
+                          {adminUnlocks.has(record.id) ? null : (
+                            <AdminActionButton
+                              action={fetchPaidRecordAction}
+                              fields={{
+                                deviceEventId: record.id,
+                                deviceId: device.id,
+                              }}
+                              label="Fetch this record (paid)"
+                              pendingLabel="Paying on Arc…"
+                            />
+                          )}
                           {record.transactionHash !== null ? (
                             <Link
                               href={`/verify/${record.transactionHash}`}

@@ -4,15 +4,20 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
 import { formatUsdcAtomic, parseUsdcToAtomic } from '@/lib/payments/usdc';
-import { unpaidAnchoredEventIds } from '@/server/application/admin/admin-payments';
+import {
+  confirmedEventOnDevice,
+  unpaidAnchoredEventIds,
+} from '@/server/application/admin/admin-payments';
 import { ApplicationError } from '@/server/application/application-error';
 import { unlockWithStaticPayer } from '@/server/application/unlocks/event-unlock';
+import type { Database } from '@/server/infrastructure/db/client';
 import { getDb } from '@/server/infrastructure/db/client';
 import { createServerLogger } from '@/server/infrastructure/logging/logger';
 import {
   createConfiguredSeller,
   createStaticPayer,
   resolvePaymentConfig,
+  type PaymentConfig,
 } from '@/server/infrastructure/payments/payment-config';
 
 import type { AdminActionState } from './actions';
@@ -54,30 +59,83 @@ export async function fetchPaidTelemetryAction(
   if (!UUID.test(deviceId)) return failed('Unknown device.');
   const resolved = resolvePaymentConfig();
   if (!resolved.ok) return failed('Payments are not configured here.');
-  const { config } = resolved;
-  const db = getDb();
-  const eventIds = await unpaidAnchoredEventIds(db, deviceId, FETCH_LIMIT);
+  const eventIds = await unpaidAnchoredEventIds(getDb(), deviceId, FETCH_LIMIT);
   if (eventIds.length === 0) {
     return { ok: true, message: 'Every anchored event is already paid for.' };
   }
-  const seller = createConfiguredSeller(config.network);
-  const payer = createStaticPayer(config.network);
+  return payForEvents({
+    deviceId,
+    eventIds,
+    config: resolved.config,
+    requestedBy: `admin:${session.admin.username}`,
+  });
+}
+
+/**
+ * Pay for one anchored record. Same Gateway path as the device-wide fetch,
+ * scoped to the event on this page.
+ */
+export async function fetchPaidRecordAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const session = await requireAdminSession();
+  if (!session.ok)
+    return failed('Your admin session has ended. Sign in again.');
+  const deviceId = String(formData.get('deviceId') ?? '');
+  const deviceEventId = String(formData.get('deviceEventId') ?? '');
+  if (!UUID.test(deviceId) || !UUID.test(deviceEventId)) {
+    return failed('Unknown record.');
+  }
+  const resolved = resolvePaymentConfig();
+  if (!resolved.ok) return failed('Payments are not configured here.');
+  const onDevice = await confirmedEventOnDevice(
+    getDb(),
+    deviceId,
+    deviceEventId,
+  );
+  if (!onDevice) {
+    return failed('This record is not an anchored event on this device.');
+  }
+  return payForEvents({
+    deviceId,
+    eventIds: [deviceEventId],
+    config: resolved.config,
+    requestedBy: `admin:${session.admin.username}`,
+  });
+}
+
+/** Settle one nanopayment per event. Stops at the first failure. */
+async function payForEvents(input: {
+  deviceId: string;
+  eventIds: readonly string[];
+  config: PaymentConfig;
+  requestedBy: string;
+}): Promise<AdminActionState> {
+  const db: Database = getDb();
+  const seller = createConfiguredSeller(input.config.network);
+  const payer = createStaticPayer(input.config.network);
   const base = await origin();
   let paid = 0;
-  for (const eventId of eventIds) {
+  let alreadyUnlocked = false;
+  for (const eventId of input.eventIds) {
     try {
       const result = await unlockWithStaticPayer({
         db,
         eventId,
         buyer: { kind: 'admin' },
         resourceUrl: `${base}/api/v1/agent/events/${eventId}`,
-        config,
+        config: input.config,
         seller,
         payer,
       });
-      if (result.kind === 'unlocked' && !result.alreadyUnlocked) paid += 1;
+      if (result.kind === 'unlocked' && result.alreadyUnlocked) {
+        alreadyUnlocked = true;
+      } else if (result.kind === 'unlocked') {
+        paid += 1;
+      }
     } catch (error) {
-      revalidatePath(`/admin/devices/${deviceId}`);
+      revalidatePath(`/admin/devices/${input.deviceId}`);
       revalidatePath('/admin/payments');
       if (error instanceof ApplicationError) {
         return failed(
@@ -85,22 +143,28 @@ export async function fetchPaidTelemetryAction(
         );
       }
       log.error('admin.fetch_paid_failed', {
-        deviceId,
+        deviceId: input.deviceId,
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       return failed('The payment flow failed. Nothing more was paid.');
     }
   }
   log.info('admin.fetch_paid', {
-    deviceId,
+    deviceId: input.deviceId,
     paid,
-    requestedBy: `admin:${session.admin.username}`,
+    requestedBy: input.requestedBy,
   });
-  revalidatePath(`/admin/devices/${deviceId}`);
+  revalidatePath(`/admin/devices/${input.deviceId}`);
   revalidatePath('/admin/payments');
+  if (paid === 0 && alreadyUnlocked) {
+    return {
+      ok: true,
+      message: 'This record is already paid for. Nothing was charged.',
+    };
+  }
   return {
     ok: true,
-    message: `Paid ${formatUsdcAtomic(config.unlockPriceAtomic * BigInt(paid))} USDC for ${paid} event(s) through Circle Gateway.`,
+    message: `Paid ${formatUsdcAtomic(input.config.unlockPriceAtomic * BigInt(paid))} USDC for ${paid} event(s) through Circle Gateway.`,
   };
 }
 

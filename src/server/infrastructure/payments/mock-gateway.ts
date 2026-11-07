@@ -59,18 +59,28 @@ export function createMockGatewaySeller(
 }
 
 export function createMockGatewayBuyer(
-  options: { address?: string; gatewayAvailableAtomic?: bigint } = {},
+  options: {
+    address?: string;
+    gatewayAvailableAtomic?: bigint;
+    walletAtomic?: bigint;
+  } = {},
 ): GatewayBuyer {
   const address = options.address ?? MOCK_PAYER_ADDRESS;
+  const balances = {
+    walletAtomic: options.walletAtomic ?? 0n,
+    gatewayAvailableAtomic: options.gatewayAvailableAtomic ?? 10_000_000n,
+  };
   return {
     address,
     async getBalances() {
-      return {
-        walletAtomic: 0n,
-        gatewayAvailableAtomic: options.gatewayAvailableAtomic ?? 10_000_000n,
-      };
+      return { ...balances };
     },
-    async deposit() {
+    async deposit(amountAtomic) {
+      if (amountAtomic > balances.walletAtomic) {
+        throw new Error('Insufficient USDC balance.');
+      }
+      balances.walletAtomic -= amountAtomic;
+      balances.gatewayAvailableAtomic += amountAtomic;
       return { depositTxHash: `0x${'0'.repeat(64)}` };
     },
     async createPaymentSignatureHeader(body) {

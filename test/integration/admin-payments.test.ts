@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   adminUnlocksByEvent,
+  confirmedEventOnDevice,
   getPaymentTotals,
   listAdminPayments,
   unpaidAnchoredEventIds,
@@ -107,6 +108,16 @@ describe('admin payments', () => {
       events.map((e) => e.id),
     );
     expect([...byEvent.keys()]).toEqual([unpaid[0]]);
+    const anchored = events.find((event) => event.status === 'confirmed');
+    const queued = events.find((event) => event.status === 'queued');
+    if (anchored === undefined || queued === undefined) {
+      throw new Error('seed failed');
+    }
+    expect(await confirmedEventOnDevice(db, device.id, anchored.id)).toBe(true);
+    expect(await confirmedEventOnDevice(db, device.id, queued.id)).toBe(false);
+    expect(await confirmedEventOnDevice(db, randomUUID(), anchored.id)).toBe(
+      false,
+    );
   });
 
   it('totals revenue, settled amounts and buyers, and lists every payment', async () => {

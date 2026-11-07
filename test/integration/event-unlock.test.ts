@@ -19,7 +19,10 @@ import {
   devices,
   eventUnlocks,
 } from '@/server/infrastructure/db/schema';
-import type { GatewaySeller } from '@/server/infrastructure/payments/gateway';
+import type {
+  GatewayBuyer,
+  GatewaySeller,
+} from '@/server/infrastructure/payments/gateway';
 import {
   createMockGatewayBuyer,
   createMockGatewaySeller,
@@ -639,6 +642,41 @@ describe('unlockWithStaticPayer (dashboard / admin)', () => {
         payer: createMockGatewayBuyer({ gatewayAvailableAtomic: 0n }),
       }),
     ).rejects.toMatchObject({ code: 'STATIC_PAYER_INSUFFICIENT_FUNDS' });
+  });
+
+  it('deposits wallet USDC into Gateway when Gateway cannot cover the price', async () => {
+    const funded = createMockGatewayBuyer({
+      gatewayAvailableAtomic: 0n,
+      walletAtomic: 5_000_000n,
+    });
+    const deposits: bigint[] = [];
+    const payer: GatewayBuyer = {
+      address: funded.address,
+      getBalances: () => funded.getBalances(),
+      async deposit(amount) {
+        deposits.push(amount);
+        return funded.deposit(amount);
+      },
+      createPaymentSignatureHeader: (body) =>
+        funded.createPaymentSignatureHeader(body),
+    };
+    const { event } = await seedEvent();
+    const result = await unlockWithStaticPayer({
+      db,
+      eventId: event.id,
+      buyer: { kind: 'admin' },
+      resourceUrl: RESOURCE,
+      config,
+      seller: createMockGatewaySeller(),
+      payer,
+    });
+    expect(result.kind).toBe('unlocked');
+    // 1 USDC top-up, not only the 0.001 price, so the next unlock is a signature.
+    expect(deposits).toEqual([1_000_000n]);
+    await expect(funded.getBalances()).resolves.toEqual({
+      walletAtomic: 4_000_000n,
+      gatewayAvailableAtomic: 1_000_000n,
+    });
   });
 
   it("shows a v1 event's current record, marked as not committed", async () => {
