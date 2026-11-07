@@ -4,7 +4,10 @@ import { and, desc, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { displayNftTokenId } from '@/server/application/dashboard/display-mint-status';
-import { backfillTokenFromExplorer } from '@/server/application/verification/chain-event-index';
+import {
+  backfillTokenFromExplorer,
+  indexAnchoredBlocksFromRpc,
+} from '@/server/application/verification/chain-event-index';
 import {
   requestVerificationNow,
   verifyStoredDeviceEvent,
@@ -149,21 +152,36 @@ export async function syncDeviceFromChainAction(
       'This device has no DeviceNFT on the configured contract yet.',
     );
   }
-  const result = await backfillTokenFromExplorer(getDb(), BigInt(tokenId));
-  revalidatePath(`/admin/devices/${deviceId}`);
-  switch (result.status) {
-    case 'unconfigured':
-      return failed('No DeviceNFT contract is configured.');
-    case 'explorer_unavailable':
-      return failed(
-        result.reason === 'blocked'
-          ? 'The explorer API blocked this server (set ARC_EXPLORER_API_URL to a keyed endpoint). The forward scanner still indexes new events.'
-          : 'The explorer API did not answer. Try again later.',
-      );
-    case 'backfilled':
-      return {
-        ok: true,
-        message: `Found ${result.found} on-chain event(s) for token ${tokenId}; ${result.inserted} new.`,
-      };
+  const db = getDb();
+  const result = await backfillTokenFromExplorer(db, BigInt(tokenId));
+  if (result.status === 'backfilled') {
+    revalidatePath(`/admin/devices/${deviceId}`);
+    return {
+      ok: true,
+      message: `Found ${result.found} on-chain event(s) for token ${tokenId}; ${result.inserted} new.`,
+    };
   }
+  if (result.status === 'unconfigured') {
+    return failed('No DeviceNFT contract is configured.');
+  }
+  // The public explorer answers this server with a Cloudflare challenge.
+  // Read the blocks we already stored for this device instead: one block
+  // is within the RPC's log-range cap, and a wide scan is not.
+  const indexed = await indexAnchoredBlocksFromRpc(db, { deviceId });
+  revalidatePath(`/admin/devices/${deviceId}`);
+  if (indexed.status === 'unconfigured') {
+    return failed('No DeviceNFT contract is configured.');
+  }
+  if (indexed.failedBlocks > 0 && indexed.inserted === 0) {
+    return failed(
+      `The explorer did not answer, and the chain read failed for ${indexed.failedBlocks} anchored block(s).`,
+    );
+  }
+  const more = indexed.more
+    ? ' Some anchored blocks are still unread; sync again.'
+    : '';
+  return {
+    ok: true,
+    message: `Read ${indexed.blocksRead} anchored block(s) for token ${tokenId} from the chain and found ${indexed.found} event(s); ${indexed.inserted} new.${more}`,
+  };
 }

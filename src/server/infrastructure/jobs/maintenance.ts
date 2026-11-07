@@ -1,7 +1,10 @@
 import { closeStaleChargingSessions } from '@/server/application/telemetry/close-stale-charging-sessions';
 import { finalizeDueOdometerDays } from '@/server/application/telemetry/finalize-odometer-days';
 import { reconcileAcceptedUnlocks } from '@/server/application/unlocks/reconcile-settlements';
-import { scanChainForward } from '@/server/application/verification/chain-event-index';
+import {
+  indexAnchoredBlocksFromRpc,
+  scanChainForward,
+} from '@/server/application/verification/chain-event-index';
 import {
   enqueueDueVerifications,
   pruneFinishedVerificationJobs,
@@ -71,10 +74,33 @@ export async function runTelemetryMaintenance(
  * logged; the scan resumes from its cursor next time.
  */
 export async function runChainIndexing(db: Database): Promise<void> {
+  const deadline = Date.now() + CHAIN_SCAN_BUDGET_MS;
   try {
-    await scanChainForward(db, undefined, Date.now() + CHAIN_SCAN_BUDGET_MS);
+    await scanChainForward(db, undefined, deadline);
   } catch (error) {
     log.warn('maintenance.chain_scan_failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+    });
+  }
+  // Wide eth_getLogs ranges are rejected by some providers. Blocks we
+  // already recorded for confirmed events are one call each.
+  try {
+    const indexed = await indexAnchoredBlocksFromRpc(
+      db,
+      {},
+      undefined,
+      deadline,
+    );
+    if (indexed.status === 'indexed' && indexed.inserted > 0) {
+      log.info('maintenance.anchors_indexed', {
+        blocksRead: indexed.blocksRead,
+        found: indexed.found,
+        inserted: indexed.inserted,
+        more: indexed.more,
+      });
+    }
+  } catch (error) {
+    log.warn('maintenance.anchor_index_failed', {
       errorMessage: error instanceof Error ? error.message : String(error),
     });
   }

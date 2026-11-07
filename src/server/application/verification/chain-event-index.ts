@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, min, sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, min, notExists, sql } from 'drizzle-orm';
 
 import { getServerEnv } from '@/server/config/env';
 import {
@@ -20,6 +20,13 @@ const log = createServerLogger({ component: 'chain-event-index' });
 
 /** Per sweep: at most this many 2k-block requests (stays under RPC limits). */
 const MAX_SCAN_CHUNKS_PER_RUN = 10;
+
+/**
+ * Confirmed events we already stored, read one block at a time. A single
+ * block stays inside providers that reject wide `eth_getLogs` ranges, and
+ * one call indexes every DeviceEvent in that block.
+ */
+const MAX_ANCHOR_BLOCKS_PER_CALL = 100;
 
 /**
  * Each sweep re-reads this many blocks behind the cursor (~100 s on Arc).
@@ -207,4 +214,109 @@ export async function backfillTokenFromExplorer(
     via: 'explorer',
   });
   return { status: 'backfilled', found: result.logs.length, inserted };
+}
+
+export type AnchorIndexResult =
+  | { status: 'unconfigured' }
+  | {
+      status: 'indexed';
+      blocksRead: number;
+      found: number;
+      inserted: number;
+      failedBlocks: number;
+      /** More unmatched blocks exist than this call read. */
+      more: boolean;
+    };
+
+/**
+ * Index DeviceEvents at blocks this app already recorded, one block per
+ * RPC call. Used when the explorer will not return a token's full history.
+ * Idempotent: a block is skipped once every confirmed event in it is indexed.
+ */
+export async function indexAnchoredBlocksFromRpc(
+  db: Database,
+  input: { deviceId?: string } = {},
+  readerOverride?: DeviceEventChainReader,
+  deadline: number = Number.POSITIVE_INFINITY,
+): Promise<AnchorIndexResult> {
+  const env = getServerEnv();
+  const contract = env.DEVICE_NFT_CONTRACT_ADDRESS?.toLowerCase();
+  if (contract === undefined || !env.USE_ARC_NETWORK) {
+    return { status: 'unconfigured' };
+  }
+  const reader = readerOverride ?? createDeviceEventChainReader();
+  const chainId = reader.chainId;
+  const filters = [
+    eq(deviceEvents.status, 'confirmed'),
+    isNotNull(deviceEvents.blockNumber),
+    eq(deviceEvents.chainId, chainId),
+    sql`lower(${deviceEvents.contractAddress}) = ${contract}`,
+    notExists(
+      db
+        .select({ id: chainDeviceEvents.id })
+        .from(chainDeviceEvents)
+        .where(
+          and(
+            eq(chainDeviceEvents.chainId, chainId),
+            sql`lower(${chainDeviceEvents.transactionHash}) = lower(${deviceEvents.transactionHash})`,
+            eq(chainDeviceEvents.eventType, deviceEvents.eventType),
+            sql`lower(${chainDeviceEvents.dataHash}) = lower(${deviceEvents.payloadHash})`,
+          ),
+        ),
+    ),
+  ];
+  if (input.deviceId !== undefined) {
+    filters.push(eq(deviceEvents.deviceId, input.deviceId));
+  }
+  const rows = await db
+    .selectDistinct({ block: deviceEvents.blockNumber })
+    .from(deviceEvents)
+    .where(and(...filters))
+    .orderBy(asc(deviceEvents.blockNumber))
+    .limit(MAX_ANCHOR_BLOCKS_PER_CALL + 1);
+  const moreThanCap = rows.length > MAX_ANCHOR_BLOCKS_PER_CALL;
+  const blocks = rows.slice(0, MAX_ANCHOR_BLOCKS_PER_CALL);
+
+  let blocksRead = 0;
+  let found = 0;
+  let inserted = 0;
+  let failedBlocks = 0;
+  let unread = 0;
+  for (const row of blocks) {
+    if (row.block === null) {
+      continue;
+    }
+    if (Date.now() >= deadline) {
+      unread += 1;
+      continue;
+    }
+    try {
+      const logs = await reader.readDeviceEventLogs({
+        contractAddress: contract,
+        fromBlock: row.block,
+        toBlock: row.block,
+      });
+      blocksRead += 1;
+      found += logs.length;
+      inserted += await recordChainEvents(db, {
+        chainId,
+        logs,
+        via: 'scan',
+      });
+    } catch (error) {
+      failedBlocks += 1;
+      log.warn('chain_index.block_read_failed', {
+        block: row.block.toString(),
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return {
+    status: 'indexed',
+    blocksRead,
+    found,
+    inserted,
+    failedBlocks,
+    more: moreThanCap || unread > 0,
+  };
 }

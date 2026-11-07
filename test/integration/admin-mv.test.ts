@@ -7,6 +7,7 @@ import { getAdminDeviceDetail } from '@/server/application/admin/admin-device-de
 import { listAdminDevices } from '@/server/application/admin/admin-devices';
 import { listAdminRecords } from '@/server/application/admin/admin-records';
 import {
+  indexAnchoredBlocksFromRpc,
   recordChainEvents,
   scanChainForward,
   SCAN_OVERLAP_BLOCKS,
@@ -93,6 +94,8 @@ async function seedRecord(
     occurredAt?: Date;
     payloadHash?: string;
     blockNumber?: bigint;
+    chainId?: bigint;
+    contractAddress?: string;
   },
 ) {
   const [row] = await db
@@ -112,6 +115,8 @@ async function seedRecord(
             transactionHash: input.transactionHash ?? tx(),
             tokenId: '900',
             blockNumber: input.blockNumber ?? 5000n,
+            chainId: input.chainId,
+            contractAddress: input.contractAddress,
             confirmedAt: new Date(),
           }
         : {}),
@@ -207,6 +212,65 @@ describe('chain event index', () => {
     ranges.length = 0;
     await scanChainForward(db, reader, Date.now() - 1);
     expect(ranges).toHaveLength(0);
+  });
+
+  it('indexes a confirmed event from its own block and skips it next time', async () => {
+    const device = await seedDevice('908');
+    const transactionHash = tx();
+    await seedRecord(device.id, {
+      status: 'confirmed',
+      transactionHash,
+      blockNumber: 8100n,
+      chainId: CHAIN_ID,
+      contractAddress: CONTRACT,
+    });
+    const ranges: [bigint, bigint][] = [];
+    const reader: DeviceEventChainReader = {
+      chainId: CHAIN_ID,
+      rpcHost: 'rpc.test',
+      latestBlockNumber: async () => 9000n,
+      readBlock: async () => null,
+      readDeviceEventLogs: async ({ fromBlock, toBlock }) => {
+        ranges.push([fromBlock, toBlock]);
+        return [
+          chainLog({
+            tokenId: 908n,
+            blockNumber: fromBlock,
+            transactionHash,
+            dataHash: RECORD_HASH,
+            eventType: 2,
+          }),
+        ];
+      },
+      findTransactionBlock: async () => null,
+    };
+
+    const first = await indexAnchoredBlocksFromRpc(
+      db,
+      { deviceId: device.id },
+      reader,
+    );
+    expect(first).toMatchObject({
+      status: 'indexed',
+      blocksRead: 1,
+      found: 1,
+      inserted: 1,
+      failedBlocks: 0,
+      more: false,
+    });
+    expect(ranges).toEqual([[8100n, 8100n]]);
+
+    const second = await indexAnchoredBlocksFromRpc(
+      db,
+      { deviceId: device.id },
+      reader,
+    );
+    expect(second).toMatchObject({
+      status: 'indexed',
+      blocksRead: 0,
+      inserted: 0,
+    });
+    expect(ranges).toHaveLength(1);
   });
 });
 
