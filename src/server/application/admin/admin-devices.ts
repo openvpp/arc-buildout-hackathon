@@ -1,7 +1,10 @@
 import { and, count, desc, eq, inArray, max, sql } from 'drizzle-orm';
 
 import { ApplicationError } from '@/server/application/application-error';
-import { displayMintStatus } from '@/server/application/dashboard/display-mint-status';
+import {
+  displayMintStatus,
+  displayNftTokenId,
+} from '@/server/application/dashboard/display-mint-status';
 import {
   decodeLocationCursor as decodeCursor,
   encodeLocationCursor as encodeCursor,
@@ -143,7 +146,7 @@ export async function listAdminDevices(
         model: device.model,
         status: device.status,
         mintStatus: displayMintStatus(device.mintStatus, device.metadata),
-        tokenId: device.nftTokenId,
+        tokenId: displayNftTokenId(device.nftTokenId, device.metadata),
         ownerWallet,
         ownerAccount:
           owners.find((row) => row.walletId === device.walletId)?.account ??

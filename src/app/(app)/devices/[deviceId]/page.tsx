@@ -14,6 +14,7 @@ import {
 import { UnlockButton } from '@/features/unlocks/unlock-button';
 import { UnlockedRecord } from '@/features/unlocks/unlocked-record';
 import { formatUsdcAtomic } from '@/lib/payments/usdc';
+import { displayNftTokenId } from '@/server/application/dashboard/display-mint-status';
 import { unlockedContentForPrincipal } from '@/server/application/unlocks/list-unlocks';
 import {
   createStaticPayer,
@@ -142,7 +143,9 @@ export default async function DeviceDetailPage({
               <dt className="text-xs font-medium tracking-wide text-white/60 uppercase">
                 Token ID
               </dt>
-              <dd>{device.nftTokenId ?? '—'}</dd>
+              <dd>
+                {displayNftTokenId(device.nftTokenId, device.metadata) ?? '—'}
+              </dd>
             </div>
             <div>
               <dt className="text-xs font-medium tracking-wide text-white/60 uppercase">

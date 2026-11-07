@@ -22,7 +22,35 @@ export function displayMintStatus(
   return mintStatus;
 }
 
+/**
+ * Token shown for a device. This app's mint column wins. An imported
+ * vehicle keeps that column empty and stores the Arc token as
+ * `legacyArcNftTokenId`; the Base `nftTokenId` from the old export is
+ * never stored.
+ */
+export function displayNftTokenId(
+  nftTokenId: string | null,
+  metadata: unknown,
+): string | null {
+  if (nftTokenId !== null && nftTokenId.length > 0) {
+    return nftTokenId;
+  }
+  return legacyTokenId(metadata);
+}
+
 function legacyMintStatus(metadata: unknown): string | null {
+  return legacyField(metadata, 'legacyArcMintStatus');
+}
+
+function legacyTokenId(metadata: unknown): string | null {
+  const legacy = legacyField(metadata, 'legacyArcNftTokenId');
+  if (legacy === null || !/^\d+$/.test(legacy)) {
+    return null;
+  }
+  return legacy;
+}
+
+function legacyField(metadata: unknown, key: string): string | null {
   if (
     metadata === null ||
     typeof metadata !== 'object' ||
@@ -30,6 +58,10 @@ function legacyMintStatus(metadata: unknown): string | null {
   ) {
     return null;
   }
-  const legacy = (metadata as Record<string, unknown>).legacyArcMintStatus;
-  return typeof legacy === 'string' ? legacy : null;
+  const legacy = (metadata as Record<string, unknown>)[key];
+  if (typeof legacy !== 'string') {
+    return null;
+  }
+  const trimmed = legacy.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }

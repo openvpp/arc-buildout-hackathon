@@ -1,6 +1,9 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
-import { displayMintStatus } from '@/server/application/dashboard/display-mint-status';
+import {
+  displayMintStatus,
+  displayNftTokenId,
+} from '@/server/application/dashboard/display-mint-status';
 import { MIN_PUBLISHED_DAILY_KM } from '@/server/application/telemetry/device-event-payloads';
 import { findDailySeriesGaps } from '@/server/application/verification/verify-device-event';
 import {
@@ -132,7 +135,7 @@ export async function getAdminDeviceDetail(
 
   const chainId = BigInt(env.ARC_CHAIN_ID);
   const contract = env.DEVICE_NFT_CONTRACT_ADDRESS?.toLowerCase() ?? null;
-  const tokenId = device.nftTokenId;
+  const tokenId = displayNftTokenId(device.nftTokenId, device.metadata);
   const tokenLogs =
     tokenId === null || tokenId === '' || contract === null
       ? null

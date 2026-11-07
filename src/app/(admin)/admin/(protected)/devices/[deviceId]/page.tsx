@@ -26,6 +26,7 @@ import {
   getAdminDeviceDetail,
   type ReconciledRecord,
 } from '@/server/application/admin/admin-device-detail';
+import { displayNftTokenId } from '@/server/application/dashboard/display-mint-status';
 import { summarizeDeviceEvent } from '@/server/application/dashboard/list-device-events';
 import { getDb } from '@/server/infrastructure/db/client';
 
@@ -172,7 +173,10 @@ export default async function AdminDeviceDetailPage({
             value={`${device.provider} · ${device.externalDeviceId}`}
             mono
           />
-          <Field label="DeviceNFT token" value={device.nftTokenId} />
+          <Field
+            label="DeviceNFT token"
+            value={displayNftTokenId(device.nftTokenId, device.metadata)}
+          />
           <Field
             label="Owner account"
             value={detail.owner.account?.replace(/^circle:/, '') ?? null}
