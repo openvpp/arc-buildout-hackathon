@@ -3,6 +3,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
+import { displayNftTokenId } from '@/server/application/dashboard/display-mint-status';
 import { backfillTokenFromExplorer } from '@/server/application/verification/chain-event-index';
 import {
   requestVerificationNow,
@@ -129,13 +130,20 @@ export async function syncDeviceFromChainAction(
   const deviceId = String(formData.get('deviceId') ?? '');
   if (!UUID.test(deviceId)) return failed('Unknown device.');
   const [device] = await getDb()
-    .select({ tokenId: devices.nftTokenId })
+    .select({
+      nftTokenId: devices.nftTokenId,
+      metadata: devices.metadata,
+    })
     .from(devices)
     .where(eq(devices.id, deviceId))
     .limit(1);
   // '' (and anything non-numeric) means "not minted": BigInt('') is 0n,
-  // which would sync token #0's history into this device.
-  const tokenId = device?.tokenId ?? '';
+  // which would sync token #0's history into this device. Imported
+  // vehicles keep the Arc token in metadata, not nft_token_id.
+  const tokenId =
+    device === undefined
+      ? ''
+      : (displayNftTokenId(device.nftTokenId, device.metadata) ?? '');
   if (!/^\d+$/.test(tokenId)) {
     return failed(
       'This device has no DeviceNFT on the configured contract yet.',
