@@ -136,7 +136,7 @@ export default async function AdminDeviceDetailPage({
             <TransactionLink transactionHash={device.nftTransactionHash} />
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-start gap-2">
           <AdminActionButton
             action={verifyDeviceAction}
             fields={{ deviceId: device.id }}
